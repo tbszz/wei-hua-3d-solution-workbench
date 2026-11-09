@@ -1,0 +1,21 @@
+{
+  "id": "z1-1000-bz",
+  "model": "Z1-1000-BZ",
+  "glb": "z1-1000-bz.glb",
+  "manifest": "z1-1000-bz.manifest.json",
+  "thumbnail": "z1-1000-bz.thumb.webp",
+  "plate": "标牌 10t",
+  "summary": "四角驱动平板车，激光导航与急停各 4 个",
+  "note": "ranges 是临时值，等业务给出真实规格后改这里。bands 单位 m，height 以地面为 0。",
+  "extent": { "halfLength": 2.5, "halfWidth": 1, "height": 0.5125 },
+  "params": {
+    "length": { "label": "车长", "nominal": 5000, "min": 4200, "max": 8000, "step": 10 },
+    "width": { "label": "车宽", "nominal": 2000, "min": 1600, "max": 3000, "step": 10 },
+    "height": { "label": "车高", "nominal": 512.5, "min": 420, "max": 900, "step": 0.5 }
+  },
+  "bands": {
+    "length": { "inner": 0.79, "outer": 1.21, "mirrored": true },
+    "width": { "inner": 0.09, "outer": 0.31, "mirrored": true },
+    "height": { "inner": 0.085, "outer": 0.19, "mirrored": false }
+  }
+}

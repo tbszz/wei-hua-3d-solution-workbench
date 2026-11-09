@@ -1,0 +1,22 @@
+{
+  "id": "agv1",
+  "model": "AGV1",
+  "protrusion": 75,
+  "glb": "agv1.glb",
+  "manifest": "agv1.manifest.json",
+  "thumbnail": "agv1.thumb.webp",
+  "plate": "铭牌 1001 · 30t",
+  "summary": "四角驱动重载平板车，激光导航 4 个",
+  "note": "ranges 是临时值，等业务给出真实规格后改这里。bands 单位 m，height 以地面为 0。车长车宽按车身计，不含凸出的激光支架。",
+  "extent": { "halfLength": 1.4, "halfWidth": 0.75, "height": 0.3819 },
+  "params": {
+    "length": { "label": "车长", "nominal": 2800, "min": 2200, "max": 6000, "step": 10 },
+    "width": { "label": "车宽", "nominal": 1500, "min": 1200, "max": 2600, "step": 10 },
+    "height": { "label": "车高", "nominal": 381.9, "min": 360, "max": 700, "step": 0.1 }
+  },
+  "bands": {
+    "length": { "inner": 0.09, "outer": 0.95, "mirrored": true },
+    "width": { "inner": 0.09, "outer": 0.3, "mirrored": true },
+    "height": { "inner": 0.153, "outer": 0.178, "mirrored": false }
+  }
+}

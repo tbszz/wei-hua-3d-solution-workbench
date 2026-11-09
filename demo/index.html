@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AGV 方案演示</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="stage">
+      <canvas id="view" aria-label="AGV 三维模型和现场"></canvas>
+      <div id="labels" class="labels" aria-hidden="true"></div>
+      <div id="loading" class="loading">正在加载模型…</div>
+    </main>
+    <aside class="panel">
+      <header>
+        <p class="eyebrow">AGV 方案演示</p>
+        <h1 id="title">产品选型</h1>
+      </header>
+      <nav class="steps" aria-label="演示步骤">
+        <button type="button" data-step="select" aria-current="step">1 选型</button>
+        <button type="button" data-step="size">2 尺寸</button>
+        <button type="button" data-step="site">3 现场</button>
+      </nav>
+
+      <section id="step-select" class="step">
+        <ul id="catalog" class="catalog" aria-label="产品库"></ul>
+      </section>
+
+      <section id="step-size" class="step" hidden>
+        <div id="params" class="params" aria-label="车体尺寸"></div>
+        <button id="reset" class="action" type="button">恢复标准尺寸</button>
+        <div class="standards">
+          <h2>固定标品</h2>
+          <p class="hint">只跟随安装位置移动，尺寸不变。点击在模型上高亮。</p>
+          <ul id="standards"></ul>
+        </div>
+        <button id="to-site" class="action primary" type="button">放到现场运行</button>
+      </section>
+
+      <section id="step-site" class="step" hidden>
+        <div class="transport">
+          <button id="play" class="action" type="button">暂停</button>
+          <label class="speed">倍速
+            <select id="speed">
+              <option value="1">1×</option>
+              <option value="2">2×</option>
+              <option value="5" selected>5×</option>
+              <option value="10">10×</option>
+            </select>
+          </label>
+          <span id="clock" class="clock"></span>
+        </div>
+        <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="时间轴" />
+        <p id="status" class="status"></p>
+        <dl class="readout">
+          <div><dt>X</dt><dd id="r-x"></dd></div>
+          <div><dt>Y</dt><dd id="r-y"></dd></div>
+          <div><dt>航向</dt><dd id="r-h"></dd></div>
+          <div><dt>车速</dt><dd id="r-v"></dd></div>
+        </dl>
+        <p id="clearance" class="clearance"></p>
+        <div>
+          <h2>工艺流程</h2>
+          <ol id="stops" class="stops"></ol>
+        </div>
+        <div class="row">
+          <button type="button" class="action" data-view="overview" aria-pressed="true">总览</button>
+          <button type="button" class="action" data-view="follow" aria-pressed="false">跟随</button>
+          <button type="button" class="action" data-view="top" aria-pressed="false">俯视</button>
+        </div>
+        <div class="row">
+          <button id="export" class="action" type="button">导出图片</button>
+          <label class="action file">导入 DXF<input id="dxf" type="file" accept=".dxf" /></label>
+        </div>
+        <p id="source" class="hint"></p>
+      </section>
+      <footer id="stats" class="stats"></footer>
+    </aside>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
