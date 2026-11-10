@@ -423,6 +423,19 @@ test('project state keeps versions; chat history appends', async () => {
   assert.equal((await call('POST', `/api/projects/${id}/chat-history`, { role: 'robot', text: 'x' })).status, 400);
 });
 
+test('a stale window cannot overwrite a newer project state', async () => {
+  const id = 'stale-window';
+  const first = await call('PUT', `/api/projects/${id}/state`, { state: { placed: ['crane', 'agv'] }, baseVersion: 0 });
+  assert.equal(first.body.version, 1);
+  // Window A removes the crane; window B still holds version 1 with the crane in it.
+  assert.equal((await call('PUT', `/api/projects/${id}/state`, { state: { placed: ['agv'] }, baseVersion: 1 })).body.version, 2);
+  const stale = await call('PUT', `/api/projects/${id}/state`, { state: { placed: ['crane', 'agv'] }, baseVersion: 1 });
+  assert.equal(stale.status, 409);
+  assert.deepEqual((await call('GET', `/api/projects/${id}/state`)).body.state.placed, ['agv']);
+  // Writers that send no baseVersion keep the old last-write-wins behaviour.
+  assert.equal((await call('PUT', `/api/projects/${id}/state`, { state: { placed: [] } })).body.version, 3);
+});
+
 test('project state prunes to the last 50 versions', async () => {
   const id = 'prune-test';
   for (let i = 0; i < library.KEEP_VERSIONS + 5; i += 1) await library.saveProjectState(id, { i });

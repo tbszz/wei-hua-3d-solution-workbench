@@ -17,6 +17,8 @@ import { buildFromSpec, exportGlb, fileName } from './model-builder.js';
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const KIND = { model: '模型', site: '图纸', image: '图片', document: '文档' };
+// Names typed in chat mix full-width brackets and spaces ("起重机（2）"): compare them loosely.
+export const loose = (s) => String(s ?? '').normalize('NFKC').toLowerCase().replace(/\s+/g, '');
 const RAIL_TOP = 9.85; // top of the runway beam in a generated plant, metres
 const loader = new GLTFLoader();
 const STORE_KEY = 'wh.workspace.v1';
@@ -113,12 +115,17 @@ export class Library {
     this.ready = true;
     this.persistSoon();
     this.render();
+    this.watchOtherWindows();
   }
 
   async loadWorkspace() {
     try {
       const r = await getJson(WS_URL);
-      if (r?.state?.projects) return r.state;
+      if (Number.isInteger(r?.version)) this.version = r.version;
+      if (r?.state?.projects) {
+        this.savedJson = JSON.stringify(r.state);
+        return r.state;
+      }
     } catch {
       /* backend offline: use the browser copy */
     }
@@ -140,9 +147,103 @@ export class Library {
     }
     clearTimeout(this.saveTimer);
     if (!this.online) return;
-    this.saveTimer = setTimeout(() => {
-      fetch(WS_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: `{"state":${data}}` }).catch(() => {});
-    }, 700);
+    this.savePending = true;
+    this.saveTimer = setTimeout(() => this.flushSave(), 700);
+  }
+
+  // One PUT at a time, each carrying the version it was based on. The backend refuses (409) a write
+  // from a window that has not seen the latest save, so an old tab can no longer put back a model
+  // that was removed in another tab; this window then takes over the newer copy instead.
+  // `savedJson` is the content of `version`, so unchanged state is not re-saved, and a newer version
+  // whose content is still what this edit started from (another window re-saved the same thing) is
+  // simply built on instead of discarding the edit.
+  async flushSave() {
+    if (this.saveInFlight) {
+      this.saveAgain = true;
+      return;
+    }
+    this.savePending = false;
+    const data = JSON.stringify(this.ws);
+    if (data === this.savedJson) return;
+    this.saveInFlight = true;
+    let conflict = false;
+    try {
+      const base = Number.isInteger(this.version) ? `,"baseVersion":${this.version}` : '';
+      const r = await fetch(WS_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: `{"state":${data}${base}}` });
+      const body = await r.json().catch(() => ({}));
+      if (r.ok && Number.isInteger(body.version)) {
+        this.version = body.version;
+        this.savedJson = data;
+      }
+      conflict = r.status === 409;
+      if (conflict) {
+        const latest = await getJson(WS_URL).catch(() => null);
+        if (latest?.state && Number.isInteger(latest.version) && JSON.stringify(latest.state) === this.savedJson) {
+          this.version = latest.version;
+          conflict = false;
+          this.saveAgain = true;
+        }
+      }
+    } catch {
+      /* backend gone: the browser copy is still saved */
+    } finally {
+      this.saveInFlight = false;
+    }
+    if (conflict) {
+      this.saveAgain = false;
+      clearTimeout(this.saveTimer);
+      this.savePending = false;
+      await this.syncFromServer('conflict');
+    } else if (this.saveAgain) {
+      this.saveAgain = false;
+      this.flushSave();
+    }
+  }
+
+  // Another window (or the phone) saved a newer copy: load it and redraw this scene from it.
+  async syncFromServer(reason = 'remote') {
+    if (this.syncing || !this.ready) return false;
+    this.syncing = true;
+    try {
+      const r = await getJson(WS_URL);
+      if (!r?.state?.projects || !Number.isInteger(r.version)) return false;
+      if (reason !== 'conflict' && (r.version <= (this.version ?? 0) || this.savePending || this.saveInFlight)) return false;
+      this.version = r.version;
+      this.savedJson = JSON.stringify(r.state);
+      this.ready = false; // nothing is written back while the newer copy is being applied
+      this.ws = new Workspace(r.state);
+      this.ws.adopt({ products: this.products, assets: this.assets });
+      const errors = await this.applyScene(this.ws.activeScene);
+      this.ready = true;
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(this.ws));
+      } catch {
+        /* storage blocked */
+      }
+      this.render();
+      this.app.renderDock?.();
+      this.app.renderKpis?.();
+      this.app.toast(reason === 'conflict'
+        ? `这个项目在另一个窗口里改过（v${r.version}），已换成最新的；刚才这一步没有保存，需要的话请再做一次`
+        : `已同步另一个窗口里的修改（v${r.version}）${errors.length ? `，${errors.length} 项没能还原：${errors[0]}` : ''}`, reason === 'conflict' || errors.length > 0);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      this.ready = true;
+      this.syncing = false;
+    }
+  }
+
+  // While this window is visible, look for saves from other windows every few seconds and on focus.
+  watchOtherWindows() {
+    const check = () => {
+      if (document.visibilityState !== 'visible' || !this.online || !this.ready || this.savePending || this.saveInFlight || this.syncing) return;
+      this.syncFromServer('remote');
+    };
+    addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    setInterval(check, 4000);
   }
 
   // Write the live scene (drawing, overlay, placed models, AGV model) into the open scene record.
@@ -332,10 +433,22 @@ export class Library {
       return `<div class="row sc mod d1 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-module="${esc(s.kind)}" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的场景' : '点击打开这个场景'}">
         <span class="ico sc">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
         ${open ? '<span class="tag">打开中</span>' : '<span class="racts"><button class="go" data-act="open-scene">打开</button></span>'}
-      </div>`;
+      </div>${open ? this.placedRows() : ''}`;
     }).join('');
     const add = `<div class="addmod d1"><button type="button" data-act="add-module" title="添加一个场景（例如：吊具搭建、产线搭建）">${ICON.plus}<span>添加场景</span></button></div>`;
     return this.factoryBar(p) + head + mods + add + this.projectFolds(p);
+  }
+
+  // Models placed in the open scene, one row per model: click to locate, ✕ (or Delete / right-click)
+  // takes every copy out. Removing one copy is done on the model itself in the 3D view.
+  placedRows() {
+    return this.placedGroups().map((g) => {
+      const where = g.bays.size ? `${[...g.bays].join('、')} 跨行车轨道` : '地面';
+      return `<div class="row pl d2 ${this.sel === `pl:${g.id}` ? 'sel' : ''}" tabindex="-1" data-row="pl:${esc(g.id)}" data-kind="placed" data-id="${esc(g.id)}" data-focus="asset:${esc(g.id)}" title="点击定位到场景中；✕ 或 Delete 移出场景；在三维视图里右键单个模型可只删那一个">
+        <span class="ico">${ICON.box}</span><span class="nm"><b>${esc(g.name)}${g.count > 1 ? `<i class="kd">× ${g.count}</i>` : ''}</b><small>${where}</small></span>
+        <span class="racts"><button class="go" data-act="locate" title="定位到场景中">${ICON.locate}</button><button class="ib" data-act="unplace" title="从场景移出${g.count > 1 ? `（全部 ${g.count} 个）` : ''}">✕</button></span>
+      </div>`;
+    }).join('');
   }
 
   // The active project's own 产品库 and 文件, kept compact as two folds under the modules.
@@ -578,9 +691,16 @@ export class Library {
       case 'place':
         return this.place(id);
       case 'remove':
-        this.remove(id);
+      case 'unplace': {
+        const name = this.findPlaced(id)?.asset.name ?? id;
+        const keys = this.removeModel(id);
+        if (!keys.length) return undefined;
+        if (this.sel === `pl:${id}`) this.sel = null;
+        app.select?.(null);
         app.bump();
+        app.toast(`已把 ${name}${keys.length > 1 ? ` × ${keys.length}` : ''} 移出场景`);
         return undefined;
+      }
       case 'site':
         return this.loadSite(id);
       case 'unoverlay':
@@ -610,8 +730,9 @@ export class Library {
           if (e) app.toast(`已从「${ws.project(project).name}」产品库移除 ${this.product(e.productId)?.model ?? e.productId}（标准产品库不受影响）`);
         }
         if (kind === 'scene') return this.deleteScene(project, scene);
+        if (kind === 'placed') return this.doAct('unplace', info);
         if (kind === 'asset') {
-          if (project === ws.active.id) this.remove(id);
+          if (project === ws.active.id) this.removeModel(id);
           ws.removeAsset(project, id);
           app.toast(`已从「${ws.project(project).name}」文件中移除 ${this.asset(id)?.name ?? id}`);
         }
@@ -939,6 +1060,15 @@ export class Library {
           { sep: true },
           { label: '在当前场景选用', disabled: !prod || !this.usable(prod) || prod.id === SCENE_CRANE.id, act: run(async () => { this.addProduct(cur.id, info.id, { quiet: true }); await this.useProduct(info.id); }) },
           ...(use ? [{ label: '定位到场景中', act: () => this.app.focusObject(use.focus) }] : []),
+          ...(this.placedCount(info.id) ? [{ label: `从场景移出（${this.placedCount(info.id)} 个）`, danger: true, act: run(() => this.doAct('unplace', info)) }] : []),
+        ];
+      }
+      case 'placed': {
+        const n = this.placedCount(info.id);
+        return [
+          { label: '定位到场景中', act: () => this.app.focusObject(`asset:${info.id}`) },
+          { sep: true },
+          { label: n > 1 ? `从场景移出（全部 ${n} 个）` : '从场景移出', key: 'Del', danger: true, act: run(() => this.doAct('unplace', info)) },
         ];
       }
       case 'project': {
@@ -961,6 +1091,7 @@ export class Library {
         const prod = this.product(info.id);
         return [
           { label: isCur ? '在当前场景选用' : '切换到此项目并选用', disabled: !prod || !this.usable(prod), act: run(async () => { if (!isCur) await this.switchProject(info.project); await this.useProduct(info.id); }) },
+          ...(isCur && this.placedCount(info.id) ? [{ label: `从场景移出（${this.placedCount(info.id)} 个）`, danger: true, act: run(() => this.doAct('unplace', info)) }] : []),
           { label: '复制到项目', sub: projectsSub((pid) => this.addProduct(pid, info.id), { except: info.project, makeNew: () => this.newProjectWith(info.id) }) },
           { sep: true },
           { label: '重命名', key: 'F2', act: () => this.startRename(row) },
@@ -988,7 +1119,7 @@ export class Library {
         const isCur = info.project === cur.id;
         const items = [];
         if (ok && a.kind === 'model') {
-          if (isCur && this.placed.has(a.id)) items.push({ label: '定位到场景中', act: () => this.app.focusObject(`asset:${a.id}`) }, { label: '移出场景', act: run(() => { this.remove(a.id); this.app.bump(); }) });
+          if (isCur && this.placed.has(a.id)) items.push({ label: '定位到场景中', act: () => this.app.focusObject(`asset:${a.id}`) }, { label: '移出场景', act: run(() => this.doAct('unplace', info)) });
           else items.push({ label: isCur ? '放入当前场景' : '切换到此项目并放入', act: run(() => this.doAct('primary', info)) });
         }
         if (ok && a.kind === 'site') {
@@ -1280,6 +1411,8 @@ export class Library {
     const agvs = app.site?.agvCount;
     if (p.id === app.product?.id && agvs > 0) return { label: `${agvs} 台在场景中`, focus: 'agv', count: agvs };
     if (p.id === SCENE_CRANE.id && app.site.crane) return { label: '行车 #1 在场景中', focus: 'crane', count: 1 };
+    const n = this.placedCount(p.id);
+    if (n) return { label: `${n} 个在场景中`, focus: `asset:${p.id}`, count: n };
     return null;
   }
 
@@ -1344,10 +1477,58 @@ export class Library {
   }
 
   findPlaced(id) {
-    if (this.placed.has(id)) return this.placed.get(id);
-    const key = String(id ?? '').toLowerCase();
+    return this.placed.get(id) ?? this.matchPlaced(id).entries[0];
+  }
+
+  // The placed copies a chat name or id points at. An instance key (2#3) is that one copy; a model
+  // id or name is every copy of that model. When a partial name fits several models, nothing is
+  // picked and their names come back as candidates.
+  matchPlaced(id) {
+    const none = { entries: [], candidates: [] };
+    if (id === undefined || id === null || String(id).trim() === '') return none;
+    if (this.placed.has(id)) return { entries: [this.placed.get(id)], candidates: [] };
     const list = [...this.placed.values()];
-    return list.find((p) => p.asset.id === id) ?? list.find((p) => p.asset.name.toLowerCase().includes(key) || key.includes(p.asset.name.toLowerCase()));
+    const key = loose(id);
+    const inst = list.find((p) => loose(p.key) === key);
+    if (inst) return { entries: [inst], candidates: [] };
+    const ofModel = (mid) => ({ entries: list.filter((p) => p.asset.id === mid), candidates: [] });
+    const models = [...new Map(list.map((p) => [p.asset.id, p.asset])).values()];
+    const exact = models.find((m) => loose(m.id) === key || loose(m.name) === key);
+    if (exact) return ofModel(exact.id);
+    // "起重机(2)的模型" contains a model name: the longest contained name wins (钢卷鞍座 over 钢卷).
+    const inside = models.filter((m) => loose(m.name) && key.includes(loose(m.name))).sort((a, b) => loose(b.name).length - loose(a.name).length);
+    if (inside.length) return ofModel(inside[0].id);
+    const around = models.filter((m) => loose(m.name).includes(key));
+    if (around.length === 1) return ofModel(around[0].id);
+    return { entries: [], candidates: around.map((m) => m.name) };
+  }
+
+  // Placed models grouped by model: what the left tree and 小华 list as "in the scene".
+  placedGroups() {
+    const groups = new Map();
+    for (const p of this.placed.values()) {
+      const g = groups.get(p.asset.id) ?? { id: p.asset.id, name: p.asset.name, count: 0, bays: new Set() };
+      g.count += 1;
+      if (p.mount === 'runway' && p.bay) g.bays.add(p.bay);
+      groups.set(p.asset.id, g);
+    }
+    return [...groups.values()];
+  }
+
+  placedSummary() {
+    return this.placedGroups().map((g) => `${g.name}${g.count > 1 ? ` ×${g.count}` : ''}`).join('、') || '无';
+  }
+
+  // Remove several placed copies at once; returns their instance keys.
+  removeMany(entries) {
+    const keys = [];
+    for (const e of entries) if (this.remove(e.key)) keys.push(e.key);
+    return keys;
+  }
+
+  // Every copy of one model.
+  removeModel(assetId) {
+    return this.removeMany([...this.placed.values()].filter((p) => p.asset.id === assetId));
   }
 
   // Load a model, scale it to a sane size and stand it on the floor (or on a crane runway).

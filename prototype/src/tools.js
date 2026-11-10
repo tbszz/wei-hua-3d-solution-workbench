@@ -40,7 +40,7 @@ export const SCHEMAS = [
     size_m: { type: 'number' },
     elevation_m: { type: 'number' },
   }, ['asset']),
-  fn('remove_asset', '把已放进场景的模型实例移出；asset=all 清空全部。', { asset: { type: 'string' } }, ['asset']),
+  fn('remove_asset', '把已放进场景的模型移出（从三维场景和左侧 AI3D工厂 一起删掉）。asset 填实例 id（如 2#3，只删这一个）、模型名称或模型 id（删掉这个模型的全部实例，如「起重机(2)」），或 all 清空全部。', { asset: { type: 'string' } }, ['asset']),
   fn('add_to_product_library', '把场景库里上传好的模型登记进产品库（之后在产品库里能看到并直接放入场景）。', {
     asset: { type: 'string', description: '场景库模型 id 或名称' },
     model: { type: 'string', description: '产品型号 / 显示名，默认用文件名' },
@@ -530,10 +530,21 @@ export function createTools(app) {
         app.bump();
         return { result: { 已移出: ids }, chip: `清空 ${ids.length} 个模型` };
       }
-      const key = app.library.remove(asset);
-      if (!key) throw new Error(`场景里没有 ${asset}。已放入：${app.library.placedList().map((p) => p.id).join('、') || '无'}`);
+      // An instance id (2#3) removes that copy; a model id or name removes every copy of it.
+      const lib = app.library;
+      const { entries, candidates } = lib.matchPlaced(asset);
+      if (!entries.length) {
+        if (candidates.length > 1) throw new Error(`「${asset}」能对上好几个模型：${candidates.join('、')}，请说清是哪一个`);
+        throw new Error(`场景里没有 ${asset}。已放入：${lib.placedSummary()}（实例 id 见 已放入模型）`);
+      }
+      const name = entries[0].asset.name;
+      const keys = lib.removeMany(entries);
+      app.select?.(null);
       app.bump();
-      return { result: { 已移出: key }, chip: `移出 ${key}` };
+      return {
+        result: { 已移出: keys, 模型: name, 个数: keys.length, 场景里还有: lib.placedSummary(), 说明: '场景、左侧 AI3D工厂 和存档已同步更新' },
+        chip: `移出 ${name}${keys.length > 1 ? ` × ${keys.length}` : ''}`,
+      };
     },
 
     add_to_product_library: async ({ asset, model, name, category }) => {

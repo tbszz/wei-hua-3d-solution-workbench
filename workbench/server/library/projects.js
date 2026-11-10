@@ -22,11 +22,16 @@ export async function getProjectState(projectId) {
   return current ?? { version: 0, state: null, updatedAt: null };
 }
 
-export async function saveProjectState(projectId, state) {
+// baseVersion (optional): the version the writer last loaded or saved. When another window has saved
+// since, the write is refused (409) instead of silently putting the older copy back.
+export async function saveProjectState(projectId, state, { baseVersion } = {}) {
   if (state === undefined) throw new LibraryError(400, '缺少 state 字段');
   const dir = projectDir(projectId);
   return serialize(`project:${dir}`, async () => {
     const current = await readJson(path.join(dir, 'state.json'), { version: 0 });
+    if (Number.isInteger(baseVersion) && baseVersion !== (Number(current.version) || 0)) {
+      throw new LibraryError(409, `项目已在别的窗口更新到 v${current.version}（这里是 v${baseVersion}），没有覆盖`);
+    }
     const record = { version: (Number(current.version) || 0) + 1, state, updatedAt: new Date().toISOString() };
     await writeJsonAtomic(versionFile(dir, record.version), record);
     await writeJsonAtomic(path.join(dir, 'state.json'), record);

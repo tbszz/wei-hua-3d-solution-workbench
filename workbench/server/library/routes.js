@@ -111,7 +111,7 @@ export function createLibraryRouter() {
   // Project state for the browser engine
   router.get('/api/projects/:id/state', handle(async (req, res) => res.json(await library.getProjectState(req.params.id))));
   router.put('/api/projects/:id/state', json, handle(async (req, res) => {
-    const record = await library.saveProjectState(req.params.id, req.body?.state);
+    const record = await library.saveProjectState(req.params.id, req.body?.state, { baseVersion: req.body?.baseVersion });
     res.json({ ok: true, version: record.version, updatedAt: record.updatedAt });
   }));
   router.get('/api/projects/:id/state/versions', handle(async (req, res) => res.json({ ok: true, versions: await library.listProjectStateVersions(req.params.id) })));

@@ -370,7 +370,7 @@ app.zoomExtents = () => {
   frameBox(new THREE.Box3().setFromCenterAndSize(c, new THREE.Vector3(size.x, 10, size.y)), '缩放至全部（ZE）');
 };
 app.zoomSelected = () => {
-  const roots = selectables().filter((s) => s.key === selection.key).map((s) => s.root);
+  const roots = selectables().filter((s) => matches(s, selection.key)).map((s) => s.root);
   if (!roots.length) return app.toast('没有选取物件，先左键点选一个设备', true);
   const box = new THREE.Box3();
   for (const r of roots) box.expandByObject(r);
@@ -384,16 +384,22 @@ const selection = { key: null, helpers: [] };
 function selectables() {
   const list = (site.carriers ?? [site.carrier]).filter(Boolean).map((root, i) => ({ key: 'agv', root, name: `${app.product?.model ?? 'AGV'}${site.agvCount > 1 ? ` #${i + 1}` : ''}` }));
   if (site.crane) list.push({ key: 'crane', root: site.crane.root, name: '行车 #1 · 双梁桥式起重机（示意）' });
-  for (const p of app.library?.placed.values() ?? []) list.push({ key: `asset:${p.asset.id}`, root: p.root, name: p.asset.name });
+  // A placed model: each copy is its own pick (inst:2#3); asset:2 (from the left tree) is all copies.
+  const lib = app.library;
+  for (const p of lib?.placed.values() ?? []) {
+    const copy = p.key.includes('#') ? ` ${p.key.slice(p.key.indexOf('#'))}` : lib.placedCount(p.asset.id) > 1 ? ' #1' : '';
+    list.push({ key: `inst:${p.key}`, group: `asset:${p.asset.id}`, root: p.root, name: `${p.asset.name}${copy}`, entry: p });
+  }
   return list;
 }
+const matches = (s, key) => Boolean(key) && (s.key === key || s.group === key);
 app.select = (key) => {
   for (const h of selection.helpers) {
     h.removeFromParent();
     h.dispose();
   }
   selection.helpers = [];
-  const hits = key ? selectables().filter((s) => s.key === key) : [];
+  const hits = key ? selectables().filter((s) => matches(s, key)) : [];
   selection.key = hits.length ? key : null;
   for (const s of hits) {
     const h = new THREE.BoxHelper(s.root, 0xffd21f);
@@ -404,8 +410,32 @@ app.select = (key) => {
     site.scene.add(h);
     selection.helpers.push(h);
   }
-  app.library?.reveal(selection.key);
+  app.library?.reveal(hits[0]?.group ?? selection.key);
   return hits[0] ?? null;
+};
+// Take a placed model out of the scene: inst:<key> is one copy, asset:<id> every copy. The AGVs and
+// the crane belong to the process plan and stay.
+app.removeObject = (key = selection.key) => {
+  const lib = app.library;
+  if (!key || !lib) return false;
+  let name;
+  let keys = [];
+  if (key.startsWith('inst:')) {
+    const entry = lib.placed.get(key.slice(5));
+    name = entry ? selectables().find((s) => s.key === key)?.name ?? entry.asset.name : null;
+    if (entry) keys = lib.removeMany([entry]);
+  } else if (key.startsWith('asset:')) {
+    name = lib.findPlaced(key.slice(6))?.asset.name;
+    keys = lib.removeModel(key.slice(6));
+  } else {
+    app.toast('AGV 和行车是方案设备，不能在这里删除；台数在「生产节拍」或让小华调整', true);
+    return false;
+  }
+  if (!keys.length) return false;
+  app.select(null);
+  app.bump();
+  app.toast(`已把 ${name}${keys.length > 1 ? ` × ${keys.length}` : ''} 移出场景`);
+  return true;
 };
 function updateSelection() {
   if (!selection.key) return;
@@ -438,13 +468,18 @@ view.addEventListener('pointerdown', (e) => {
 // never opens the browser menu, wherever it is released. Cancelling pointerdown also suppresses the
 // legacy mousedown/mouseup that page-level mouse-gesture scripts listen for.
 let rightDrag = 0;
+const rightStart = { x: 0, y: 0, t: 0 };
 addEventListener('pointerdown', (e) => {
   if (e.button !== 2 || e.target !== canvas) return;
   e.preventDefault();
   rightDrag = Infinity;
+  Object.assign(rightStart, { x: e.clientX, y: e.clientY, t: performance.now() });
 }, true);
 addEventListener('pointerup', (e) => {
-  if (e.button === 2 && rightDrag === Infinity) rightDrag = performance.now() + 400;
+  if (e.button !== 2 || rightDrag !== Infinity) return;
+  rightDrag = performance.now() + 400;
+  // A right click that did not drag (and was not held to rotate) opens the scene menu instead.
+  if (Math.hypot(e.clientX - rightStart.x, e.clientY - rightStart.y) <= 5 && performance.now() - rightStart.t < 600) openSceneMenu(e.clientX, e.clientY);
 }, true);
 for (const type of ['contextmenu', 'auxclick']) {
   addEventListener(type, (e) => {
@@ -465,20 +500,60 @@ app.floorAt = (cx, cy) => {
   if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return null;
   return { x: p.x * 1000, y: -p.z * 1000 };
 };
-canvas.addEventListener('pointerup', (e) => {
-  if (e.button !== 0 || !pickStart.on) return;
-  pickStart.on = false;
-  if (Math.hypot(e.clientX - pickStart.x, e.clientY - pickStart.y) > 5) return;
+// The pickable object (AGV, crane, placed model copy) under a window position, or null.
+function pickAt(cx, cy) {
   const r = canvas.getBoundingClientRect();
-  raycaster.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
   const items = selectables();
   const hit = raycaster.intersectObjects(items.map((s) => s.root), true).find((h) => h.object.visible);
   let found = null;
   for (let o = hit?.object; o && !found; o = o.parent) found = items.find((s) => s.root === o);
+  return found;
+}
+canvas.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || !pickStart.on) return;
+  pickStart.on = false;
+  if (Math.hypot(e.clientX - pickStart.x, e.clientY - pickStart.y) > 5) return;
+  const found = pickAt(e.clientX, e.clientY);
   if (!found) return void app.select(null);
   app.select(found.key);
-  app.toast(`已选取 ${found.name}（ZS 回车缩放至选取，Esc 取消）`);
+  app.toast(`已选取 ${found.name}（ZS 回车缩放至选取，右键或 Delete 删除，Esc 取消）`);
 });
+
+// Right click on the scene: what can be done with the object under the pointer (delete it, frame it).
+function openSceneMenu(cx, cy) {
+  const lib = app.library;
+  if (!lib) return;
+  const found = pickAt(cx, cy);
+  if (found) app.select(found.key);
+  let items;
+  if (found?.entry) {
+    const n = lib.placedCount(found.entry.asset.id);
+    items = [
+      { lab: found.name },
+      { label: '缩放至选取', key: 'ZS', act: () => app.zoomSelected() },
+      { label: '在左侧列表中显示', act: () => { app.cards?.open('secFactory'); lib.reveal(found.group); } },
+      { sep: true },
+      { label: n > 1 ? '删除（只删这一个）' : '删除', hint: '从场景移出', key: 'Del', danger: true, act: () => app.removeObject(found.key) },
+      ...(n > 1 ? [{ label: `删除全部 ${n} 个「${found.entry.asset.name}」`, danger: true, act: () => app.removeObject(found.group) }] : []),
+    ];
+  } else if (found) {
+    items = [
+      { lab: found.name },
+      { label: '缩放至选取', key: 'ZS', act: () => app.zoomSelected() },
+      { label: found.key === 'agv' ? '跟随 AGV' : '行车视角', act: () => app.focusObject(found.key) },
+      { sep: true },
+      { label: '方案设备，不能删除', hint: '台数在「生产节拍」或让小华调整', disabled: true },
+    ];
+  } else {
+    items = [
+      { label: '缩放至全部', key: 'ZE', act: () => app.zoomExtents() },
+      ...(selection.key ? [{ label: '取消选取', key: 'Esc', act: () => app.select(null) }] : []),
+      ...(lib.placed.size ? [{ sep: true }, { lab: `场景里有 ${lib.placed.size} 个模型，右键点模型可以删除` }] : []),
+    ];
+  }
+  lib.openMenu(null, cx, cy, items);
+}
 
 // Command line: type a Rhino command or alias, Enter/Space runs it, Enter on an empty line repeats.
 const COMMANDS = {
@@ -528,7 +603,7 @@ helpEl.innerHTML = `<header><b>快捷键 · 犀牛 Rhino 习惯</b><button type=
 <p><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>旋转视图</p><p><kbd>Shift</kbd>+方向键 平移</p><p><kbd>PgUp</kbd>/<kbd>PgDn</kbd>缩放</p>
 <p><kbd>Home</kbd>/<kbd>End</kbd>上一个 / 下一个视图</p><p><kbd>Ctrl</kbd>+<kbd>F1</kbd>俯视　<kbd>Ctrl</kbd>+<kbd>F2</kbd>前视　<kbd>Ctrl</kbd>+<kbd>F3</kbd>右视</p>
 <p><kbd>Ctrl</kbd>+<kbd>F4</kbd> 在浏览器里会关闭标签页，透视请用命令 <kbd>Perspective</kbd> 或「总览」按钮</p><p><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>缩放至全部</p>
-<p><kbd>Esc</kbd>取消命令 / 取消选取</p><p><kbd>Delete</kbd>移出选中的上传模型</p>
+<p><kbd>Esc</kbd>取消命令 / 取消选取</p><p><kbd>Delete</kbd>移出选中的模型（也可在模型上点右键删除）</p>
 <h5>命令行（直接打字，回车或空格执行；空行回车重复上一条）</h5>
 <p><kbd>ZE</kbd>缩放至全部　<kbd>ZS</kbd>缩放至选取</p><p><kbd>Top</kbd> <kbd>Front</kbd> <kbd>Right</kbd> <kbd>Perspective</kbd>切换视图</p><p><kbd>SelNone</kbd>取消选取　<kbd>Hide</kbd>/<kbd>Show</kbd>隐藏 / 显示面板</p>
 <h5>本工作台</h5>
@@ -605,11 +680,7 @@ addEventListener('keydown', (e) => {
     return;
   }
   if (k === 'Delete' && selection.key) {
-    if (selection.key.startsWith('asset:')) {
-      app.library.remove(selection.key.slice(6));
-      app.select(null);
-      app.toast('已把选中的模型移出场景');
-    } else app.toast('AGV 和行车是方案设备，不能删除', true);
+    app.removeObject(selection.key);
     return;
   }
   if (/^[a-z]$/i.test(k)) {
