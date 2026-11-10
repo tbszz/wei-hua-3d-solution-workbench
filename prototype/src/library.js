@@ -475,6 +475,9 @@ export class Library {
 
   onClick(e) {
     this.closeMenu();
+    // No click fires during a real drag, so a drag still on record here is stale (its dragend never
+    // reached us). Left set, it blocks render() for good and every tab / fold click looks dead.
+    if (this.drag) this.endDrag();
     const cat = e.target.closest('[data-cat]');
     if (cat) {
       this.cat = cat.dataset.cat;
@@ -1282,11 +1285,14 @@ export class Library {
 
   // A selection in the viewport lights up its rows in the tree.
   reveal(kind) {
-    if (kind === 'agv' || kind === 'crane') {
-      if (this.cat !== kind) {
-        this.cat = kind;
-        this.render();
-      }
+    // Only a NEW selection flips the product tabs. The highlight is re-attached whenever the AGVs or
+    // crane are rebuilt (which re-runs this with the same kind); flipping then would undo the tab the
+    // user just picked, so the 起重机 / 其他 tabs looked dead while an AGV was selected.
+    const fresh = kind !== this.revealed;
+    this.revealed = kind;
+    if (fresh && (kind === 'agv' || kind === 'crane') && this.cat !== kind) {
+      this.cat = kind;
+      this.render();
     }
     let first = null;
     for (const el of this.qa('.row[data-focus]')) {

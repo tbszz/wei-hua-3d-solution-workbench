@@ -1,10 +1,24 @@
-// A plant generated from any factory drawing: no AGV process, just the building, its crane
-// bays and a construction sequence (ground -> columns -> runway -> cranes -> envelope ->
-// equipment -> roof) that plays on the same step list and timeline as the process.
+// A plant generated from any factory drawing: the building, its crane bays and a construction
+// sequence (ground -> columns -> runway -> cranes -> envelope -> equipment -> roof), then the
+// AGV + crane process in one of its bays (scene-flow.js): the AGV runs its loop, the bay's crane
+// takes the coil at the hand-off stand and puts it down in the finished-goods area. Build and
+// process share one step list and timeline; after the build the process loops.
 import * as THREE from 'three';
-import { buildCrane, buildPlant, updateCutaway } from '../../demo/src/scene/build-scene.js';
+import { PALLET, RAIL, buildCargoObject, buildCrane, buildPlant, updateCutaway } from '../../demo/src/scene/build-scene.js';
 import { inferPlant } from '../../demo/src/scene/infer-plant.js';
+import { MOTION, buildTimeline } from '../../demo/src/scene/route.js';
 import { Site } from '../../demo/src/scene/site.js';
+import { buildCoil, buildCrane as buildWorkingCrane } from './crane.js';
+import { ProcessSite } from './engine.js';
+import { CRANE_MOTION, COIL, composeProcess, cranePoseAt, efficiency, ganttBlocks, planCrane, travelStats } from './process.js';
+import { planSceneFlow } from './scene-flow.js';
+
+// Coil centre above the cargo object's origin (as in engine.js).
+const COIL_CENTRE = PALLET.thickness + 0.03 + 0.22 + 0.8 - 0.18;
+const SADDLE = 0.15;
+const RUNWAY_TOP = 9.4 + 0.45;
+// The process runs this many times faster than the build, so a cycle reads in about two minutes.
+const PROCESS_PACE = 3;
 
 const easeOut = (k) => 1 - (1 - k) ** 3;
 const easeBack = (k) => {
@@ -20,6 +34,20 @@ export class SceneSite extends Site {
 
   window = null;
 
+  agvCount = 1;
+
+  motion = { ...MOTION };
+
+  craneMotion = structuredClone(CRANE_MOTION);
+
+  roles = { pick: 'RM-01', handoff: 'H-01', drop: 'FG-01', home: 'CHG-01' };
+
+  flow = null;
+
+  target = null;
+
+  travelVisible = false;
+
   // Copy the HDR environment and textures from the site that already loaded them.
   share(from) {
     this.scene.environment = from.scene.environment;
@@ -28,8 +56,18 @@ export class SceneSite extends Site {
     this.contact.visible = false;
   }
 
-  loadDrawing(text, sourceName, asset = null) {
+  loadDrawing(text, sourceName, asset = null, { bay = null } = {}) {
     const { plant, summary, bays, bounds, alongX } = inferPlant(text, sourceName);
+    // Lay the AGV loop and its stands into the plant before it is built, so they go up with it.
+    this.flow = null;
+    this.flowError = null;
+    try {
+      this.flow = planSceneFlow({ plant, bays, alongX, prefer: bay });
+      plant.paths.push(...this.flow.paths);
+      plant.stations.push(...this.flow.stations);
+    } catch (error) {
+      this.flowError = error.message;
+    }
     if (this.built) {
       this.scene.remove(this.built.group);
       this.built.group.traverse((o) => o.geometry?.dispose());
@@ -44,14 +82,141 @@ export class SceneSite extends Site {
     this.built = buildPlant(plant, this.textures);
     this.scene.add(this.built.group);
     this.timeline = { scene: true };
-    this.process = { steps: this.buildSteps() };
-    this.duration = this.process.steps.at(-1).t1;
+    const steps = this.buildSteps();
+    this.buildEnd = steps.at(-1).t1;
+    this.process = { steps };
+    this.duration = this.buildEnd;
     this.time = 0;
     this.playing = true;
     this.window = null;
     this.hiddenCranes = new Set();
+    if (this.flow) this.setupFlow();
     this.placeSun();
     this.renderPose();
+  }
+
+  // AGV timeline, cargo, the bay's working crane, the finished-goods saddle and the five process
+  // steps, appended after the build steps.
+  setupFlow() {
+    const f = this.flow;
+    this.runway = { low: f.ra, high: f.rb };
+    this.buildFlowTimeline();
+    // The working crane rolls in with the 行车就位 stage; the bay's sketch crane makes way for it.
+    const stages = this.built.stages;
+    const holder = (stage) => {
+      const g = new THREE.Group();
+      g.position.copy(stages[stage].children[0].position);
+      stages[stage].add(g);
+      return g;
+    };
+    this.crane = buildWorkingCrane({ railLow: f.crane.railLow, railHigh: f.crane.railHigh, railTop: RUNWAY_TOP });
+    this.crane.root.rotation.y = f.crane.rotation;
+    holder('crane').add(this.crane.root);
+    this.setCraneHidden(f.bay.name, true);
+    // Two saddles, a floor mark and the landed coil, turned like the crane (coil axis along the runway).
+    const drop = f.points.drop;
+    const yard = new THREE.Group();
+    yard.position.set(drop.x / 1000, 0, -drop.y / 1000);
+    yard.rotation.y = f.crane.rotation;
+    holder('equip').add(yard);
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2a2c30, metalness: 0.3, roughness: 0.6 });
+    for (const z of [0, -2.2]) {
+      for (const dx of [-0.45, 0.45]) {
+        const saddle = new THREE.Mesh(new THREE.BoxGeometry(0.3, SADDLE * 2, 1.4), dark);
+        saddle.position.set(dx, SADDLE, z);
+        saddle.castShadow = saddle.receiveShadow = true;
+        yard.add(saddle);
+      }
+    }
+    const mark = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 5).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xd7000f, transparent: true, opacity: 0.12, depthWrite: false }));
+    mark.position.set(0, 0.012, -1.1);
+    yard.add(mark);
+    this.fgCoil = buildCoil();
+    this.fgCoil.position.set(0, SADDLE + COIL.diameter / 2000, 0);
+    yard.add(this.fgCoil);
+    const previous = buildCoil();
+    previous.position.set(0, SADDLE + COIL.diameter / 2000, -2.2);
+    yard.add(previous);
+    this.replan();
+  }
+
+  // AGV timeline and its cargo objects (again after an AGV speed change).
+  buildFlowTimeline() {
+    for (const { object } of this.cargoObjects ?? []) this.scene.remove(object);
+    this.timeline = buildTimeline(this.plant, this.motion);
+    this.cargoObjects = this.timeline.cargo.map((item) => {
+      const object = buildCargoObject(item.kind);
+      const coilParts = object.children.filter((c) => c.geometry?.type === 'CylinderGeometry' || c.geometry?.type === 'RingGeometry');
+      this.scene.add(object);
+      return { item, object, coilParts };
+    });
+  }
+
+  replan() {
+    const f = this.flow;
+    const unload = this.timeline.steps.find((s) => s.type === 'dwell' && s.kind === 'unload');
+    const pickZ = ((this.deckHeight ?? 0.4) + RAIL.raised + COIL_CENTRE) * 1000;
+    const dropZ = (SADDLE + COIL.diameter / 2000) * 1000;
+    this.cranePlan = planCrane({ home: f.crane.home, pick: { ...f.crane.pick, z: pickZ }, drop: { ...f.crane.drop, z: dropZ }, ready: unload.t1, motion: this.craneMotion });
+    const flow = composeProcess(this.timeline, this.cranePlan, this.roles);
+    this.flowDuration = flow.duration;
+    this.efficiency = efficiency(this.timeline, this.cranePlan, { agvCount: this.agvCount, target: this.target });
+    this.gantt = ganttBlocks(this.timeline, this.cranePlan, this.flowDuration);
+    this.travel = travelStats(this.timeline, this.cranePlan);
+    const T = this.buildEnd;
+    const build = this.process.steps.filter((s) => s.device === '建造');
+    const steps = [...build];
+    for (const s of flow.steps) steps.push({ ...s, local: s.n, n: steps.length + 1, t0: s.t0 + T, t1: s.t1 + T });
+    this.process = { steps };
+    this.duration = T + this.flowDuration;
+    // The AGV, its coil and the stands show up once the equipment stage is in.
+    this.flowVisibleAt = build.find((s) => s.stage === 'equip')?.t1 ?? T;
+    this.summary.工序 = `${f.bay.name} 跨：AGV 环线 ${(f.loopLength / 1000).toFixed(0)} m + 行车吊运，单循环 ${this.flowDuration.toFixed(0)} s`;
+    if (this.time > this.duration) this.time = T;
+    this.buildTravelLines();
+  }
+
+  setAgvCount(count) {
+    this.agvCount = Math.max(1, Math.min(4, Math.round(Number(count) || 1)));
+    this.syncVehicleFleet(this.agvCount);
+    if (this.flow) this.replan();
+  }
+
+  setMotion({ agvSpeed, bridgeSpeed, trolleySpeed, hoistSpeed, travelHeight }) {
+    if (agvSpeed) this.motion.laneSpeed = agvSpeed;
+    if (bridgeSpeed) this.craneMotion.bridge.speed = bridgeSpeed;
+    if (trolleySpeed) this.craneMotion.trolley.speed = trolleySpeed;
+    if (hoistSpeed) this.craneMotion.hoist.speed = hoistSpeed;
+    if (travelHeight) this.craneMotion.travelHeight = travelHeight;
+    if (!this.flow) return;
+    if (agvSpeed) this.buildFlowTimeline();
+    this.replan();
+  }
+
+  // Crane plan point (mm) to world metres; the plan frame is turned with the crane.
+  hookPoint(p) {
+    return this.flow.alongX ? [p.x / 1000, p.z / 1000, -p.y / 1000] : [-p.y / 1000, p.z / 1000, -p.x / 1000];
+  }
+
+  // Where the hook reaches across the bay (drawing mm).
+  coverage() {
+    const f = this.flow;
+    if (!f) return null;
+    const v = [f.ra + 1500, f.rb - 3000];
+    return f.alongX ? { minX: f.u0, maxX: f.u1, minY: v[0], maxY: v[1] } : { minX: v[0], maxX: v[1], minY: f.u0, maxY: f.u1 };
+  }
+
+  updateVehicleSize(product, state) {
+    super.updateVehicleSize(product, state);
+    if (this.cranePlan) this.replan();
+  }
+
+  points() {
+    return this.flow ? Object.values(this.flow.points).map((p) => ({ ...p, source: '图纸自动排布' })) : [];
+  }
+
+  findPoint(id) {
+    return this.points().find((p) => p.id === id) ?? null;
   }
 
   buildSteps() {
@@ -90,23 +255,40 @@ export class SceneSite extends Site {
   }
 
   stepAt(t = this.time) {
-    if (this.window) return this.process.steps[this.window.step - 1];
-    return this.process.steps.find((s) => t < s.t1) ?? this.process.steps.at(-1);
+    const steps = this.process.steps;
+    if (this.window) return steps[this.window.step - 1];
+    if (!this.flow || t < this.buildEnd) return steps.find((s) => t < s.t1) ?? steps.at(-1);
+    // Process steps overlap (the AGV returns while the crane works): the latest-starting one wins.
+    const covering = steps.filter((s) => s.device !== '建造' && t >= s.t0 && t < s.t1);
+    return covering.at(-1) ?? steps.at(-1);
   }
 
   get building() {
-    return this.time < this.duration;
+    return this.time < this.buildEnd;
+  }
+
+  // Seconds into the process cycle (0 while the plant is still going up).
+  get processTime() {
+    return Math.min(Math.max(this.time - this.buildEnd, 0), this.flowDuration ?? 0);
   }
 
   update(delta, camera) {
     if (!this.timeline) return;
     if (this.playing) {
-      this.time += delta * this.speed;
-      const end = this.window ? this.window.t1 : this.duration;
-      if (this.time >= end) {
-        this.time = end;
-        this.playing = false;
-        if (this.window) this.onWindowEnd?.(this.window);
+      this.time += delta * this.speed * (this.flow && !this.building ? PROCESS_PACE : 1);
+      if (this.window) {
+        if (this.time >= this.window.t1) {
+          this.time = this.window.t1;
+          this.playing = false;
+          this.onWindowEnd?.(this.window);
+        }
+      } else if (this.time >= this.duration) {
+        // Built: the process cycle repeats; without one, the build stops at the end.
+        if (this.flow) this.time = this.buildEnd + ((this.time - this.buildEnd) % this.flowDuration);
+        else {
+          this.time = this.duration;
+          this.playing = false;
+        }
       }
     }
     this.renderPose();
@@ -147,6 +329,56 @@ export class SceneSite extends Site {
         pivot.position.y = (1 - easeOut(k)) * 14;
       }
     }
+    this.renderFlow();
+  }
+
+  // AGV, cargo and crane at the current process time.
+  renderFlow() {
+    if (!this.flow || !this.cranePlan) return;
+    const show = this.time >= this.flowVisibleAt;
+    const t = this.time;
+    this.time = this.processTime;
+    super.renderPose();
+    const local = this.time;
+    this.time = t;
+    for (const carrier of this.carriers) carrier.visible = show;
+    this.contact.visible = show;
+    const { carryStart, carryEnd } = this.cranePlan;
+    for (const { object, coilParts } of this.cargoObjects) {
+      object.visible = object.visible && show;
+      for (const part of coilParts) part.visible = local < carryStart;
+    }
+    this.crane.coil.visible = local >= carryStart && local < carryEnd;
+    this.fgCoil.visible = local >= carryEnd;
+    this.cranePose = cranePoseAt(this.cranePlan, local);
+    this.crane.set(this.cranePose);
+  }
+
+  // Hook arm point in world space (m).
+  hookWorld(target = new THREE.Vector3()) {
+    return this.crane.hook.getWorldPosition(target);
+  }
+
+  // Bridge position along the runway and trolley position from the low rail, in m.
+  craneReadout() {
+    const p = this.cranePose;
+    return { bridge: (p.x - this.flow.u0) / 1000, trolley: Math.abs(p.y - this.flow.crane.railLow) / 1000, hook: p.z / 1000 };
+  }
+
+  // Coil centre in drawing mm.
+  coilPosition() {
+    if (!this.flow) return null;
+    const local = this.processTime;
+    const { carryStart, carryEnd } = this.cranePlan;
+    let world;
+    if (local >= carryStart && local < carryEnd) world = this.hookWorld();
+    else if (local >= carryEnd) world = this.fgCoil.getWorldPosition(new THREE.Vector3());
+    else {
+      const object = this.cargoObjects[0]?.object;
+      if (!object) return null;
+      world = object.position.clone().setY(object.position.y + COIL_CENTRE);
+    }
+    return { x: world.x * 1000, y: -world.z * 1000, z: world.y * 1000 };
   }
 
   // Cranes roll in along the runway.
@@ -163,6 +395,8 @@ export class SceneSite extends Site {
 
   // A crane model mounted in a bay replaces that bay's procedural crane.
   setCraneHidden(bay, hidden) {
+    // The process bay always shows its working crane instead of the sketch one.
+    if (!hidden && this.flow && bay === this.flow.bay.name) return;
     if (hidden) this.hiddenCranes.add(bay);
     else this.hiddenCranes.delete(bay);
     // Cranes are merged per material, so rebuild them with the hidden ones left out.
@@ -190,5 +424,7 @@ export class SceneSite extends Site {
     return this.alongX ? { x: u, y: b.centre, bay: b } : { x: b.centre, y: u, bay: b };
   }
 
-  resize() {}
 }
+
+// Travel lines and their visibility work the same as in the process plant.
+for (const name of ['buildTravelLines', 'setTravelVisible', 'resize']) SceneSite.prototype[name] = ProcessSite.prototype[name];

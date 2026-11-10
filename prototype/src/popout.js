@@ -82,9 +82,10 @@ export function initPopout({ onChange, titleFor } = {}) {
     if (e.key === 'Escape' && current) close();
   });
 
-  // Every panel header gets the button, right before its fold button.
+  // Every panel header gets the button, right before its fold button. The left rail's panels
+  // and 小华 open docked in their column (popcard.js) and pop out from there instead.
   for (const head of document.querySelectorAll('.panel > .ph, .panel > .ahead')) {
-    if (head.querySelector('[data-pop]')) continue;
+    if (head.querySelector('[data-pop]') || head.closest('aside.left, .agent')) continue;
     const tmp = document.createElement('div');
     tmp.innerHTML = popButton();
     const min = head.querySelector('[data-min]');

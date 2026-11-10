@@ -15,6 +15,11 @@
 //   - A new card is cascaded so its corner never lands on another open card's corner.
 //   - `document` gets `popcard:change` events ({ id, state: 'open' | 'min' | 'closed' }) and
 //     `[data-open-card]` elements get `.pc-on` while their card is open or minimised.
+//   - Left-rail cards and 小华 open docked: under their header, filling the rest of their rail
+//     column. The header's 弹出 button floats a docked card; a floating card's 停靠 button docks
+//     it again (remembered per panel). Phones always use bottom sheets.
+//   - Left-rail cards are one at a time, in order: the open one rolls back up into its header,
+//     then the next one drops down from its own.
 
 import './popcard.css';
 
@@ -41,6 +46,32 @@ const saveGeom = (id, g) => {
   try { localStorage.setItem(KEY + id, JSON.stringify(g)); } catch { /* private mode / quota */ }
 };
 
+// Drop-down: a card unrolls from its top edge (its header) and rolls back up into it. The
+// headers after a docked card move with its bottom edge, on the same timing.
+const DROP_IN = 300;
+const DROP_OUT = 240;
+const DROP_EASE = 'cubic-bezier(.3,0,.2,1)';
+const dropFrames = () => [
+  { clipPath: 'inset(0 0 100% 0)', transform: 'translateY(-6px)' },
+  { clipPath: 'inset(0 0 0 0)', transform: 'none' },
+];
+
+// Slide a rail's panels from where they were to where they are now (FLIP).
+const snapshot = (rail) => (rail ? { rail, tops: new Map([...rail.children].map((el) => [el, el.getBoundingClientRect().top])) } : null);
+function playFlip(snap) {
+  if (!snap) return;
+  for (const [el, top] of snap.tops) {
+    if (!el.isConnected || !el.animate) continue;
+    const dy = top - el.getBoundingClientRect().top;
+    if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: DROP_IN, easing: DROP_EASE });
+  }
+}
+const FLOAT_ICON = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5h4.5V7M13.5 2.5 8 8M11.5 9.5V13a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.5"/></svg>';
+const DOCK_ICON = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2.5 8 8M8 3.5V8h4.5M11.5 9.5V13a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V5a.5.5 0 0 1 .5-.5h3.5"/></svg>';
+const FLOAT_KEY = 'pc.float.';
+const prefersFloat = (id) => { try { return localStorage.getItem(FLOAT_KEY + id) === '1'; } catch { return false; } };
+const savePrefersFloat = (id, on) => { try { if (on) localStorage.setItem(FLOAT_KEY + id, '1'); else localStorage.removeItem(FLOAT_KEY + id); } catch { /* private mode */ } };
+
 const headOf = (p) => p?.querySelector?.(':scope > .ph, :scope > .ahead') ?? null;
 const inRail = (p) => !!p?.closest?.('aside.left, aside.right');
 const isCardPanel = (p) => !!p?.matches?.('.panel') && p.id !== 'drawer' && !!headOf(p);
@@ -55,7 +86,11 @@ export function initPopcards(app = {}) {
   document.body.append(layer);
 
   const mq = matchMedia(MOBILE);
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
   const cards = new Map(); // panel -> state
+  const closing = new Map(); // panel -> finish(), while its card plays the close animation
+  let pendingLeft = null; // a left card asked for while another one is still closing
+  let batch = 0; // > 0 while a close hands over to the next card (one rail slide for both)
   const byCard = new WeakMap(); // card element -> state
   const watched = new WeakSet();
   let z = 0;
@@ -125,7 +160,8 @@ export function initPopcards(app = {}) {
     const sum = summaryHtml(s.panel);
     setHtml(s.titleEl, title);
     setHtml(s.metaEl, sum);
-    s.card.querySelector('[data-pc="pop"]').hidden = !app.popout;
+    s.card.querySelector('[data-pc="pop"]').hidden = !app.popout || s.side === 'left';
+    s.card.querySelector('[data-pc="dock"]').hidden = !s.dockable || s.docked || mq.matches;
     if (s.strip) {
       setHtml(s.strip.querySelector('.pc-st'), title);
       setHtml(s.strip.querySelector('.pc-sv'), sum);
@@ -172,7 +208,7 @@ export function initPopcards(app = {}) {
   // On phones the stylesheet turns the card into a bottom sheet and ignores these.
   function apply(s) {
     const c = s.card;
-    if (mq.matches) {
+    if (mq.matches || s.docked) {
       for (const k of ['left', 'top', 'width', 'height', 'maxHeight', 'transform']) c.style[k] = '';
       return;
     }
@@ -192,7 +228,7 @@ export function initPopcards(app = {}) {
   // A card never opens squarely on top of another: step it along the cascade until its corner is
   // clear of every visible card's corner (a remembered position can collide just like a default).
   function avoid(s) {
-    const others = [...cards.values()].filter((o) => o !== s && o.geom && !o.minimised);
+    const others = [...cards.values()].filter((o) => o !== s && o.geom && !o.minimised && !o.docked);
     for (let i = 0; i < 12; i++) {
       if (!others.some((o) => Math.abs(o.geom.x - s.geom.x) < CASCADE && Math.abs(o.geom.y - s.geom.y) < CASCADE)) break;
       s.geom.x += CASCADE;
@@ -214,6 +250,7 @@ export function initPopcards(app = {}) {
     card.dataset.card = keyOf(panel);
     card.innerHTML = `<div class="pc-grip" title="下拉收起"></div>
       <header class="pc-bar"><b class="pc-title"></b><span class="pc-meta"></span>
+        <button type="button" class="pc-btn" data-pc="dock" title="停靠回侧栏">${DOCK_ICON}</button>
         <button type="button" class="pc-btn" data-pc="pop" title="弹出放大">${POP_ICON}</button>
         <button type="button" class="pc-btn" data-pc="min" title="最小化"><s></s></button>
         <button type="button" class="pc-btn pc-x" data-pc="close" title="关闭（Esc）">✕</button></header>
@@ -228,28 +265,79 @@ export function initPopcards(app = {}) {
       metaEl: card.querySelector('.pc-meta'),
       strip: null,
       minimised: false,
+      docked: false,
       geom: null,
     };
+    // Left-rail cards and 小华 open docked in their own column; the others float.
+    s.dockable = s.side === 'left' || s.side === 'agent';
     card.dataset.side = s.side;
     if (s.side === 'agent') card.classList.add('pc-agent');
+    card.querySelector('[data-pc="min"]').hidden = s.side === 'left';
     cards.set(panel, s);
     byCard.set(card, s);
-    layer.append(card);
     head.classList.add('open');
     panel.classList.add('pc-open');
-    refresh(s);
     card.setAttribute('aria-label', titleText(panel));
-
-    s.geom = loadGeom(keyOf(panel)) ?? defaultGeom(s);
-    avoid(s);
-    apply(s);
+    if (wantsDock(s)) placeDocked(s);
+    else placeFloating(s);
+    refresh(s);
     bindCard(s);
     // Scroll-to-bottom lists (the chat) were measured while hidden.
     for (const m of body.querySelectorAll('.msgs')) m.scrollTop = m.scrollHeight;
     return s;
   }
 
-  function open(ref) {
+  // ------------------------------------------------------------ docked / floating
+
+  const wantsDock = (s) => s.dockable && !mq.matches && !prefersFloat(keyOf(s.panel));
+
+  // Docked: the card hangs under its own rail header and fills the rest of that column; the
+  // headers after it move down, so it never covers the 3D view. The header gets a 弹出 button.
+  function placeDocked(s) {
+    s.docked = true;
+    for (const k of ['left', 'top', 'width', 'height', 'maxHeight', 'transform', 'zIndex']) s.card.style[k] = '';
+    s.card.classList.add('pc-docked');
+    s.panel.classList.add('pc-docked');
+    s.panel.append(s.card);
+    if (!s.head.querySelector('[data-pc-float]')) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pcfloat';
+      b.dataset.pcFloat = '';
+      b.title = '弹出为浮动卡片';
+      b.innerHTML = FLOAT_ICON;
+      const min = s.head.querySelector('[data-min]');
+      if (min) min.before(b);
+      else s.head.append(b);
+    }
+  }
+  function undock(s) {
+    s.docked = false;
+    s.card.classList.remove('pc-docked');
+    s.panel.classList.remove('pc-docked');
+    s.head.querySelector('[data-pc-float]')?.remove();
+  }
+  function placeFloating(s) {
+    undock(s);
+    layer.append(s.card);
+    s.geom ??= loadGeom(keyOf(s.panel)) ?? defaultGeom(s);
+    avoid(s);
+    apply(s);
+  }
+  function setDocked(s, on, { remember = false } = {}) {
+    if (remember) savePrefersFloat(keyOf(s.panel), !on);
+    if (s.docked === on) return;
+    const snap = still.matches ? null : snapshot(s.panel.parentElement);
+    if (on) placeDocked(s);
+    else placeFloating(s);
+    refresh(s);
+    front(s);
+    playFlip(snap);
+  }
+
+  // ------------------------------------------------------------ open / close
+
+  function open(ref, { animate = true } = {}) {
     const hit = resolve(ref);
     if (!hit) {
       app.toast?.('这个模块还没有准备好', true);
@@ -258,26 +346,104 @@ export function initPopcards(app = {}) {
     const { panel, target } = hit;
     watch(panel);
     if (panel.classList.contains('popped')) return true; // already shown in the big window
-    const s = cards.get(panel) ?? build(panel);
-    if (s.minimised) restore(s);
-    front(s);
-    if (target && target !== panel && s.body.contains(target)) target.scrollIntoView?.({ block: 'nearest' });
-    emit(s.panel, 'open');
+    if (closing.has(panel)) {
+      pendingLeft = null;
+      closing.get(panel)(); // reopened mid-animation: put the body back first
+    }
+    // The left rail shows one card at a time, in order: the open one goes back into its
+    // header first, then this one comes out.
+    if (sideOf(panel) === 'left') {
+      const others = [...cards.values()].filter((o) => o.side === 'left' && o.panel !== panel);
+      const shown = animate ? others.find((o) => !o.minimised) : null;
+      for (const o of others) if (o !== shown) closeCard(o, { animate: false });
+      const busy = [...closing.keys()].some((p) => sideOf(p) === 'left');
+      if (shown || busy) {
+        pendingLeft = { panel, target, animate };
+        if (shown) closeCard(shown);
+        return true;
+      }
+    }
+    show(panel, target, animate);
     return true;
   }
 
-  function close(ref) {
+  function show(panel, target, animate) {
+    const snap = animate && !batch && !still.matches ? snapshot(panel.parentElement) : null;
+    const fresh = !cards.has(panel);
+    const s = cards.get(panel) ?? build(panel);
+    if (s.minimised) restore(s);
+    front(s);
+    if (fresh && animate) drop(s, 'in');
+    playFlip(snap);
+    if (target && target !== panel && s.body.contains(target)) target.scrollIntoView?.({ block: 'nearest' });
+    emit(s.panel, 'open');
+  }
+
+  function flushLeft() {
+    const p = pendingLeft;
+    pendingLeft = null;
+    if (p && !cards.has(p.panel)) show(p.panel, p.target, p.animate);
+  }
+
+  function close(ref, opts) {
     const s = stateOf(ref);
     if (!s) return false;
-    s.placeholder.replaceWith(...s.body.childNodes);
-    s.card.remove();
+    closeCard(s, opts);
+    return true;
+  }
+
+  function closeCard(s, { animate = true } = {}) {
+    const anim = animate && !s.minimised ? drop(s, 'out') : null;
+    // The headers after a docked card move up with its bottom edge as it rolls up.
+    const follow = anim && s.docked ? riseFollowers(s) : [];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      closing.delete(s.panel);
+      anim?.cancel();
+      const snap = s.docked && !still.matches ? snapshot(s.panel.parentElement) : null;
+      for (const a of follow) a.cancel();
+      s.placeholder.replaceWith(...s.body.childNodes);
+      s.card.remove();
+      undock(s);
+      // The next left card comes out now, and the rail slides once for both changes.
+      batch++;
+      try { if (s.side === 'left') flushLeft(); } finally { batch--; }
+      playFlip(snap);
+    };
     s.strip?.remove();
     s.head.classList.remove('open');
     s.panel.classList.remove('pc-open');
     cards.delete(s.panel);
     markTop();
     emit(s.panel, 'closed');
-    return true;
+    if (!anim) finish();
+    else {
+      s.card.classList.add('pc-closing');
+      s.card.style.zIndex = 99999; // above the card that replaces it, so the animation shows
+      closing.set(s.panel, finish);
+      anim.finished.then(finish, finish);
+      // A background tab may never run the animation (a paused one is being inspected).
+      setTimeout(() => { if (anim.playState !== 'paused') finish(); }, 900);
+    }
+  }
+
+  // Left-rail and docked cards drop down from their header and roll back up into it. Desktop only.
+  function drop(s, dir) {
+    if (!(s.side === 'left' || s.docked) || mq.matches || still.matches || !s.card.animate) return null;
+    const out = dir === 'out';
+    return s.card.animate(dropFrames(), { duration: out ? DROP_OUT : DROP_IN, easing: DROP_EASE, direction: out ? 'reverse' : 'normal' });
+  }
+  function riseFollowers(s) {
+    const gap = parseFloat(getComputedStyle(s.panel).rowGap) || 0;
+    const dy = s.card.getBoundingClientRect().height + gap;
+    const out = [];
+    for (let el = s.panel.nextElementSibling; el; el = el.nextElementSibling) {
+      out.push(el.animate([{ transform: `translateY(${-dy}px)` }, { transform: 'none' }],
+        { duration: DROP_OUT, easing: DROP_EASE, direction: 'reverse', fill: 'forwards' }));
+    }
+    return out;
   }
 
   function minimise(ref) {
@@ -325,14 +491,14 @@ export function initPopcards(app = {}) {
     return hit ? cards.get(hit.panel) ?? null : null;
   }
 
-  const visible = () => [...cards.values()].filter((s) => !s.minimised);
+  const visible = () => [...cards.values()].filter((s) => !s.minimised && !s.docked);
   const topCard = () => visible().sort((a, b) => Number(b.card.style.zIndex) - Number(a.card.style.zIndex))[0] ?? null;
   function markTop() {
     const t = topCard();
     for (const s of cards.values()) s.card.classList.toggle('pc-top', s === t);
   }
   function front(s) {
-    if (Number(s.card.style.zIndex) !== z || !z) s.card.style.zIndex = ++z;
+    if (!s.docked && (Number(s.card.style.zIndex) !== z || !z)) s.card.style.zIndex = ++z;
     markTop();
   }
 
@@ -366,6 +532,7 @@ export function initPopcards(app = {}) {
     card.querySelector('[data-pc="close"]').addEventListener('click', () => close(s));
     card.querySelector('[data-pc="min"]').addEventListener('click', () => minimise(s));
     card.querySelector('[data-pc="pop"]').addEventListener('click', () => popBig(s.panel));
+    card.querySelector('[data-pc="dock"]').addEventListener('click', () => setDocked(s, true, { remember: true }));
 
     // Move the card by its title bar.
     bar.addEventListener('pointerdown', (e) => {
@@ -483,8 +650,12 @@ export function initPopcards(app = {}) {
     const panel = head?.parentElement;
     if (!panel || !inRail(panel) || panel.classList.contains('popped')) return;
     const control = e.target.closest('button, input, label, a, select, textarea');
-    if (control && !control.matches('[data-min]')) return;
     const s = cards.get(panel);
+    if (control?.matches('[data-pc-float]')) {
+      if (s) setDocked(s, false, { remember: true });
+      return;
+    }
+    if (control && !control.matches('[data-min]')) return;
     if (control && s && !s.minimised) close(s);
     else open(panel);
   });
@@ -502,6 +673,7 @@ export function initPopcards(app = {}) {
     if (e.key !== 'Escape' || e.defaultPrevented || app.popout?.current || isEditable(e.target)) return;
     if (document.body.classList.contains('clean')) return;
     if (document.querySelector('.ctx, .zedit, .keyhelp:not([hidden]), .cmdline:not([hidden])')) return;
+    // Docked cards are part of the layout: Esc only closes floating ones.
     const s = topCard();
     if (!s) return;
     e.stopPropagation();
@@ -511,7 +683,11 @@ export function initPopcards(app = {}) {
   addEventListener('resize', () => { for (const s of cards.values()) if (!s.minimised) apply(s); });
   const onMedia = () => {
     layer.classList.toggle('pc-mobile', mq.matches);
-    for (const s of cards.values()) apply(s);
+    // Phones have no columns to dock into: docked cards become bottom sheets, and come back.
+    for (const s of cards.values()) {
+      if (s.dockable && !s.minimised) setDocked(s, wantsDock(s));
+      apply(s);
+    }
   };
   mq.addEventListener?.('change', onMedia);
   onMedia();
@@ -523,7 +699,7 @@ export function initPopcards(app = {}) {
     open,
     close,
     minimise,
-    closeAll: () => { for (const s of [...cards.values()]) close(s); },
+    closeAll: () => { for (const s of [...cards.values()]) close(s, { animate: false }); },
     registerStrip,
     isOpen: (id) => !!stateOf(id),
     list: () => [...cards.values()].map((s) => ({ id: keyOf(s.panel), minimised: s.minimised })),

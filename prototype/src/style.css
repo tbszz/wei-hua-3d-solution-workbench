@@ -402,7 +402,7 @@ body.clean .toast{bottom:28px}
 /* Plant generated from a drawing: no AGV process, a build sequence instead. */
 .scene-only{display:none}
 body.scene-mode .scene-only{display:revert}
-body.scene-mode #tabs button:not(.scene-only),body.scene-mode .legend,body.scene-mode #travelBtn,body.scene-mode #steps{display:none}
+body.scene-mode:not(.scene-flow) #tabs button:not(.scene-only),body.scene-mode:not(.scene-flow) .legend,body.scene-mode:not(.scene-flow) #travelBtn,body.scene-mode:not(.scene-flow) #steps{display:none}
 body.scene-mode .proj{margin-left:auto}
 .proclist li .dev.build,.badge.build{background:#B26A00}
 .segs button.build{border-bottom:2px solid #F5B800}

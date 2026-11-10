@@ -320,9 +320,14 @@ export class ProcessSite extends Site {
     const hookPoints = [];
     for (let t = this.cranePlan.start; t <= this.cranePlan.end; t += 0.5) {
       const p = cranePoseAt(this.cranePlan, t);
-      hookPoints.push([p.x / 1000, p.z / 1000, -p.y / 1000]);
+      hookPoints.push(this.hookPoint(p));
     }
     line(hookPoints, 0xd7000f, 4, true);
+  }
+
+  // Crane plan point (mm) to world metres.
+  hookPoint(p) {
+    return [p.x / 1000, p.z / 1000, -p.y / 1000];
   }
 
   setTravelVisible(visible) {

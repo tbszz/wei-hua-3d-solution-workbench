@@ -1,4 +1,4 @@
-/* Floating cards (popcard.js): side panels open over the 3D view instead of growing in their rail.
+/* Floating cards (popcard.js): side panels open docked in their rail column or float over the 3D view.
    The layer sits above panels, labels and bars (z 4-7) and below the pop-out window (.pop-mask, 50)
    and context menus (80). */
 .pc-layer{position:fixed;inset:0;z-index:30;pointer-events:none}
@@ -17,6 +17,7 @@ body.clean .pc-layer{display:none}
   background:#fff;border:1px solid rgba(31,35,41,.12);border-top:2px solid var(--red,#D7000F);border-radius:6px;
   box-shadow:0 10px 32px rgba(31,35,41,.18),0 2px 6px rgba(31,35,41,.08);overflow:hidden;color:var(--ink,#1F2329)}
 .pc-card[hidden]{display:none}
+.pc-card.pc-closing{pointer-events:none}
 .pc-card.pc-top{box-shadow:0 16px 48px rgba(31,35,41,.26),0 2px 8px rgba(31,35,41,.10)}
 .pc-bar{height:36px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;border-bottom:1px solid rgba(31,35,41,.08);
   background:#fff;cursor:move;user-select:none;touch-action:none}
@@ -42,6 +43,24 @@ body.clean .pc-layer{display:none}
 .pc-grip{display:none}
 .pc-card.pc-dropping::after{content:"松开即可上传给小华";position:absolute;inset:40px 6px 6px;border:1.5px dashed var(--red,#D7000F);border-radius:var(--r,4px);
   background:rgba(255,240,241,.85);display:grid;place-items:center;font-size:14px;color:var(--red,#D7000F);pointer-events:none;z-index:5}
+
+/* docked cards: the panel opens in its own rail column, the card hanging under the header and
+   filling the rest of the column (the headers after it move down) */
+.left .panel.min-on.pc-docked,.right .panel.min-on.pc-docked{flex:1 1 0!important;min-height:220px;display:flex;flex-direction:column;gap:6px;
+  background:transparent;border-color:transparent;box-shadow:none}
+.panel.pc-docked>.ph,.panel.pc-docked>.ahead{flex:none;background:var(--glass,#fff);border:1px solid var(--glass-line,rgba(31,35,41,.1));border-radius:var(--r,4px);
+  box-shadow:0 3px 12px rgba(31,35,41,.10)}
+.panel.pc-open.pc-docked>.ph.open,.panel.pc-open.pc-docked>.ahead.open{background:var(--red-light,#FCE8EA);box-shadow:inset 3px 0 0 var(--red,#D7000F),0 3px 12px rgba(31,35,41,.10)}
+.panel.min-on.pc-docked>.pc-card.pc-docked{display:flex}
+.pc-card.pc-docked{position:relative;left:auto;top:auto;width:auto;flex:1 1 0;min-height:0;box-shadow:0 6px 20px rgba(31,35,41,.12)}
+.pc-card.pc-docked>.pc-bar,.pc-card.pc-docked>.pc-rs,.pc-card.pc-docked>.pc-grip{display:none}
+/* the open docked panel's fold button is its close button */
+.panel.min-on.pc-open.pc-docked .min::after{display:block}
+.panel.pc-open.pc-docked .min{transform:rotate(45deg)}
+.panel.pc-open.pc-docked .min:hover{background:var(--red,#D7000F);color:#fff}
+.pcfloat{flex:none;width:22px;height:22px;border-radius:var(--r,4px);display:grid;place-items:center;color:var(--ink3,#8F959E);margin-left:auto}
+.pcfloat:hover{background:rgba(31,35,41,.08);color:var(--ink,#1F2329)}
+.ph .pcfloat{margin-left:0}
 
 /* minimised cards: one-line strips along the bottom-left, above the timeline bar */
 .pc-dock{position:absolute;left:var(--gap,10px);bottom:calc(var(--bottom,92px) + var(--gap,10px) * 2);z-index:100000;display:flex;flex-direction:column-reverse;

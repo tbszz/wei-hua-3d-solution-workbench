@@ -81,7 +81,7 @@ app.selectProduct = async (id) => {
   app.product = product;
   app.vehicle = vehicle;
   if (!app.states.has(product.id)) app.states.set(product.id, Object.fromEntries(Object.entries(product.params).map(([k, p]) => [k, p.nominal])));
-  site.setVehicle(vehicle.root, product, stateOf());
+  applyVehicle(product, stateOf());
   applyBands(product, stateOf());
   app.refresh();
   return product;
@@ -98,11 +98,17 @@ app.setVehicleParams = (values) => {
     next[key] = value;
   }
   app.states.set(product.id, next);
-  site.setVehicle(app.vehicle.root, product, next);
+  applyVehicle(product, next);
   applyBands(product, next);
   app.refresh();
   return next;
 };
+
+// The process plant owns the loaded model; a drawing-built plant runs a copy of it.
+function applyVehicle(product, state) {
+  processSite.setVehicle(app.vehicle.root, product, state);
+  if (site !== processSite) site.setVehicle(app.vehicle.root.clone(true), product, state);
+}
 
 app.vehicleState = () => ({ model: app.product?.model, ...stateOf() });
 
@@ -158,7 +164,11 @@ function fitDistance(w, h) {
   return d;
 }
 
-const hookWorld = () => new THREE.Vector3(site.cranePose.x / 1000, site.cranePose.z / 1000, -site.cranePose.y / 1000);
+// A drawing-built plant may run its runway along drawing Y, so it reports the hook in world space itself.
+const hookWorld = () => (site.hookWorld ? site.hookWorld() : new THREE.Vector3(site.cranePose.x / 1000, site.cranePose.z / 1000, -site.cranePose.y / 1000));
+// Tracking views (AGV / crane) work on the process plant, and on a drawing-built plant once it stands.
+const canTrack = () => !site.isScene || Boolean(site.flow && !site.building);
+let tracking = false;
 // What the tracking views lock onto: the AGV body, or a point between the hook and the floor
 // so the coil and the hook fit in the frame. While an AGV waits near the hook (hand-over at
 // H-01) the aim slides towards it so both stay in shot.
@@ -187,7 +197,9 @@ function trackOffset(mode) {
     [d, h] = [9, 8];
   } else {
     // Stay almost in the hook's own aisle: a row of columns runs parallel to the runway.
-    dir = new THREE.Vector3(Math.sign(toCentre.x) || -1, 0, 0.12 * (Math.sign(toCentre.z) || 1)).normalize();
+    dir = site.isScene && !site.alongX
+      ? new THREE.Vector3(0.12 * (Math.sign(toCentre.x) || 1), 0, Math.sign(toCentre.z) || 1).normalize()
+      : new THREE.Vector3(Math.sign(toCentre.x) || -1, 0, 0.12 * (Math.sign(toCentre.z) || 1)).normalize();
     [d, h] = [14, 10];
   }
   return dir.multiplyScalar(d).setY(h);
@@ -208,7 +220,10 @@ app.setView = (mode, opts = {}) => {
   craneWide = Boolean(opts.wide && mode === 'crane');
   app.view = mode;
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === mode);
-  if (site.isScene) return sceneView(mode, opts);
+  // In a drawing-built plant, follow / crane without a bay track the process AGV and crane once built.
+  const trackProcess = (mode === 'follow' || mode === 'crane') && !opts.bay && canTrack();
+  tracking = trackProcess;
+  if (site.isScene && (!trackProcess || mode === 'point')) return sceneView(mode, opts);
   const { centre, size } = site.built;
   const c = new THREE.Vector3(centre.x / 1000, 0, -centre.y / 1000);
   if (mode === 'overview') {
@@ -661,6 +676,12 @@ function dropPins(seen) {
   }
 }
 
+function agvActivity() {
+  const step = site.pose?.step;
+  if (step?.type === 'run') return step.loaded ? '载卷运送' : '空车行驶';
+  return { charge: '充电', load: '接卷', unload: '放卷' }[step?.kind] ?? '定位';
+}
+
 // Generated plant: bay names on the floor, one pin per crane, uploaded models.
 function updateSceneLabels() {
   const seen = new Set();
@@ -678,6 +699,20 @@ function updateSceneLabels() {
       seen.add(key);
       place(pin(key, 'dev', `<span class="lab">行车 ${crane.bay} 跨 · ${(crane.span / 1000).toFixed(1)} m</span>`), new THREE.Vector3(crane.x / 1000, 12.4, -crane.y / 1000));
     }
+  }
+  // The process in its bay: its four points, the working crane and the AGV.
+  if (site.flow && site.time >= site.flowVisibleAt) {
+    for (const point of site.points()) {
+      const [role, name] = roleOf(point);
+      const key = `p:${point.id}`;
+      seen.add(key);
+      place(pin(key, role === 'handoff' ? 'handoff' : '', `<span class="lab">${point.id} ${name}</span><span class="dot" style="background:${ROLE_COLORS[role] ?? '#1F2329'}"></span>`), new THREE.Vector3(point.x / 1000, role === 'handoff' ? 2.6 : 0.3, -point.y / 1000));
+    }
+    const seg = site.cranePose?.segment;
+    place(pin('crane', 'dev', `<span class="lab">行车 ${site.flow.bay.name} 跨 · ${seg ? seg.label : '待机'}</span>`), hookWorld().setY(13.2));
+    seen.add('crane');
+    place(pin('agv', 'dev agv', `<span class="lab">${app.product?.model ?? 'AGV'} · ${agvActivity()}</span>`), site.carrier.position.clone().setY(2.4));
+    seen.add('agv');
   }
   placedPins(seen);
   for (const hook of app.labelHooks ?? []) hook({ pin, place, seen });
@@ -702,8 +737,7 @@ function updateLabels() {
   const crane = pin('crane', 'dev', `<span class="lab">行车 #1 · ${craneBusy ? craneBusy.label : '待机'}</span>`);
   place(crane, new THREE.Vector3(site.cranePose.x / 1000, 13.2, -site.cranePose.y / 1000));
   seen.add('crane');
-  const agvText = site.pose?.step?.type === 'run' ? (site.pose.step.loaded ? '载卷运送' : '空车行驶') : site.pose?.step?.kind === 'charge' ? '充电' : site.pose?.step?.kind === 'load' ? '接卷' : site.pose?.step?.kind === 'unload' ? '放卷' : '定位';
-  const agv = pin('agv', 'dev agv', `<span class="lab">${app.product?.model ?? 'AGV'} · ${agvText}</span>`);
+  const agv = pin('agv', 'dev agv', `<span class="lab">${app.product?.model ?? 'AGV'} · ${agvActivity()}</span>`);
   place(agv, site.carrier.position.clone().setY(2.4));
   seen.add('agv');
   placedPins(seen);
@@ -749,22 +783,25 @@ function updateSceneHud() {
 }
 
 function updateHud() {
-  if (site.isScene) return updateSceneHud();
+  const scene = site.isScene;
+  if (scene && (site.building || !site.flow)) return updateSceneHud();
   const t = site.time;
   const step = site.stepAt(t);
   const w = site.window;
   const crane = step.device === '行车';
+  const craneName = scene ? `行车 ${site.flow.bay.name} 跨` : '行车 #1';
   $('hudNo').textContent = String(step.n).padStart(2, '0');
   $('hudTitle').textContent = step.title;
-  $('hudDev').textContent = crane ? '行车 #1' : app.product?.model ?? 'AGV';
+  $('hudDev').textContent = crane ? craneName : app.product?.model ?? 'AGV';
   $('hudDev').className = `badge ${crane ? 'crane' : ''}`;
   $('hudWindow').textContent = `${fmtTime(step.t0)} – ${fmtTime(step.t1)}`;
   $('hudBar').style.width = `${Math.min(100, Math.max(0, ((t - step.t0) / step.duration) * 100))}%`;
   const cp = site.cranePose;
+  const ro = scene ? site.craneReadout() : { bridge: cp.x / 1000, trolley: cp.y / 1000 };
   setHtml('hudRow', crane
-    ? metric('钩高', (cp.z / 1000).toFixed(2), 'm') + metric('大车 X', (cp.x / 1000).toFixed(1), 'm') + metric('小车 Y', (cp.y / 1000).toFixed(1), 'm') + metric('动作', cp.segment?.label ?? '待机', '', true)
+    ? metric('钩高', (cp.z / 1000).toFixed(2), 'm') + metric(scene ? '大车 沿跨' : '大车 X', ro.bridge.toFixed(1), 'm') + metric(scene ? '小车 离轨' : '小车 Y', ro.trolley.toFixed(1), 'm') + metric('动作', cp.segment?.label ?? '待机', '', true)
     : metric('车速', (Math.abs(site.pose.speed) / 1000).toFixed(2), 'm/s') + metric('台数', site.agvCount, '台') + metric('状态', site.status().text, '', true) + metric('本步用时', step.duration.toFixed(0), 's'));
-  setHtml('hudChips', `<span class="chip">钢卷 Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</span><span class="chip">${w ? '分步播放' : '全流程'}</span>`);
+  setHtml('hudChips', `${scene ? `<span class="chip">${site.sourceName} · ${site.flow.bay.name} 跨</span>` : ''}<span class="chip">钢卷 Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</span><span class="chip">${w ? '分步播放' : scene ? '工序循环' : '全流程'}</span>`);
   const coil = site.coilPosition();
   setHtml('coord', coil
     ? `钢卷 X <b class="num">${Math.round(coil.x).toLocaleString('fr-FR')}</b> Y <b class="num">${Math.round(coil.y).toLocaleString('fr-FR')}</b> Z <b class="num">${Math.round(coil.z).toLocaleString('fr-FR')}</b> mm`
@@ -809,25 +846,37 @@ app.setTab = (tab, open = true) => {
 
 // ---------------------------------------------------------------- dock
 
-const pct = (t) => `${(t / site.duration) * 100}%`;
+// The AGV + crane cycle of the current site. In a drawing plant it starts after the build, so its
+// steps are shifted back to 0 here (k is the step's number within the cycle, n stays global).
+function cycle() {
+  if (!site.isScene) return { D: site.duration, t: site.time, base: 0, steps: site.process.steps.map((s) => ({ ...s, k: s.n })) };
+  const base = site.buildEnd;
+  const steps = site.process.steps.filter((s) => s.device !== '建造').map((s, i) => ({ ...s, k: i + 1, t0: s.t0 - base, t1: s.t1 - base }));
+  return { D: site.flowDuration, t: site.processTime, base, steps };
+}
+const craneLabel = () => (site.isScene ? `行车 ${site.flow.bay.name} 跨` : '行车 #1');
+// Runs the AGV + crane process: the process plant, or a drawing plant with a laid-out process.
+const hasCycle = () => !site.isScene || Boolean(site.flow);
 
 function ganttHtml() {
-  const D = site.duration;
+  const c = cycle();
+  const D = c.D;
+  const pct = (t) => `${(t / D) * 100}%`;
   const stepSize = [10, 20, 30, 60, 120].find((s) => D / s <= 9) ?? 300;
   const ticks = [];
   for (let s = 0; s <= D + 1e-6; s += stepSize) ticks.push(`<span style="left:${pct(s)}">${s}${s === 0 ? 's' : ''}</span>`);
   const blocks = (lane) => lane.map((b) => `<span class="blk ${b.kind}" data-t="${b.t0}" title="${b.label} ${(b.t1 - b.t0).toFixed(1)} s" style="left:${pct(b.t0)};width:${pct(b.t1 - b.t0)}">${b.label} ${(b.t1 - b.t0).toFixed(0)}s</span>`).join('');
   const cur = site.window?.step;
-  const band = site.process.steps.map((s) => {
+  const band = c.steps.map((s) => {
     const row = s.device === '行车' ? 22 : 0;
-    return `<button data-play="${s.n}" class="${cur === s.n ? 'cur' : ''}" style="left:${pct(s.t0)};width:${pct(s.duration)};top:${row}px">${'①②③④⑤'[s.n - 1]} ${s.title.replace(/^.*? /, '')} ${s.duration.toFixed(0)}s</button>`;
+    return `<button data-play="${s.n}" class="${cur === s.n ? 'cur' : ''}" style="left:${pct(s.t0)};width:${pct(s.duration)};top:${row}px">${'①②③④⑤⑥⑦⑧⑨'[s.k - 1] ?? s.k} ${s.title.replace(/^.*? /, '')} ${s.duration.toFixed(0)}s</button>`;
   }).join('');
   const span = (site.cranePlan && Math.abs(site.runway.high - site.runway.low) / 1000).toFixed(2);
   return `<div class="ganttwrap" id="gantt">
     <div class="ruler"><span></span><div class="ticks num">${ticks.join('')}</div></div>
     <div class="stepsband"><span style="font-size:12px;color:var(--ink3)">工序</span><div class="sb">${band}</div></div>
     <div class="seq"><div class="who">${app.product?.model ?? 'AGV'}<small>${app.agvNote ?? '载重 30 t'}</small></div><div class="lane" data-lane>${blocks(site.gantt.agv)}</div></div>
-    <div class="seq"><div class="who">行车 #1<small>跨度 ${span} m</small></div><div class="lane" data-lane>${blocks(site.gantt.crane)}</div></div>
+    <div class="seq"><div class="who">${craneLabel()}<small>跨度 ${span} m</small></div><div class="lane" data-lane>${blocks(site.gantt.crane)}</div></div>
     <div class="playhead" id="playhead"><span id="phLabel">00:00</span></div>
   </div>
   <div class="glegend"><span><i class="mv"></i>行走 / 运行</span><span><i class="pk"></i>取放 / 夹紧</span><span><i class="lf"></i>起升 / 下降</span><span><i class="ch"></i>充电</span><span><i class="id" style="border:1px dashed #C9CDD4"></i>空闲</span></div>`;
@@ -836,9 +885,10 @@ function ganttHtml() {
 function updatePlayhead() {
   const ph = $('playhead');
   if (!ph) return;
-  const f = site.time / site.duration;
+  const c = cycle();
+  const f = c.t / c.D;
   ph.style.left = `calc(92px + (100% - 92px) * ${f})`;
-  $('phLabel').textContent = fmtTime(site.time);
+  $('phLabel').textContent = fmtTime(c.t);
 }
 
 function pointsHtml() {
@@ -846,8 +896,8 @@ function pointsHtml() {
     const [, name] = roleOf(p);
     const roleText = p.source === 'CAD'
       ? { pick: 'AGV 取货', drop: 'AGV 放货', charge: '充电' }[p.role]
-      : { handoff: 'AGV 放货 / 行车取货', drop: '行车放卷', marker: '标记' }[p.role];
-    return `<tr class="clickable ${app.newPoints.has(p.id) ? 'cur' : ''}" data-point="${p.id}"><td><b>${p.id}</b></td><td>${name}</td><td>${roleText}</td><td class="num">${Math.round(p.x)}</td><td class="num">${Math.round(p.y)}</td><td>${p.source === 'CAD' ? '<span class="src">CAD · AGV-STAT</span>' : '<span class="src" style="color:#B26A00">对话添加</span>'}</td></tr>`;
+      : { pick: 'AGV 取货', charge: '充电', handoff: 'AGV 放货 / 行车取货', drop: '行车放卷', marker: '标记' }[p.role];
+    return `<tr class="clickable ${app.newPoints.has(p.id) ? 'cur' : ''}" data-point="${p.id}"><td><b>${p.id}</b></td><td>${name}</td><td>${roleText}</td><td class="num">${Math.round(p.x)}</td><td class="num">${Math.round(p.y)}</td><td>${p.source === 'CAD' ? '<span class="src">CAD · AGV-STAT</span>' : p.source === '图纸自动排布' ? `<span class="src">图纸 · ${site.flow.bay.name} 跨自动排布</span>` : '<span class="src" style="color:#B26A00">对话添加</span>'}</td></tr>`;
   });
   const c = site.coverage();
   return `<table class="t"><thead><tr><th>点位</th><th>名称</th><th>作业</th><th>X mm</th><th>Y mm</th><th>来源</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
@@ -876,7 +926,7 @@ function paramsHtml() {
 
 function processHtml() {
   const cur = site.stepAt().n;
-  const rows = site.process.steps.map((s) => `<tr class="clickable ${s.n === cur ? 'cur' : ''}" data-play="${s.n}"><td>${s.n}</td><td>${s.device === 'AGV' ? app.product?.model ?? 'AGV' : '行车 #1'}</td><td><b>${s.title}</b><div class="muted" style="font-size:11.5px">${s.detail}</div></td><td class="num">${fmtTime(s.t0)}–${fmtTime(s.t1)}</td><td class="num">${s.duration.toFixed(1)} s</td></tr>`).join('');
+  const rows = cycle().steps.map((s) => `<tr class="clickable ${s.n === cur ? 'cur' : ''}" data-play="${s.n}"><td>${s.k}</td><td>${s.device === 'AGV' ? app.product?.model ?? 'AGV' : craneLabel()}</td><td><b>${s.title}</b><div class="muted" style="font-size:11.5px">${s.detail}</div></td><td class="num">${fmtTime(s.t0)}–${fmtTime(s.t1)}</td><td class="num">${s.duration.toFixed(1)} s</td></tr>`).join('');
   return `<table class="t"><thead><tr><th>#</th><th>设备</th><th>动作</th><th>时段</th><th>用时</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
@@ -894,7 +944,7 @@ export function effHtml(eff = site.efficiency, shift = app.shift) {
     <div class="line"><span>每小时</span><span class="num">${eff.perHour.toFixed(1)} 件</span></div>
     <div class="line"><span>瓶颈</span><span>${eff.bottleneck}</span></div>
     ${meter('AGV 利用率', eff.utilization.agv, 'var(--blue)')}
-    ${meter('行车 #1 利用率', eff.utilization.crane, 'var(--red)')}
+    ${meter(`${site.isScene && site.flow ? craneLabel() : '行车 #1'} 利用率`, eff.utilization.crane, 'var(--red)')}
     ${eff.advice ? `<div class="line"><span>建议</span><span>${eff.advice}</span></div>` : ''}
     ${shift ? `<div class="line"><span>${shift.hours} 小时班</span><span class="num"><b>${shift.pieces} 件</b>（${shift.perHour.toFixed(1)} 件/h）</span></div>` : ''}
   </div>`;
@@ -932,21 +982,24 @@ function sceneHtml() {
     ['门 / 窗', `${s.大门} 樘 / ${s.窗} 处`],
     ['设备 / 分区 / 轨道', `${s.设备} 台 / ${s.分区} 个 / ${s.轨道} 条`],
     ['地面线条', `${s.地面线条} 条${s.厂区 ? '，含厂区边界' : ''}`],
-  ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
-  const steps = site.process.steps.map((x) => `<tr class="clickable" data-play="${x.n}"><td>${x.n}</td><td><b>${x.title}</b><div class="muted" style="font-size:11.5px">${x.detail}</div></td><td class="num">${x.duration.toFixed(1)} s</td></tr>`).join('');
+  ];
+  if (s.工序) rows.push(['AGV + 行车工序', s.工序]);
+  const steps = site.process.steps.map((x) => `<tr class="clickable" data-play="${x.n}"><td>${x.n}</td><td>${x.device === 'AGV' ? app.product?.model ?? 'AGV' : x.device === '行车' ? `行车 ${site.flow.bay.name} 跨` : '建造'}</td><td><b>${x.title}</b><div class="muted" style="font-size:11.5px">${x.detail}</div></td><td class="num">${x.duration.toFixed(1)} s</td></tr>`).join('');
+  const note = site.flowError ? `<p class="muted" style="font-size:12px;margin:8px 0 0">没有排出 AGV + 行车工序：${site.flowError}</p>` : '';
   const placed = [...(app.library?.placed.values() ?? [])].map((p) => `<tr><td>${p.asset.name}</td><td class="num">${Math.round(p.x)}, ${Math.round(p.y)}</td><td>${p.mount === 'runway' ? `${p.bay} 跨 行车轨道` : '地面'}</td></tr>`).join('');
-  return `<table class="t"><thead><tr><th colspan="2">图纸识别结果（自动）</th></tr></thead><tbody>${rows}</tbody></table>
-  <table class="t" style="margin-top:8px"><thead><tr><th>#</th><th>建造步骤</th><th>用时</th></tr></thead><tbody>${steps}</tbody></table>
+  const facts = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  return `<table class="t"><thead><tr><th colspan="2">图纸识别结果（自动）</th></tr></thead><tbody>${facts}</tbody></table>${note}
+  <table class="t" style="margin-top:8px"><thead><tr><th>#</th><th>设备</th><th>${site.flow ? '建造 + 工序步骤' : '建造步骤'}</th><th>用时</th></tr></thead><tbody>${steps}</tbody></table>
   ${placed ? `<table class="t" style="margin-top:8px"><thead><tr><th>已放入模型</th><th>X, Y mm</th><th>安装</th></tr></thead><tbody>${placed}</tbody></table>` : ''}`;
 }
 
 function renderDock() {
-  if (site.isScene) {
+  if (site.isScene && (!site.flow || app.tab === 'scene' || !app.product)) {
     $('dockMain').innerHTML = sceneHtml();
     return;
   }
   if (!site.process || !app.product) return;
-  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml, ...(app.dockTabs ?? {}) }[app.tab]();
+  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml, scene: sceneHtml, ...(app.dockTabs ?? {}) }[app.tab]();
   const focused = document.activeElement?.closest?.('#dockMain input');
   const key = focused && (focused.dataset.vparam ? `[data-vparam="${focused.dataset.vparam}"]` : focused.dataset.mparam ? `[data-mparam="${focused.dataset.mparam}"]` : null);
   $('dockMain').innerHTML = body;
@@ -961,6 +1014,18 @@ app.renderDock = renderDock;
 
 function renderKpis() {
   renderTakt();
+  if (site.isScene && site.flow) {
+    const s = site.summary;
+    const eff = site.efficiency;
+    const shift = simulateShift(eff, site.flowDuration, 8);
+    $('kpis').innerHTML = `
+    <div><small>厂房 · 工序跨</small><b>${Math.round(s.厂房_m[0] * s.厂房_m[1]).toLocaleString('zh-CN')}<em>m² · ${site.flow.bay.name} 跨</em></b></div>
+    <div class="${eff.target ? (eff.meets ? 'good' : 'bad') : ''}"><small>单件节拍${eff.target ? ` · 目标 ${eff.target}` : ''}</small><b>${eff.takt.toFixed(0)}<em>s</em></b></div>
+    <div><small>${shift.hours} 小时班产</small><b>${shift.pieces}<em>件</em></b></div>
+    <div><small>AGV / 瓶颈</small><b>${eff.agvCount}<em>台 · ${eff.bottleneck}</em></b></div>
+    <div><small>行车利用率</small><b>${(eff.utilization.crane * 100).toFixed(0)}<em>%</em></b></div>`;
+    return;
+  }
   if (site.isScene) {
     const s = site.summary;
     $('kpis').innerHTML = `
@@ -989,14 +1054,14 @@ app.renderKpis = renderKpis;
 function renderTakt() {
   const body = $('taktBody');
   if (!body) return;
-  if (site.isScene || !site.efficiency || !site.process) {
+  if ((site.isScene && !site.flow) || !site.efficiency || !site.process) {
     $('taktSum').textContent = '';
-    body.innerHTML = '<p class="takt-empty">当前打开的是图纸生成的厂房，还没有工序节拍。打开带工序的方案（例如对小华说「切回示例工序」）后，这里显示单件节拍与产能。</p>';
+    body.innerHTML = `<p class="takt-empty">当前图纸厂房没有排出 AGV + 行车工序${site.flowError ? `（${site.flowError}）` : ''}，所以没有节拍。</p>`;
     return;
   }
   const eff = site.efficiency;
-  const shift = app.shift ?? simulateShift(eff, site.duration, 8);
-  const steps = site.process.steps;
+  const shift = site.isScene ? simulateShift(eff, site.flowDuration, 8) : app.shift ?? simulateShift(eff, site.duration, 8);
+  const steps = site.process.steps.filter((x) => x.device !== '建造');
   const max = Math.max(1, ...steps.map((x) => x.duration));
   const cur = site.stepAt?.().n;
   const cls = eff.target ? (eff.meets ? 'good' : 'bad') : '';
@@ -1025,25 +1090,32 @@ $('taktBody').addEventListener('click', (e) => {
 // steps are on the bottom timeline) a click first goes back to the process plant, then plays.
 const DEV_CLASS = { AGV: '', 行车: 'crane', 建造: 'build' };
 const devName = (d) => (d === 'AGV' ? 'AGV' : d === '行车' ? '行车' : d);
+// A drawing plant with a laid-out process lists its own AGV + crane steps (times from the end of
+// the build); one without falls back to the process plant's list.
+const sceneFlow = () => site.isScene && site.flow;
 function renderProcList() {
-  const steps = processSite.process?.steps ?? [];
+  const own = sceneFlow();
+  const steps = own ? site.process.steps.filter((s) => s.device !== '建造') : processSite.process?.steps ?? [];
+  const base = own ? site.buildEnd : 0;
   const note = $('procNote');
   if (note) {
     note.hidden = !site.isScene;
-    note.textContent = site.isScene ? `当前打开的是图纸生成的厂房（${site.sourceName ?? '图纸'} · 建造动画）。点下面的工序会切回 AGV + 行车方案并播放到这一步。` : '';
+    note.textContent = !site.isScene ? ''
+      : own ? `${site.sourceName ?? '图纸'} · ${site.flow.bay.name} 跨：厂房建好后 AGV 跑环线送卷，行车吊到成品区，循环播放。`
+      : `图纸厂房没有排出工序${site.flowError ? `：${site.flowError}` : ''}。点下面的工序会切回示例方案并播放到这一步。`;
   }
-  $('procList').classList.toggle('off', Boolean(site.isScene));
+  $('procList').classList.toggle('off', Boolean(site.isScene && !own));
   if (!steps.length) {
     $('procTotal').textContent = '';
     $('procList').innerHTML = '';
     return;
   }
-  $('procTotal').textContent = `${steps.length} 步 · ${fmtTime(processSite.duration)}`;
-  $('procList').innerHTML = steps.map((s) => `<li data-play="${s.n}" title="点击播放第 ${s.n} 步"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${devName(s.device)}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
+  $('procTotal').textContent = `${steps.length} 步 · ${fmtTime(own ? site.flowDuration : processSite.duration)}`;
+  $('procList').innerHTML = steps.map((s, i) => `<li data-play="${s.n}" title="点击播放第 ${i + 1} 步"><span class="n">${String(i + 1).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${devName(s.device)}</span>${s.title}</b><small class="num">${fmtTime(s.t0 - base)} – ${fmtTime(s.t1 - base)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
 }
 const progressOf = (s) => Math.min(100, Math.max(0, ((site.time - s.t0) / s.duration) * 100));
 function updateProcList() {
-  const live = !site.isScene && site.process;
+  const live = (!site.isScene || (site.flow && !site.building)) && site.process;
   const n = live ? site.stepAt().n : 0;
   for (const li of $('procList').children) {
     const k = Number(li.dataset.play);
@@ -1057,7 +1129,7 @@ $('procList').addEventListener('click', (e) => {
   const li = e.target.closest('[data-play]');
   if (!li) return;
   const step = Number(li.dataset.play);
-  if (site.isScene) {
+  if (site.isScene && !site.flow) {
     const title = processSite.process?.steps[step - 1]?.title ?? `第 ${step} 步`;
     if (!confirm(`当前是图纸生成的厂房。切回 AGV + 行车工序方案并播放「${title}」？
 图纸厂房可以随时在 AI3D工厂 › 文件 里重新生成。`)) return;
@@ -1069,7 +1141,7 @@ $('procList').addEventListener('click', (e) => {
 // Bottom timeline: one segment per step, sized by its duration, plus a scrubber over the cycle.
 function renderTimeline() {
   if (!site.process) return;
-  $('tl').innerHTML = site.process.steps.map((s) => `<button data-play="${s.n}" class="${s.device === '行车' ? 'crane' : s.device === '建造' ? 'build' : 'agv'}" style="flex:${s.duration} 1 0" title="${s.title} · ${s.duration.toFixed(0)} s"><i></i><span>${'①②③④⑤⑥⑦⑧⑨'[s.n - 1] ?? s.n} ${s.title} · ${s.duration.toFixed(0)}s</span></button>`).join('');
+  $('tl').innerHTML = site.process.steps.map((s) => `<button data-play="${s.n}" class="${s.device === '行车' ? 'crane' : s.device === '建造' ? 'build' : 'agv'}" style="flex:${s.duration} 1 0" title="${s.title} · ${s.duration.toFixed(0)} s"><i></i><span>${'①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮'[s.n - 1] ?? s.n} ${s.title} · ${s.duration.toFixed(0)}s</span></button>`).join('');
 }
 let scrubbing = false;
 function updateTimeline() {
@@ -1123,8 +1195,17 @@ app.play = ({ mode = 'all', step, speed } = {}) => {
   else if (mode === 'step') {
     site.playWindow(step);
     site.renderPose(); // move the AGV / crane to the step's start before aiming the camera
-    if (site.isScene) app.setView(site.process.steps[step - 1].stage === 'crane' ? 'crane' : 'overview');
-    else app.setView(site.process.steps[step - 1].device === '行车' ? 'crane' : 'follow');
+    const s = site.process.steps[step - 1];
+    if (site.isScene && s.stage) app.setView(s.stage === 'crane' ? 'crane' : 'overview');
+    else app.setView(s.device === '行车' ? 'crane' : 'follow');
+  } else if (mode === 'process') {
+    // Skip the build: straight to the AGV + crane cycle of the drawing plant.
+    if (!site.isScene) return app.play({ mode: 'all' });
+    if (!site.flow) throw new Error(`这张图纸没有排出 AGV + 行车工序${site.flowError ? `：${site.flowError}` : ''}`);
+    site.playWindow(null);
+    site.time = site.buildEnd;
+    site.renderPose();
+    app.setView('follow');
   } else if (mode === 'next') {
     const cur = site.window?.step ?? site.stepAt().n;
     const next = (cur % site.process.steps.length) + 1;
@@ -1151,6 +1232,7 @@ processSite.onWindowEnd = () => renderDock();
 const VIEW_NAMES = { process: { follow: '跟随', crane: '行车' }, scene: { follow: '室内', crane: '行车' } };
 function setModeUi(scene) {
   document.body.classList.toggle('scene-mode', scene);
+  document.body.classList.toggle('scene-flow', Boolean(scene && site.flow));
   app.agent?.setSuggestions(scene);
   for (const b of document.querySelectorAll('[data-view]')) {
     const name = VIEW_NAMES[scene ? 'scene' : 'process'][b.dataset.view];
@@ -1171,6 +1253,7 @@ function fitCameraLimits() {
 app.enterScene = async (text, name, asset = null) => {
   const next = new SceneSite(renderer, QUALITY);
   next.share(processSite);
+  if (app.vehicle) next.setVehicle(app.vehicle.root.clone(true), app.product, stateOf());
   next.loadDrawing(text, name, asset);
   next.onWindowEnd = () => renderDock();
   const previous = site;
@@ -1210,6 +1293,8 @@ app.exitScene = () => {
 };
 
 function disposeSite(old) {
+  // The AGV copies share geometry with the process plant's model: detach them before disposing.
+  for (const carrier of old.carriers ?? []) carrier.removeFromParent();
   old.scene.traverse((o) => {
     if (o.isMesh || o.isLine) o.geometry?.dispose();
   });
@@ -1224,7 +1309,7 @@ $('drawerClose').addEventListener('click', () => app.setTab(app.tab, false));
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => app.setView(b.dataset.view)));
 $('playBtn').addEventListener('click', () => {
   if (!site.playing && site.window && site.time >= site.window.t1) site.time = site.window.t0;
-  else if (site.isScene && !site.playing && !site.building) site.time = 0;
+  else if (site.isScene && !site.playing && !site.building && !site.flow) site.time = 0;
   site.playing = !site.playing;
 });
 function markSpeed() {
@@ -1265,8 +1350,14 @@ const relayout = () => {
   resize();
   if (['overview', 'top', 'front', 'right'].includes(app.view)) app.setView(app.view, { noHistory: true });
 };
-// Rails only show panel headers; a header opens its panel as a floating card over the view.
+// Rails only show panel headers; a header opens its panel as a card docked in its column
+// (or floating over the view, once popped out).
 initPopcards(app);
+// Start with AI3D工厂 and 小华 open in their columns so the screen is not empty (not on phones).
+if (!matchMedia('(max-width: 760px)').matches) {
+  app.cards.open('secFactory', { animate: false });
+  app.cards.open('secAgent', { animate: false });
+}
 app.cards.registerStrip('secProcess', () => {
   const cur = $('procList').querySelector('li.cur b')?.lastChild?.textContent; // the title, without the device tag
   return `${cur ? `<b>${escHtml(cur)}</b> · ` : ''}${escHtml($('procTotal').textContent)}`;
@@ -1351,13 +1442,18 @@ $('dockMain').addEventListener('click', async (e) => {
   const play = e.target.closest('[data-play]');
   if (play) return app.play({ mode: 'step', step: Number(play.dataset.play) });
   const blk = e.target.closest('.blk');
-  if (blk) return app.seek(Number(blk.dataset.t) + 0.01);
+  const c = hasCycle() ? cycle() : null;
+  if (blk) return app.seek(c.base + Number(blk.dataset.t) + 0.01);
   const lane = e.target.closest('[data-lane]');
   if (lane) {
     const r = lane.getBoundingClientRect();
-    return app.seek(((e.clientX - r.left) / r.width) * site.duration);
+    return app.seek(c.base + ((e.clientX - r.left) / r.width) * c.D);
   }
   const point = e.target.closest('[data-point]');
+  if (point && site.isScene) {
+    const p = site.findPoint(point.dataset.point);
+    return p && app.setView('point', { x: p.x, y: p.y });
+  }
   if (point) return app.setView('point', { id: point.dataset.point });
   const product = e.target.closest('[data-product]');
   if (product) {
@@ -1513,7 +1609,7 @@ function frame(dt) {
       controls.target.lerpVectors(fly.fromTarget, fly.toTarget, k);
       camera.position.lerpVectors(fly.fromPos, fly.toPos, k);
       if (fly.t >= 1) fly.active = false;
-    } else if (!site.isScene && (app.view === 'follow' || app.view === 'crane')) {
+    } else if (tracking && (app.view === 'follow' || app.view === 'crane')) {
       // Lock the orbit centre onto the subject; the user can still orbit and zoom around it.
       const moved = subjectOf(app.view).sub(controls.target);
       controls.target.add(moved);
