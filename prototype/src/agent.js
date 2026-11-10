@@ -4,7 +4,7 @@
 
 // Doubao through the local magpie proxy.
 const MODEL = 'trae-cn/seed-code-pro-0430';
-const MAX_ROUNDS = 8;
+const MAX_ROUNDS = 12;
 
 const SYSTEM = `你是「小华」，卫华集团「3D 方案工作台」里的方案助手。界面左边是 three.js 三维引擎（客户厂房、AGV、双梁桥式起重机、钢卷），右边是你。你只能通过工具改动左边。
 
@@ -26,7 +26,21 @@ B. 图纸生成的厂房：用户在场景库上传普通厂房 DWG/DXF 后，lo
   - 已放入的模型用 move_asset 移动/旋转/缩放，用 remove_asset 移出；实例 id 见 已放入模型。
   - 用户上传的模型想长期复用、或说"放进产品库"时，调 add_to_product_library。
   - 选型、参数、工序、节拍、班次、行程这些工具只属于 A；用户要回去时调 exit_scene。
-  - 资源库里没有用户要的模型时，直说没有，并请用户在左侧资源库上传（支持 GLB/GLTF/OBJ/STL/FBX/STEP），不要用别的模型冒充。`;
+  - 资源库里没有用户要的模型时，直说没有，并请用户在左侧资源库上传（支持 GLB/GLTF/OBJ/STL/FBX/STEP），不要用别的模型冒充。
+
+不凭空生成设备（最重要）：
+- 用户只给了厂区图纸。厂房里的行车是按吊车梁位置画的「示意行车」，只表示位置和跨度，不是具体型号。
+- 用户要某台具体的起重机、大车、铝卷或其他设备（"生成一台 32 吨双梁起重机""做一个大车模型""铝卷做成 1.8 米直径"），而资源库里没有对应模型时：不要调用任何工具去拼凑、替代或缩放别的模型，也不要自己编尺寸、吨位、外形。直接问用户要这台设备的图纸或三维模型，说明需要什么：设备总图或三维模型文件（STEP/GLB/OBJ/STL/FBX），以及型号、关键尺寸（跨度、起升高度、外形尺寸等）。
+- 用户给了尺寸但没给模型、也没给设备图时，同样先确认要不要等模型或图纸，不要用现有模型改尺寸冒充。
+- 设备图（DWG/DXF 里画的是起重机、大车等设备的视图，不是厂房）不要用 load_site_asset 去生成厂房。
+
+按二维设备图建三维模型（用户给了设备图纸，可能还有几张外观图片）：
+1. 先调 read_equipment_drawing 读图：得到各视图（主视/侧视/俯视…）、全部尺寸标注、参数表和标题栏文字、各视图主要轮廓 id。
+2. 有图片就调 view_images 看图，只用来判断外观：颜色、零件形状、零件大致相对位置、梁是箱形还是工字。图片里的尺寸一律不可信。
+3. 总长、总宽、总高（起重机即跨度方向长度、端梁方向宽度、总高）必须来自图纸标注、图纸量取、参数表或用户原话。图纸和参数都找不到时，停下来问用户，不要建模。
+4. 调 build_equipment_model 一次交完整 spec。坐标：x 沿设备长度（起重机为跨度方向），y 向上（地面或轨顶为 0），z 沿宽度，position_mm 是零件中心，单位 mm。每个零件写 source：图纸标注 / 图纸量取 / 参数表 / 用户给定 / 图片估计。重复件（车轮、栏杆立柱）用 repeat。图纸有完整外形轮廓时可以用 shape=extrude + profile 轮廓 id 直接拉伸。
+5. 工具报外形不符时按提示改尺寸或位置再调一次，最多改两次；仍不对就把问题告诉用户。
+6. 建好后用一两句话汇报：外形尺寸及来源、零件数、哪些零件是按图片估计的（要请用户核对）。用户要求时再 place_asset 放进厂房，起重机用 mount=runway；跨度和所在跨对不上时如实转告，不要缩放凑数。`;
 
 const SUGGESTIONS = ['播放全流程', '只看第 3 步', '节拍改成 90 秒', '模拟一个 8 小时班', '显示行程', '车长改成 3200', '加一台 AGV', '在 H-01 东边 8 米加一个吊装点'];
 const SCENE_SUGGESTIONS = ['重新建造', '只看行车就位', '看 B 跨行车', '资源库里有哪些模型', '把起重机装到 B 跨轨道上', '在 A 跨放 5 卷铝卷', '俯视', '返回原方案'];
@@ -288,6 +302,7 @@ export class Agent {
       const out = await this.tools.run(name, args);
       ui.chip(name, out.chip ?? '', true);
       if (out.card) ui.card(out.card);
+      if (out.images?.length) ui.pendingImages = [...(ui.pendingImages ?? []), ...out.images];
       return { ok: true, ...out.result };
     } catch (error) {
       ui.chip(name, error.message, false);
@@ -298,6 +313,25 @@ export class Agent {
   }
 
   async runOffline(text, ui) {
+    // "生成一台起重机" with no such model in the library: ask for the drawing, don't make one up.
+    const t = text.replace(/\s+/g, '');
+    const wanted = t.match(/(?:生成|做|画|建|造|设计|来)(?:一|几|[\d两三四五]+)?(?:台|个|卷|辆|套)?(.*?(起重机|行车|吊车|大车|铝卷|钢卷|卷材|设备|小车|车))/);
+    if (wanted) {
+      let found = null;
+      try {
+        found = this.app.library.findModel(wanted[1]);
+      } catch {
+        found = null;
+      }
+      if (!found) {
+        (ui.text ?? ui.newText()).textContent += `资源库里还没有「${wanted[1]}」的模型，我不会凭空生成。请提供这台设备的图纸或三维模型（STEP/GLB/OBJ/STL/FBX），并说明型号和关键尺寸（如跨度、起升高度、外形尺寸），上传到左侧资源库后我再放进厂房。`;
+        return;
+      }
+    }
+    if (/建模|三维模型|3D 模型|3d模型|设备图/.test(t) && /图纸|设备图|图片|建/.test(t)) {
+      (ui.text ?? ui.newText()).textContent += '按设备图纸建三维模型需要读图和看图，要用在线模型（豆包）。当前连不上模型服务，请恢复网络后再试；图纸和图片已经在资源库里的话不用重新上传。';
+      return;
+    }
     const calls = localIntent(text, this.app);
     if (!calls.length) {
       (ui.text ?? ui.newText()).textContent += this.app.site.isScene
@@ -318,10 +352,15 @@ export class Agent {
   // Keep the last turns, cutting only at a user message so tool calls stay paired with their results.
   history() {
     const max = 40;
-    if (this.messages.length <= max) return this.messages;
-    const tail = this.messages.slice(-max);
-    const first = tail.findIndex((m) => m.role === 'user');
-    return first < 0 ? tail : tail.slice(first);
+    let tail = this.messages;
+    if (tail.length > max) {
+      tail = tail.slice(-max);
+      const first = tail.findIndex((m) => m.role === 'user');
+      if (first > 0) tail = tail.slice(first);
+    }
+    // Only the latest pictures are sent again; older ones become a text note.
+    const last = tail.findLastIndex((m) => Array.isArray(m.content));
+    return tail.map((m, i) => (Array.isArray(m.content) && i !== last ? { ...m, content: `${m.content[0].text}（图片已看过，此处省略）` } : m));
   }
 
   async runOnline(text, ui) {
@@ -355,6 +394,18 @@ export class Agent {
         else result = await this.execute(call.name, args, ui);
         if (call.name === 'set_params' && result.ok) for (const k of Object.keys(args)) changedThisTurn.add(k);
         this.messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+      }
+      // Pictures fetched by view_images go to the model as a user message right after the tool results.
+      if (ui.pendingImages?.length) {
+        const images = ui.pendingImages;
+        ui.pendingImages = null;
+        this.messages.push({
+          role: 'user',
+          content: [
+            { type: 'text', text: `（view_images 取到的参考图片，按顺序：${images.map((i) => i.name).join('、')}。只用来判断外观和零件相对位置，尺寸以图纸为准。）` },
+            ...images.map((i) => ({ type: 'image_url', image_url: { url: i.url } })),
+          ],
+        });
       }
       ui.newText();
     }

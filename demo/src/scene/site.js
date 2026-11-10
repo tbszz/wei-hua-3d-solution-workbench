@@ -9,6 +9,17 @@ import { buildTimeline, cargoStateAt, poseAt } from './route.js';
 
 export const SAMPLE_PLAN = '/cad/sample-plant.dxf';
 
+// Depth precision follows the orbit distance. A fixed 0.1 m near plane leaves centimetres of depth
+// resolution on the floor at the 300-500 m overview, so the floor paint (4 mm up), the route and the
+// contact shadow z-fight with the floor and the whole hall flickers as soon as the camera moves.
+// Keeping near at 1 % of the distance to the orbit centre stays well clear of anything in view.
+export function fitDepthRange(camera, target) {
+  const near = THREE.MathUtils.clamp(camera.position.distanceTo(target) * 0.01, 0.1, 20);
+  if (Math.abs(near - camera.near) < camera.near * 0.02) return;
+  camera.near = near;
+  camera.updateProjectionMatrix();
+}
+
 function softShadowTexture() {
   const size = 128;
   const data = new Uint8Array(size * size * 4);

@@ -11,7 +11,7 @@ const fn = (name, description, properties = {}, required = []) => ({
 
 export const SCHEMAS = [
   fn('list_library', '列出资源库：产品库（车型和已登记的产品模型）、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型实例。'),
-  fn('place_asset', '把产品库或场景库里的三维模型（起重机、大车、铝卷、设备等）放进当前厂房，可一次放多个。图纸生成的厂房里可按跨定位（bay + along_m），起重机类模型用 mount=runway 装到该跨行车轨道上（自动横跨该跨、缩放到跨度、替换该跨的示意行车）。不给位置就放在中间跨的中部。', {
+  fn('place_asset', '把产品库或场景库里的三维模型（起重机、大车、铝卷、设备等）放进当前厂房，可一次放多个。图纸生成的厂房里可按跨定位（bay + along_m），起重机类模型用 mount=runway 装到该跨行车轨道上（自动横跨该跨、替换该跨的示意行车；按模型原尺寸，不缩放，跨度对不上会提示）。不给位置就放在中间跨的中部。', {
     asset: { type: 'string', description: '模型 id 或名称，如 “起重机”“铝卷”' },
     bay: { type: 'string', description: '跨名，如 A、B（图纸生成的厂房）' },
     along_m: { type: 'number', description: '沿跨长方向距厂房起点的米数' },
@@ -45,6 +45,66 @@ export const SCHEMAS = [
   }, ['asset']),
   fn('load_site_asset', '载入场景库里的 DXF/DWG 图纸。普通厂房图纸：识别柱网、跨、吊车梁、墙、门窗和设备，生成新的三维厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。带卫华约定图层（A-WALL/AGV-PATH/AGV-STAT）的图纸：替换 AGV + 行车工序方案的厂房。', { asset: { type: 'string' } }, ['asset']),
   fn('exit_scene', '离开图纸生成的厂房，回到原来的 AGV + 行车工序方案。'),
+  fn('read_equipment_drawing', '读取场景库里的二维设备图（起重机、大车、小车、铝卷等设备的 DWG/DXF，不是厂房图）：返回各视图（标题、图面尺寸）、所有尺寸标注值、参数表与标题栏文字、各视图主要闭合轮廓（id 如 V1-P3，可用于 extrude 零件）。图面比例会按标注自动换算成实际 mm。', {
+    asset: { type: 'string', description: '图纸 id 或名称' },
+  }, ['asset']),
+  fn('get_profile_points', '取某个轮廓的全部点坐标（mm，相对所在视图左下角），用于核对外形或手工改写 points_mm。', {
+    id: { type: 'string', description: '轮廓 id，如 V1-P3' },
+  }, ['id']),
+  fn('view_images', '查看场景库里的参考图片（设备照片、效果图、三维截图），图片会随后发给你。只用来判断外观、颜色、零件形状和相对位置，不能当尺寸来源。不给 assets 就看全部图片（最多 4 张）。', {
+    assets: { type: 'array', items: { type: 'string' }, description: '图片 id 或名称' },
+  }),
+  fn('build_equipment_model', '按零件清单用 three.js 建设备三维模型，导出 GLB 存入场景库，并（默认）登记进产品库，之后可用 place_asset 放进厂房。外形总尺寸必须来自图纸或用户；拼出的模型外形和 overall 相差超过 5% 会被拒绝。同名再建会替换本次会话里的旧版本。', {
+    spec: {
+      type: 'object',
+      description: '坐标：x 沿设备长度（起重机为跨度方向），y 向上（底面 0），z 沿宽度；position_mm 是零件中心；单位 mm。',
+      properties: {
+        name: { type: 'string', description: '型号或名称，如 “QD32t-22.5m 双梁桥式起重机”' },
+        label: { type: 'string', description: '中文名称' },
+        category: { type: 'string', description: 'overhead_crane / trolley / vehicle / coil / equipment' },
+        overall: {
+          type: 'object',
+          properties: { length_mm: { type: 'number' }, width_mm: { type: 'number' }, height_mm: { type: 'number' }, source: { type: 'string', enum: ['图纸标注', '图纸量取', '参数表', '用户给定'] } },
+          required: ['length_mm', 'width_mm', 'height_mm', 'source'],
+        },
+        parts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              shape: { type: 'string', enum: ['box', 'cylinder', 'tube', 'ibeam', 'boxgirder', 'extrude'] },
+              size_mm: { type: 'array', items: { type: 'number' }, description: 'box：[长 x, 高 y, 宽 z]' },
+              length_mm: { type: 'number', description: 'cylinder/tube/ibeam/boxgirder 的长度' },
+              axis: { type: 'string', enum: ['x', 'y', 'z'], description: '长度方向，默认 x' },
+              radius_mm: { type: 'number', description: 'cylinder 半径' },
+              outer_radius_mm: { type: 'number', description: 'tube 外半径（钢卷/铝卷外径的一半）' },
+              inner_radius_mm: { type: 'number', description: 'tube 内半径' },
+              height_mm: { type: 'number', description: 'ibeam/boxgirder 截面高' },
+              width_mm: { type: 'number', description: 'ibeam/boxgirder 截面宽' },
+              web_mm: { type: 'number' },
+              flange_mm: { type: 'number' },
+              wall_mm: { type: 'number', description: 'boxgirder 板厚' },
+              profile: { type: 'string', description: 'extrude：read_equipment_drawing 给出的轮廓 id' },
+              points_mm: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: 'extrude：自定义轮廓点 [[x,y],…]' },
+              plane: { type: 'string', enum: ['xy', 'zy', 'xz'], description: 'extrude 轮廓所在面：xy 主视（图上 x→长度，y→高度，沿宽度拉伸），zy 侧视（图上 x→宽度），xz 俯视（图上 y→宽度，向上拉伸）' },
+              depth_mm: { type: 'number', description: 'extrude 拉伸厚度' },
+              position_mm: { type: 'array', items: { type: 'number' }, description: '零件中心 [x, y, z]' },
+              rotation_deg: { type: 'array', items: { type: 'number' } },
+              repeat: { type: 'object', properties: { count: { type: 'integer' }, step_mm: { type: 'array', items: { type: 'number' } } } },
+              color: { type: 'string', description: '如 黄、红、深灰、#f2b705' },
+              metal: { type: 'number' },
+              rough: { type: 'number' },
+              source: { type: 'string', enum: ['图纸标注', '图纸量取', '参数表', '用户给定', '图片估计'] },
+            },
+            required: ['name', 'shape', 'position_mm', 'source'],
+          },
+        },
+      },
+      required: ['name', 'overall', 'parts'],
+    },
+    register_product: { type: 'boolean', description: '是否登记进产品库，默认 true' },
+  }, ['spec']),
   fn('record_video', '开始或停止录制三维视口视频（停止后自动下载 WebM）。', { on: { type: 'boolean' } }, ['on']),
   fn('get_scene_state', '读取当前方案状态：产品、参数、点位、工序、节拍、播放进度。'),
   fn('set_step', '切换顶部功能流程步骤（1 图纸变三维·点位标定，2 选型与参数，3 流程说明，4 流程动画，5 效率与节拍，6 行程可视化，7 出图下发·后期），同时切换底部面板。', {
@@ -449,6 +509,32 @@ export function createTools(app) {
     load_site_asset: async ({ asset }) => {
       const r = await app.library.loadSite(asset);
       return { result: r, chip: r.模式?.startsWith('图纸生成') ? `生成厂房 · ${r.图纸}` : `图纸 ${r.图纸}` };
+    },
+
+    read_equipment_drawing: async ({ asset }) => {
+      const r = await app.library.readDrawing(asset);
+      const s = r.summary;
+      return { result: s, chip: `读图 ${r.asset.name} · ${s.视图.length} 视图 · ${s.标注总数} 个标注` };
+    },
+
+    get_profile_points: ({ id }) => {
+      const pts = app.library.profiles[id];
+      if (!pts) throw new Error(`没有轮廓 ${id}；先调 read_equipment_drawing，轮廓 id 见各视图的 主要轮廓`);
+      return { result: { id, 点: pts.map((p) => [Math.round(p.x), Math.round(p.y)]) }, chip: `轮廓 ${id} · ${pts.length} 点` };
+    },
+
+    view_images: async ({ assets }) => {
+      const images = await app.library.imageData(assets ?? []);
+      return {
+        result: { 图片: images.map((i) => ({ 名称: i.name, 像素: i.size })), 说明: '图片随后作为用户消息发给你' },
+        images: images.map((i) => ({ name: i.name, url: i.url })),
+        chip: `看图 ${images.map((i) => i.name).join('、')}`,
+      };
+    },
+
+    build_equipment_model: async ({ spec, register_product }) => {
+      const r = await app.library.buildModel(spec, { register: register_product !== false });
+      return { result: { ...r, 下一步: '可用 place_asset 放进厂房（起重机 mount=runway）；图片估计的零件请提醒用户核对' }, chip: `建模 ${r.名称} · ${r.零件} 个零件` };
     },
 
     exit_scene: () => {

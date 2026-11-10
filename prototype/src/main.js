@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG } from '../../demo/src/catalog.js';
-import { SAMPLE_PLAN } from '../../demo/src/scene/site.js';
+import { SAMPLE_PLAN, fitDepthRange } from '../../demo/src/scene/site.js';
 import { applyBands, loadVehicle } from '../../demo/src/vehicle.js';
 import { Agent } from './agent.js';
 import { ProcessSite } from './engine.js';
@@ -1013,6 +1013,7 @@ function frame(dt) {
     }
     controls.autoRotate = app.autoRotate && app.view === 'overview' && !fly.active;
     controls.update(delta);
+    fitDepthRange(camera, controls.target);
     updateShadows(delta);
     renderer.render(site.scene, camera);
     if (!manual) adaptPixelRatio();

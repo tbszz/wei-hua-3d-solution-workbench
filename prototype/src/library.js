@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CATALOG } from '../../demo/src/catalog.js';
+import { readEquipment } from '../../demo/src/scene/read-equipment.js';
+import { buildFromSpec, exportGlb, fileName } from './model-builder.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -36,6 +38,9 @@ export class Library {
     this.placed = new Map(); // instance key -> { key, root, asset, x, y, heading, base, height, mount, bay }
     this.gltfCache = new Map();
     this.online = false;
+    this.drawings = new Map(); // drawing asset id -> { summary, geometry } from readEquipment
+    this.profiles = {}; // outline id -> points (mm), from every equipment drawing read so far
+    this.builtModels = new Map(); // model name -> { assetId, productId } built in this session
   }
 
   async init() {
@@ -118,6 +123,7 @@ export class Library {
         act = a.meta?.convention === 'generic'
           ? `<button class="go ${current ? 'on' : ''}" data-site="${a.id}" title="按图纸识别柱网、跨、吊车梁、墙和设备，生成三维厂房并播放建造过程">${current ? '重新建造' : '生成厂房'}</button>`
           : `<button class="go" data-site="${a.id}">载入</button>`;
+        act = `<span class="btns">${act}<button class="go sub" data-model-from="${a.id}" title="这是一张设备图（起重机、大车等）：交给小华读图，按图纸尺寸建三维模型">设备建模</button></span>`;
       }
       const thumb = a.thumbUrl ? `background-image:url(${esc(a.thumbUrl)})` : '';
       const sub = ok ? `${KIND[a.kind] ?? a.kind} · ${esc(a.meta?.formatName ?? a.originalFormat)}` : esc(a.message || '无法识别');
@@ -136,6 +142,11 @@ export class Library {
         app.toast(`已选用 ${app.product.model}`);
       } else if (b.dataset.place) await this.place(b.dataset.place);
       else if (b.dataset.site) await this.loadSite(b.dataset.site);
+      else if (b.dataset.modelFrom) {
+        const a = this.find(b.dataset.modelFrom);
+        const pics = this.assets.filter((x) => x.kind === 'image' && x.url).map((x) => x.name);
+        if (!app.agent?.busy) app.agent?.send(`按设备图纸「${a.name}」建三维模型${pics.length ? `，外观参考图片：${pics.join('、')}` : ''}`);
+      }
       else if (b.dataset.exit !== undefined) {
         app.exitScene();
         app.toast('已返回原 AGV + 行车方案');
@@ -186,7 +197,10 @@ export class Library {
       ?? all.find((m) => m.name.toLowerCase() === key)
       ?? all.find((m) => m.name.toLowerCase().includes(key) || (m.alias ?? '').toLowerCase().includes(key))
       ?? all.find((m) => key.includes(m.name.toLowerCase()));
-    if (!hit) throw new Error(`资源库里没有模型「${idOrName}」。可放入的模型：${all.map((m) => `${m.name}（${m.source}）`).join('、') || '无，请先在左侧资源库上传 GLB/OBJ/STL/STEP/FBX'}`);
+    if (!hit) {
+      const have = all.map((m) => `${m.name}（${m.source}）`).join('、') || '无';
+      throw new Error(`资源库里没有「${idOrName}」的模型，不能凭空生成或拿别的模型代替。请向用户索要这台设备的图纸或三维模型（STEP/GLB/OBJ/STL/FBX，并说明型号和关键尺寸），上传到左侧资源库后再放入。现有可放入的模型：${have}`);
+    }
     return hit;
   }
 
@@ -223,14 +237,16 @@ export class Library {
     let bay = null;
     let base = 0;
     let anchor;
+    let spanNote;
     if (mount === 'runway') {
       bay = site.bay(opts.bay ?? site.bays[0]?.name);
       if (!bay) throw new Error(`没有 ${opts.bay} 跨，可选：${site.bays.map((b) => `${b.name} 跨`).join('、')}`);
       const crane = site.plant.cranes.find((c) => c.attrs.BAY === bay.name);
       const span = (Number(crane?.attrs.SPAN) || bay.span - 1100) / 1000 + 0.6;
-      // Lay the model's long horizontal side across the bay, scaled to the rail span.
-      const horiz = Math.max(dims.x, dims.z);
-      if (!opts.size) k = span / horiz;
+      // Lay the model's long horizontal side across the bay. It keeps its own size: a model that
+      // does not fit the rail span is reported, never stretched to fit.
+      const horiz = Math.max(dims.x, dims.z) * (opts.size ? opts.size / longest : k);
+      if (Math.abs(horiz / span - 1) > 0.03) spanNote = `模型横向 ${horiz.toFixed(2)} m，该跨轨道外缘约 ${span.toFixed(2)} m，相差 ${Math.round((horiz / span - 1) * 100)}%；按模型原尺寸放置，没有缩放，请核对这台设备的跨度是否对应这一跨`;
       const longAlongX = dims.x >= dims.z;
       const acrossIsWorldZ = site.alongX;
       if (opts.heading === undefined || opts.heading === null) heading = longAlongX === acrossIsWorldZ ? 90 : 0;
@@ -292,6 +308,7 @@ export class Library {
       尺寸_m: sized.toArray().map((v) => +v.toFixed(2)),
       朝向_deg: heading,
       安装: mount === 'runway' ? `${bay.name} 跨行车轨道，底面 ${base} m，已替换该跨示意行车` : `地面${base ? `，抬高 ${base} m` : ''}`,
+      跨度提示: spanNote,
     };
   }
 
@@ -358,7 +375,7 @@ export class Library {
   }
 
   // Register an uploaded model as a product so it shows in the product library.
-  async addProduct(idOrName, { model, name, category } = {}) {
+  async addProduct(idOrName, { model, name, category, params = {} } = {}) {
     const asset = this.find(idOrName);
     if (!asset || asset.kind !== 'model') throw new Error(`场景库里没有模型 ${idOrName}`);
     if (asset.status !== 'ready') throw new Error(`${asset.name} 还没有转换成功，不能入产品库`);
@@ -366,7 +383,7 @@ export class Library {
     const r = await getJson('/api/library/products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: label, name: name ?? label, category: category ?? categoryOf(`${label} ${name ?? ''}`), modelAssetId: asset.id, params: {} }),
+      body: JSON.stringify({ model: label, name: name ?? label, category: category ?? categoryOf(`${label} ${name ?? ''}`), modelAssetId: asset.id, params }),
     });
     await this.reload();
     this.show('products');
@@ -419,6 +436,88 @@ export class Library {
       清空了之前放入的模型: r.cleared || undefined,
       说明: note ? `图纸不含工序图层（${note}），按普通厂房图生成` : undefined,
     };
+  }
+
+  // A 2D equipment drawing (DXF/DWG in the scene library) read into views, dimensions and outlines.
+  async readDrawing(idOrName) {
+    const asset = this.find(idOrName);
+    if (!asset || asset.kind !== 'site') throw new Error(`场景库里没有图纸 ${idOrName}。现有图纸：${this.assets.filter((a) => a.kind === 'site').map((a) => a.name).join('、') || '无'}`);
+    const dxfUrl = asset.meta?.dxfUrl ?? asset.meta?.originalDxfUrl;
+    if (!dxfUrl) throw new Error(`${asset.name} 没有可用的 DXF（${asset.message ?? asset.status}）`);
+    const text = await fetch(dxfUrl).then((r) => {
+      if (!r.ok) throw new Error(`读不到 ${asset.name} 的 DXF（${r.status}）`);
+      return r.text();
+    });
+    const read = readEquipment(text, asset.originalName ?? asset.name);
+    // Outline ids are unique per drawing only, so a later drawing overrides an earlier one.
+    Object.assign(this.profiles, read.geometry);
+    this.drawings.set(asset.id, read);
+    return { asset, ...read };
+  }
+
+  // Reference pictures from the scene library, downscaled to JPEG data URLs for the vision model.
+  async imageData(names, max = 1024) {
+    const list = (Array.isArray(names) ? names : [names]).filter(Boolean);
+    const images = list.length ? list.map((n) => this.find(n)) : this.assets.filter((a) => a.kind === 'image');
+    const missing = list.filter((n, i) => !images[i] || images[i].kind !== 'image');
+    if (missing.length) throw new Error(`场景库里没有图片 ${missing.join('、')}。现有图片：${this.assets.filter((a) => a.kind === 'image').map((a) => a.name).join('、') || '无'}`);
+    if (!images.length) throw new Error('场景库里还没有图片，请先上传设备的参考图片');
+    const out = [];
+    for (const a of images.slice(0, 4)) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = a.url;
+      await img.decode();
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * k);
+      canvas.height = Math.round(img.naturalHeight * k);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      out.push({ name: a.name, size: [img.naturalWidth, img.naturalHeight], url: canvas.toDataURL('image/jpeg', 0.85) });
+    }
+    return out;
+  }
+
+  // Build an equipment model from a parts spec, store it as GLB in the scene library and
+  // optionally register it as a product. A rebuild under the same name replaces this session's
+  // earlier version and swaps any placed copies.
+  async buildModel(spec, { register = true, category, label } = {}) {
+    const { group, report } = buildFromSpec(spec, this.profiles);
+    const blob = await exportGlb(group);
+    const file = new File([blob], fileName(report.名称), { type: 'model/gltf-binary' });
+    const prev = this.builtModels.get(report.名称);
+    const added = await this.upload([file]);
+    const asset = added.find((a) => a.kind === 'model' && a.status !== 'failed' && a.status !== 'unsupported');
+    if (!asset) throw new Error(`模型已生成，但存入场景库失败：${added[0]?.message ?? '上传没有返回资源'}`);
+    let product = null;
+    if (register) {
+      product = await this.addProduct(asset.id, {
+        model: report.名称,
+        name: label ?? spec.label ?? report.名称,
+        category: category ?? spec.category,
+        // The product store takes numeric ranges only: record the overall size as fixed values.
+        params: Object.fromEntries([['length', '总长', report.外形_mm.长], ['width', '总宽', report.外形_mm.宽], ['height', '总高', report.外形_mm.高]]
+          .map(([key, l, v]) => [key, { label: `${l}（${report.外形_mm.来源}）`, min: v, nominal: v, max: v }])),
+      });
+    }
+    const replaced = [];
+    if (prev) {
+      for (const entry of [...this.placed.values()].filter((p) => p.asset.id === prev.assetId || p.asset.id === prev.productId)) {
+        const { x, y, heading, base, mount, bay } = entry;
+        this.remove(entry.key);
+        await this.place(product?.id ?? asset.id, { x, y, heading, elevation: base, mount, bay });
+        replaced.push(entry.key);
+      }
+      await fetch(`/api/library/scene/${prev.assetId}`, { method: 'DELETE' }).catch(() => {});
+      if (prev.productId) await fetch(`/api/library/products/${prev.productId}`, { method: 'DELETE' }).catch(() => {});
+      await this.reload();
+    }
+    this.builtModels.set(report.名称, { assetId: asset.id, productId: product?.id ?? null });
+    this.show(product ? 'products' : 'scene');
+    return { ...report, 场景库id: asset.id, 产品库id: product?.id ?? null, 替换了旧版本: prev ? true : undefined, 已同步替换场景中的实例: replaced.length ? replaced : undefined };
   }
 
   placedList() {

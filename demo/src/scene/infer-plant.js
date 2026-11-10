@@ -4,7 +4,7 @@
 // rectangles are zones or machines, the rest is floor linework.
 import DxfParser from 'dxf-parser';
 
-const UNITS = { 0: 1, 1: 25.4, 2: 304.8, 4: 1, 5: 10, 6: 1000, 14: 100 };
+export const UNITS = { 0: 1, 1: 25.4, 2: 304.8, 4: 1, 5: 10, 6: 1000, 14: 100 };
 const COLUMN_MAX = 2500;
 const WALL_WIDTH = 240;
 const BEAM_TOP = 8950; // underside of the runway beam (see buildPlant)
@@ -13,7 +13,7 @@ const MACHINE_BLOCKS = ['MACH_CNC', 'MACH_PRESS', 'MACH_WELD'];
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-function box(points) {
+export function box(points) {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
   for (const p of points) {
     x0 = Math.min(x0, p.x);
@@ -24,7 +24,7 @@ function box(points) {
   return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
 }
 
-function area(points) {
+export function area(points) {
   let s = 0;
   for (let i = 0; i < points.length; i++) {
     const a = points[i];
@@ -54,7 +54,7 @@ function arc(center, radius, start, end, k) {
 }
 
 // Every drawable entity as a point list, block inserts expanded one level deep.
-function collect(dxf, k) {
+export function collect(dxf, k) {
   const out = [];
   const labels = [];
   const add = (layer, raw, closed) => {
@@ -244,8 +244,10 @@ export function inferPlant(text, sourceName = '') {
     const rects = [
       { ...XY(u - 1100, vc), w: girder, d: 600, heading: across },
       { ...XY(u + 1100, vc), w: girder, d: 600, heading: across },
-      { ...XY(u, ra), w: 5200, d: 500, heading: turn },
-      { ...XY(u, rb), w: 5200, d: 500, heading: turn },
+      // End trucks straddle the 500 mm runway beam; the same width would make their side faces
+      // coincide with the beam's and z-fight.
+      { ...XY(u, ra), w: 5200, d: 640, heading: turn },
+      { ...XY(u, rb), w: 5200, d: 640, heading: turn },
     ];
     cranes.push({ block: 'CRANE', ...XY(u, vc - span * 0.12), heading: across, rects, attrs: { HEIGHT: '9800', BAY: name, SPAN: String(Math.round(rb - ra)) } });
   }
