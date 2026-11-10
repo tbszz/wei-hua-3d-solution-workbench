@@ -44,11 +44,11 @@
 </header>
 
 <aside class="left">
-  <section class="panel glass grow min-on">
+  <section class="panel glass grow min-on" id="secProcess">
     <header class="ph"><b><i>01</i>工序流程</b><span class="num" id="procTotal"></span><button class="min" data-min title="缩小 / 展开"></button></header>
     <ol class="proclist" id="procList"></ol>
   </section>
-  <section class="panel glass lib min-on">
+  <section class="panel glass lib min-on" id="secLibrary" data-card-alias="secCases secProducts secFactory">
     <header class="ph">
       <b class="ptl"><i>02</i><span class="pname" id="projTitle">冷轧车间 AGV + 行车方案</span></b>
       <button type="button" class="scnsel" id="sceneSel" title="切换场景">主场景</button>
@@ -69,7 +69,7 @@
     </div>
     <div class="seg"><button id="keysBtn" title="犀牛 Rhino 习惯的快捷键 (F1)">快捷键</button></div>
   </section>
-  <section class="panel glass devcard min-on">
+  <section class="panel glass devcard min-on" id="secDevice">
     <header class="ph"><b><i>03</i>设备卡</b><span class="num" id="hudWindow">--</span><button class="min" data-min title="缩小 / 展开"></button></header>
     <div class="dc">
       <div class="dct"><span class="no num" id="hudNo">01</span><b id="hudTitle">正在加载厂房…</b><span class="badge" id="hudDev">AGV</span></div>
@@ -79,7 +79,7 @@
       <div class="coord" id="coord"></div>
     </div>
   </section>
-  <section class="panel glass agent min-on">
+  <section class="panel glass agent min-on" id="secAgent">
     <div class="ahead">
       <div class="avatar">华</div>
       <b>小华 · 方案助手</b>

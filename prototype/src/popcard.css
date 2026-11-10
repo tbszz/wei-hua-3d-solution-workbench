@@ -1,0 +1,77 @@
+/* Floating cards (popcard.js): side panels open over the 3D view instead of growing in their rail.
+   The layer sits above panels, labels and bars (z 4-7) and below the pop-out window (.pop-mask, 50)
+   and context menus (80). */
+.pc-layer{position:fixed;inset:0;z-index:30;pointer-events:none}
+body.clean .pc-layer{display:none}
+.pc-layer.pc-moving,.pc-layer.pc-moving *{cursor:move!important;user-select:none}
+.pc-layer.pc-sizing,.pc-layer.pc-sizing *{cursor:nwse-resize!important;user-select:none}
+
+/* rail header of a panel whose card is open */
+.panel.pc-open>.ph.open,.panel.pc-open>.ahead.open{background:var(--red-light,#FCE8EA);box-shadow:inset 3px 0 0 var(--red,#D7000F)}
+.panel.pc-open>.ph.open b,.panel.pc-open>.ahead.open b{color:var(--red,#D7000F)}
+.panel.min-on.pc-open .min::after{display:none}
+.panel.min-on.pc-open>.ph .scnsel{display:block}
+
+/* the card */
+.pc-card{position:absolute;left:0;top:0;width:360px;pointer-events:auto;display:flex;flex-direction:column;min-width:0;min-height:0;
+  background:#fff;border:1px solid rgba(31,35,41,.12);border-top:2px solid var(--red,#D7000F);border-radius:6px;
+  box-shadow:0 10px 32px rgba(31,35,41,.18),0 2px 6px rgba(31,35,41,.08);overflow:hidden;color:var(--ink,#1F2329)}
+.pc-card[hidden]{display:none}
+.pc-card.pc-top{box-shadow:0 16px 48px rgba(31,35,41,.26),0 2px 8px rgba(31,35,41,.10)}
+.pc-bar{height:36px;flex:none;display:flex;align-items:center;gap:6px;padding:0 6px 0 12px;border-bottom:1px solid rgba(31,35,41,.08);
+  background:#fff;cursor:move;user-select:none;touch-action:none}
+.pc-card:not(.pc-top) .pc-bar{background:#FAFAFB}
+.pc-title{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;font-size:13.5px;white-space:nowrap;overflow:hidden}
+.pc-title i{font-style:normal;font-family:var(--num);font-size:12px;color:var(--red,#D7000F);letter-spacing:.04em}
+.pc-title span{overflow:hidden;text-overflow:ellipsis}
+.pc-av{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10.5px;font-weight:700;color:var(--red,#D7000F);border:1.5px solid var(--red,#D7000F);background:linear-gradient(160deg,#fff 0 38%,var(--red-light,#FCE8EA) 38%)}
+.pc-meta{margin-left:auto;min-width:0;flex:0 1 auto;font-size:12px;color:var(--ink3,#8F959E);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--num)}
+.pc-meta+.pc-btn{margin-left:4px}
+.pc-btn{flex:none;width:24px;height:24px;border-radius:var(--r,4px);display:grid;place-items:center;color:var(--ink3,#8F959E);position:relative}
+.pc-btn[hidden]{display:none}
+.pc-btn:hover{background:rgba(31,35,41,.08);color:var(--ink,#1F2329)}
+.pc-btn s{position:absolute;left:50%;top:50%;width:10px;height:2px;margin:-1px 0 0 -5px;background:currentColor}
+.pc-btn.pc-x{font-size:13px}
+.pc-btn.pc-x:hover{background:var(--red,#D7000F);color:#fff}
+.pc-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:auto}
+.pc-body>*{flex:none}
+.pc-body>.proclist,.pc-body>.libbody,.pc-body>.msgs,.pc-body>[data-card-fill]{flex:1 1 auto;min-height:0;overflow:auto}
+.pc-card.pc-agent .pc-body{overflow:hidden}
+.pc-rs{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;touch-action:none;z-index:2;
+  background:linear-gradient(135deg,transparent 0 55%,rgba(31,35,41,.28) 55% 62%,transparent 62% 72%,rgba(31,35,41,.28) 72% 79%,transparent 79%)}
+.pc-grip{display:none}
+.pc-card.pc-dropping::after{content:"松开即可上传给小华";position:absolute;inset:40px 6px 6px;border:1.5px dashed var(--red,#D7000F);border-radius:var(--r,4px);
+  background:rgba(255,240,241,.85);display:grid;place-items:center;font-size:14px;color:var(--red,#D7000F);pointer-events:none;z-index:5}
+
+/* minimised cards: one-line strips along the bottom-left, above the timeline bar */
+.pc-dock{position:absolute;left:var(--gap,10px);bottom:calc(var(--bottom,92px) + var(--gap,10px) * 2);z-index:100000;display:flex;flex-direction:column-reverse;
+  align-items:flex-start;gap:6px;max-width:calc(100% - var(--gap,10px) * 2);pointer-events:none}
+.pc-strip{pointer-events:auto;height:32px;display:flex;align-items:center;gap:8px;min-width:220px;max-width:min(420px,100%);padding:0 4px 0 12px;
+  background:rgba(255,255,255,.96);border:1px solid rgba(31,35,41,.12);border-radius:16px;box-shadow:0 4px 14px rgba(31,35,41,.14);cursor:pointer;
+  font-size:12.5px;user-select:none;outline:none}
+.pc-strip::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--red,#D7000F)}
+.pc-strip:hover,.pc-strip:focus-visible{border-color:var(--red,#D7000F)}
+.pc-st{display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;min-width:0;flex:none;max-width:55%;overflow:hidden}
+.pc-st i{font-style:normal;font-family:var(--num);font-size:11.5px;color:var(--red,#D7000F)}
+.pc-st .pc-av{width:18px;height:18px;font-size:10px}
+.pc-st span{overflow:hidden;text-overflow:ellipsis}
+.pc-sv{flex:1;min-width:0;color:var(--ink2,#646A73);font-family:var(--num);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-sv b{color:var(--ink,#1F2329);font-weight:600}
+.pc-sx{flex:none;width:24px;height:24px;border-radius:12px;color:var(--ink3,#8F959E);font-size:12px}
+.pc-sx:hover{background:var(--red,#D7000F);color:#fff}
+
+/* phones: bottom sheets and full-width strips */
+@media (max-width: 760px){
+  .pc-card{left:0!important;right:0;top:auto!important;bottom:0;width:auto!important;height:auto!important;max-height:70vh!important;
+    border-radius:12px 12px 0 0;border:0;border-top:2px solid var(--red,#D7000F);box-shadow:0 -8px 30px rgba(31,35,41,.22);transition:transform .15s}
+  .pc-layer.pc-moving .pc-card{transition:none}
+  .pc-card.pc-agent{height:70vh!important}
+  .pc-grip{display:block;flex:none;height:16px;cursor:grab;touch-action:none;position:relative;background:#fff}
+  .pc-grip::before{content:"";position:absolute;left:50%;top:6px;width:40px;height:4px;margin-left:-20px;border-radius:2px;background:rgba(31,35,41,.22)}
+  .pc-bar{cursor:default;height:40px}
+  .pc-btn{width:32px;height:32px}
+  .pc-btn[data-pc="pop"]{display:none}
+  .pc-rs{display:none}
+  .pc-dock{left:var(--gap,10px);right:var(--gap,10px);max-width:none;align-items:stretch;z-index:0}
+  .pc-strip{max-width:none;min-width:0;width:100%;height:36px;border-radius:var(--r,4px)}
+}
