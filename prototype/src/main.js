@@ -12,6 +12,7 @@ import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
 import { initPopout } from './popout.js';
+import { createSceneLocator, initDashboard } from './dashboard.js';
 import { initPopcards, escHtml } from './popcard.js';
 import { initMobile } from './mobile.js';
 
@@ -1582,4 +1583,6 @@ async function boot() {
 }
 // Phone layout: 3D view + 项目案例库 / 工序流程 / 可视化大屏 dock (mobile.js).
 initMobile(app, { relayout });
+// 可视化大屏: plant zones / devices map onto this scene's points and objects (SCENE_MAP in dashboard.js).
+initDashboard(app, { locate: createSceneLocator(app) });
 boot();
