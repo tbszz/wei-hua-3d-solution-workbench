@@ -158,14 +158,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const num = (v, d = 0) => (v == null || !Number.isFinite(v) ? '—' : Number(v).toFixed(d));
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
-// The app's own palette (style.css :root): blue is the main data colour, red the brand / alarm
-// colour, and status follows the app — 运行 green, 充电 yellow, 空闲 grey, 故障 red.
-const C = { cyan: '#2B7DE9', amber: '#E6A700', green: '#2EA121', red: '#D7000F', blue: '#A0A6AE', muted: '#A0A6AE', violet: '#7B61FF' };
+const C = { cyan: '#35D0F5', amber: '#FFB547', green: '#3DDC97', red: '#FF4D5E', blue: '#4C8DFF', muted: '#7F93B2', violet: '#A78BFA' };
 const LINE_COLOR = { L1: C.cyan, L2: C.amber };
 const STATUS = { 运行: { color: C.green, cls: 'run' }, 空闲: { color: C.blue, cls: 'idle' }, 充电: { color: C.amber, cls: 'chg' }, 故障: { color: C.red, cls: 'err' } };
 const LEVEL_CLS = { 严重: 'crit', 警告: 'warn', 提示: 'info' };
-// 行车 red and AGV blue, as their badges in the rest of the app.
-const KIND_COLOR = { crane: C.red, agv: C.cyan, process: C.violet, wait: C.amber, store: C.muted };
+const KIND_COLOR = { crane: C.cyan, agv: C.green, process: C.violet, wait: C.amber, store: C.muted };
 
 function spark(values, { w = 92, h = 22, color = C.cyan, fill = true } = {}) {
   if (!values?.length) return '';
@@ -187,7 +184,7 @@ function gauge(pct, { size = 74, color = C.cyan, label = '' } = {}) {
   const arc = (a) => `${(cx - r * Math.cos(a)).toFixed(2)},${(cy - r * Math.sin(a)).toFixed(2)}`;
   const end = arc(Math.PI * p);
   return `<svg class="db-gauge" viewBox="0 0 ${size} ${size / 2 + 10}" width="${size}" height="${size / 2 + 10}">
-    <path d="M${arc(0)} A${r},${r} 0 0 1 ${arc(Math.PI)}" fill="none" stroke="rgba(31,35,41,.08)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M${arc(0)} A${r},${r} 0 0 1 ${arc(Math.PI)}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="7" stroke-linecap="round"/>
     ${p > 0 ? `<path d="M${arc(0)} A${r},${r} 0 0 1 ${end}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"/>` : ''}
     <text x="${cx}" y="${cy - 2}" text-anchor="middle" class="db-gv">${num(pct)}<tspan class="db-gu">%</tspan></text>
     ${label ? `<text x="${cx}" y="${cy + 9}" text-anchor="middle" class="db-gl">${esc(label)}</text>` : ''}
