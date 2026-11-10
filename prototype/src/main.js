@@ -9,6 +9,7 @@ import { ProcessSite } from './engine.js';
 import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
+import { initPopout } from './popout.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -847,6 +848,11 @@ async function boot() {
     app.setTab('gantt', false);
     app.library = new Library(app);
     app.library.init();
+    // Any panel, the table drawer or a chat card can be popped out into a large window.
+    app.popout = initPopout({
+      titleFor: (el) => (el.id === 'drawer' ? document.querySelector('#tabs button.on')?.textContent : null),
+      onChange: () => relayout(),
+    });
     app.setView('overview');
     fly.duration = 0.01;
     loading.textContent = '正在预编译材质…';

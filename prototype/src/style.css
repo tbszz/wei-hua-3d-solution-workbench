@@ -353,3 +353,29 @@ body.clean .toast{bottom:28px}
 .upcard .up button:disabled{opacity:.5}
 .upcard .up.err small{color:var(--red)}
 .input.has-files .sugg{display:none}
+
+/* Pop-out window: a panel, the table drawer or a chat card, enlarged */
+.pop{flex:none;width:22px;height:22px;border-radius:var(--r);display:grid;place-items:center;color:var(--ink3)}
+.pop:hover{background:rgba(31,35,41,.08);color:var(--red)}
+.ahead .pop{margin-left:-4px}
+.card h4 .pop{width:20px;height:20px;margin:0 -6px 0 auto}
+.card h4 .r + .pop{margin-left:2px}
+.drawer .pop{position:absolute;right:34px;top:4px;z-index:4;width:24px;height:24px}
+.panel.popped .pop,.panel.popped .min,.card.popped .pop,.drawer.popped .x{display:none}
+.pop-mask{position:fixed;inset:0;z-index:50;background:rgba(31,35,41,.38);display:grid;place-items:center;padding:4vh 4vw}
+.pop-mask[hidden]{display:none}
+.pop-win{width:min(1280px,100%);height:min(860px,100%);background:#F7F8FA;border-radius:6px;box-shadow:0 18px 60px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;border-top:3px solid var(--red)}
+.pop-bar{height:42px;flex:none;display:flex;align-items:center;gap:12px;padding:0 10px 0 16px;border-bottom:1px solid var(--line);background:#fff}
+.pop-bar b{font-size:15px;margin-right:auto}
+.pop-zoom{display:flex;align-items:center;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pop-zoom button{font-size:12.5px;padding:3px 10px;color:var(--ink2)}
+.pop-zoom button:hover{background:var(--red-light);color:var(--red)}
+.pop-zoom span{font-size:12px;color:var(--ink3);min-width:44px;text-align:center;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:3px 0}
+.pop-x{width:30px;height:30px;border-radius:var(--r);font-size:15px;color:var(--ink2)}
+.pop-x:hover{background:var(--red);color:#fff}
+.pop-body{flex:1;min-height:0;overflow:auto;padding:14px}
+.pop-body>.popped{position:relative;inset:auto;left:auto;right:auto;top:auto;bottom:auto;width:auto;height:auto;min-height:100%;margin:0;flex:none}
+.pop-body>.panel.popped{display:flex;flex-direction:column;background:#fff}
+.pop-body>.agent.popped{display:grid;height:100%;min-height:0}
+.pop-body>.panel.popped>.ph .min,.pop-body>.panel.popped>.ahead .min{display:none}
+.pop-body>.card.popped{min-height:0;max-width:none}

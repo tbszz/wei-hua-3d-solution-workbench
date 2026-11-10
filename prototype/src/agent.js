@@ -81,6 +81,8 @@ function localIntent(text, app) {
   return calls;
 }
 
+import { popButton } from './popout.js';
+
 export class Agent {
   messages = [];
 
@@ -119,6 +121,8 @@ export class Agent {
       if (b && !this.busy) this.send(b.textContent);
     });
     this.msgs.addEventListener('click', (e) => this.onCardAction(e));
+    // A card popped out of the chat still runs its buttons.
+    document.addEventListener('click', (e) => { if (e.target.closest('.pop-body .card')) this.onCardAction(e); });
     this.initAttach();
   }
 
@@ -264,7 +268,9 @@ export class Agent {
       card(html) {
         const wrap = document.createElement('div');
         wrap.innerHTML = html;
-        block.append(wrap.firstElementChild);
+        const el = wrap.firstElementChild;
+        el.querySelector(':scope > h4')?.insertAdjacentHTML('beforeend', popButton('弹出这张卡片'));
+        block.append(el);
         self.chips = null;
         self.text = null;
       },
