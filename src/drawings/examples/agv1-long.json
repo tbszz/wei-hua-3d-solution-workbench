@@ -1,0 +1,15 @@
+{
+  "id": "P-AGV1-001",
+  "version": 2,
+  "project": {"name": "卷材车间物流 AGV 方案（示意）", "customer": "示例客户"},
+  "product": {
+    "product_id": "agv1",
+    "params": {"length_mm": 3600},
+    "fixture_id": "stand_coil"
+  },
+  "finish": {
+    "system": "standard",
+    "zones": {"A": "yellow"}
+  },
+  "drawing": {"date": "2026-11-10", "drawn_by": "方案助手（自动）"}
+}

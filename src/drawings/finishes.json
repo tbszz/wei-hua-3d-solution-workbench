@@ -1,0 +1,273 @@
+{
+  "note": "涂装体系、膜厚、分区、标识尺寸全部是示意值，没有卫华的涂装工艺规范和色卡。paint 写 paints.json 的键名时从 src/parametric/paints.json 取色值；写 #rrggbb 的是从模型源文件读到的颜色，没有登记色号。",
+  "systems": {
+    "standard": {
+      "label": "标准防腐体系（示意，室内 C3）",
+      "surface_prep": "抛丸除锈 Sa2.5，粗糙度 Rz 40–75 μm",
+      "coats": [
+        {
+          "coat": "底漆",
+          "product": "环氧富锌底漆",
+          "dft_um": 60,
+          "color": "灰色"
+        },
+        {
+          "coat": "中间漆",
+          "product": "环氧云铁中间漆",
+          "dft_um": 80,
+          "color": "灰色"
+        },
+        {
+          "coat": "面漆",
+          "product": "丙烯酸聚氨酯面漆",
+          "dft_um": 60,
+          "color": "按分区"
+        }
+      ],
+      "checks": [
+        "每道漆膜按 10 点法测厚",
+        "附着力划格法 ≤ 1 级",
+        "面漆颜色与色卡目视对比"
+      ]
+    },
+    "heavy": {
+      "label": "重防腐体系（示意，室外 C4）",
+      "surface_prep": "抛丸除锈 Sa2.5，粗糙度 Rz 50–85 μm",
+      "coats": [
+        {
+          "coat": "底漆",
+          "product": "环氧富锌底漆",
+          "dft_um": 80,
+          "color": "灰色"
+        },
+        {
+          "coat": "中间漆",
+          "product": "环氧云铁中间漆",
+          "dft_um": 120,
+          "color": "灰色"
+        },
+        {
+          "coat": "面漆",
+          "product": "氟碳面漆",
+          "dft_um": 80,
+          "color": "按分区"
+        }
+      ],
+      "checks": [
+        "每道漆膜按 10 点法测厚",
+        "附着力拉开法 ≥ 5 MPa",
+        "面漆颜色与色卡目视对比"
+      ]
+    }
+  },
+  "products": {
+    "agv1": {
+      "zones": [
+        {
+          "id": "A",
+          "name": "车架外侧板",
+          "paint": "#854c4c",
+          "source": "AGV1 OBJ 材质色",
+          "classes": [
+            "frame"
+          ]
+        },
+        {
+          "id": "B",
+          "name": "台面",
+          "paint": "#4e4444",
+          "source": "AGV1 OBJ 材质色",
+          "classes": [
+            "deck"
+          ]
+        },
+        {
+          "id": "C",
+          "name": "防撞条",
+          "paint": "#302e2e",
+          "source": "AGV1 OBJ 材质色",
+          "classes": [
+            "strip"
+          ]
+        },
+        {
+          "id": "D",
+          "name": "驱动单元",
+          "paint": "drive",
+          "source": "借用 Z1 色板",
+          "classes": [
+            "drive"
+          ]
+        }
+      ],
+      "markings": {
+        "nameplate": {
+          "label": "铭牌",
+          "text": "铭牌 1001 · 30t",
+          "size": [
+            180,
+            100
+          ]
+        },
+        "capacity": {
+          "label": "吨位标",
+          "text": "30t",
+          "size": [
+            140,
+            76
+          ]
+        },
+        "logo": {
+          "label": "卫华 Logo 位",
+          "text": "LOGO",
+          "size": [
+            184,
+            70
+          ]
+        }
+      }
+    },
+    "z1-1000-bz": {
+      "zones": [
+        {
+          "id": "A",
+          "name": "裙板",
+          "paint": "silver",
+          "source": "paints.json",
+          "classes": [
+            "skirt"
+          ]
+        },
+        {
+          "id": "B",
+          "name": "台面",
+          "paint": "deck",
+          "source": "paints.json",
+          "classes": [
+            "deck",
+            "plate"
+          ]
+        },
+        {
+          "id": "C",
+          "name": "车架",
+          "paint": "frame",
+          "source": "paints.json",
+          "classes": [
+            "frame"
+          ]
+        },
+        {
+          "id": "D",
+          "name": "驱动单元",
+          "paint": "drive",
+          "source": "paints.json",
+          "classes": [
+            "drive"
+          ]
+        }
+      ],
+      "markings": {
+        "nameplate": {
+          "label": "铭牌",
+          "text": "标牌 10t",
+          "size": [
+            180,
+            100
+          ]
+        },
+        "capacity": {
+          "label": "吨位标",
+          "text": "10t",
+          "size": [
+            147,
+            87
+          ]
+        },
+        "logo": {
+          "label": "卫华 Logo 位",
+          "text": "LOGO",
+          "size": [
+            300,
+            84
+          ]
+        }
+      }
+    },
+    "qd-double-girder": {
+      "zones": [
+        {
+          "id": "A",
+          "name": "主梁",
+          "paint": "yellow",
+          "source": "paints.json（色号示意）",
+          "classes": [
+            "girder"
+          ]
+        },
+        {
+          "id": "B",
+          "name": "端梁",
+          "paint": "yellow",
+          "source": "paints.json（色号示意）",
+          "classes": [
+            "end_beam"
+          ]
+        },
+        {
+          "id": "C",
+          "name": "小车架",
+          "paint": "ink",
+          "source": "paints.json（色号示意）",
+          "classes": [
+            "trolley"
+          ]
+        },
+        {
+          "id": "D",
+          "name": "吊钩滑轮组",
+          "paint": "yellow",
+          "source": "paints.json（色号示意），另加黄黑警示条",
+          "classes": [
+            "hook"
+          ]
+        },
+        {
+          "id": "E",
+          "name": "栏杆走台",
+          "paint": "edge",
+          "source": "paints.json（色号示意）",
+          "classes": [
+            "walkway"
+          ]
+        }
+      ],
+      "markings": {
+        "nameplate": {
+          "label": "铭牌",
+          "text": "产品铭牌",
+          "size": [
+            400,
+            250
+          ]
+        },
+        "capacity": {
+          "label": "吨位标",
+          "text": "{capacity_t}t",
+          "size": [
+            1000,
+            600
+          ]
+        },
+        "logo": {
+          "label": "卫华 Logo 位",
+          "text": "LOGO",
+          "size": [
+            2400,
+            600
+          ]
+        }
+      }
+    }
+  }
+}

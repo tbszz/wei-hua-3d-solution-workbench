@@ -57,6 +57,7 @@
 | `data/cargo/` | 货物模型 | 空，货物目前用程序生成 |
 | `src/parametric/` | 离线：模型预处理脚本、产品参数配置 | 原型 |
 | `src/scene/` | 离线：生成示例平面图 | 原型 |
+| `src/drawings/` | 第 7 步出图下发：方案 JSON 出结构总图 DXF 和涂装与标识工艺图 SVG/PDF，[说明](src/drawings/README.md) | 原型，图纸全部示意 |
 | `src/render/` | 离线渲染 | 未用，灯光材质都在网页里 |
 | `demo/` | 手机和电脑端的网页演示 | 原型 |
 

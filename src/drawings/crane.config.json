@@ -1,0 +1,24 @@
+{
+  "id": "qd-double-girder",
+  "model": "QD 双梁桥式起重机（示意）",
+  "category": "crane",
+  "note": "还没有真实模型和规格。参数、范围和派生公式都是示意值，拿到卫华的型谱和设计手册后改这里。跨度指大车轨道中心距，小车轨距指两根主梁上小车轨道的中心距。",
+  "params": {
+    "capacity_t": { "label": "起重量", "unit": "t", "nominal": 20, "min": 5, "max": 50, "step": 0.1 },
+    "span": { "label": "跨度", "unit": "mm", "nominal": 22500, "min": 10500, "max": 31500, "step": 500 },
+    "lift_height": { "label": "起升高度", "unit": "mm", "nominal": 12000, "min": 6000, "max": 30000, "step": 500 },
+    "trolley_gauge": { "label": "小车轨距", "unit": "mm", "nominal": 2000, "min": 1400, "max": 3500, "step": 10 },
+    "wheelbase": { "label": "大车基距", "unit": "mm", "nominal": 4000, "min": 2500, "max": 6500, "step": 10 },
+    "girder_height": { "label": "主梁高", "unit": "mm", "nominal": 1300, "min": 600, "max": 2200, "step": 10 },
+    "girder_width": { "label": "主梁宽", "unit": "mm", "nominal": 500, "min": 300, "max": 900, "step": 10 },
+    "girder_flange_t": { "label": "主梁翼缘板厚", "unit": "mm", "nominal": 16, "min": 8, "max": 40, "step": 1 },
+    "girder_web_t": { "label": "主梁腹板厚", "unit": "mm", "nominal": 8, "min": 6, "max": 20, "step": 1 },
+    "end_beam_height": { "label": "端梁高", "unit": "mm", "nominal": 600, "min": 400, "max": 1000, "step": 10 },
+    "end_beam_width": { "label": "端梁宽", "unit": "mm", "nominal": 400, "min": 300, "max": 700, "step": 10 }
+  },
+  "derived": {
+    "girder_height": "跨度 / 17，取整到 50 mm，限制在范围内",
+    "trolley_gauge": "起重量 ≤ 20 t 取 2000，≤ 32 t 取 2500，否则 3000",
+    "wheelbase": "跨度 / 5，取整到 100 mm，限制在范围内"
+  }
+}

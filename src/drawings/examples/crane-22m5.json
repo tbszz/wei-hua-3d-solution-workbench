@@ -1,0 +1,12 @@
+{
+  "id": "P-QD-001",
+  "version": 1,
+  "project": {"name": "钢结构车间双梁起重机方案（示意）", "customer": "示例客户"},
+  "product": {
+    "product_id": "qd-double-girder",
+    "params": {"capacity_t": 20, "span_mm": 22500, "lift_height_mm": 12000},
+    "fixture_id": "hook"
+  },
+  "finish": {"system": "heavy"},
+  "drawing": {"date": "2026-11-10", "drawn_by": "方案助手（自动）"}
+}

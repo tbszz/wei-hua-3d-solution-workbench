@@ -1,0 +1,29 @@
+{
+  "note": "夹具和支架的出图用外形，全部示意。兼容关系按 PRD 7.2 的 Fixture 结构写，等业务给出真实兼容表后改这里。",
+  "fixtures": {
+    "stand_coil": {
+      "label": "卷材支架",
+      "kind": "coil_stand",
+      "compatible": { "category": ["agv"] },
+      "outline": { "length_ratio": 0.55, "height": 320, "width_ratio": 0.7, "saddle_depth": 180 }
+    },
+    "stand_pipe": {
+      "label": "管材支架",
+      "kind": "pipe_stand",
+      "compatible": { "category": ["agv"] },
+      "outline": { "length_ratio": 0.8, "height": 260, "width_ratio": 0.85, "post_count": 4 }
+    },
+    "hook": {
+      "label": "吊钩",
+      "kind": "hook",
+      "compatible": { "category": ["crane"] },
+      "outline": { "block_height": 1100, "block_width": 700 }
+    },
+    "magnet": {
+      "label": "电磁吸盘",
+      "kind": "magnet",
+      "compatible": { "category": ["crane"] },
+      "outline": { "block_height": 900, "block_width": 1600 }
+    }
+  }
+}
