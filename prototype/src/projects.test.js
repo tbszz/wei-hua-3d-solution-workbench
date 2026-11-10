@@ -11,7 +11,14 @@ test('a fresh workspace has one project with the scene products and the three bu
   assert.equal(ws.activeScene.name, '场景搭建');
   assert.equal(ws.activeScene.drawing, null);
   assert.deepEqual(ws.archives, []);
-  assert.equal(ws.data.v, 2);
+  assert.equal(ws.data.v, 3);
+});
+
+test('a new project starts with exactly 场景搭建 / 鞍座搭建 / 产品搭建', () => {
+  const ws = new Workspace(null);
+  const p = ws.createProject('热轧车间');
+  assert.deepEqual(p.scenes.map((s) => [s.name, s.kind]), [['场景搭建', 'site'], ['鞍座搭建', 'saddle'], ['产品搭建', 'product']]);
+  assert.equal(p.activeScene, p.scenes[0].id);
 });
 
 test('addModule appends a custom module with a unique name', () => {
@@ -23,7 +30,7 @@ test('addModule appends a custom module with a unique name', () => {
   assert.equal(a.kind, 'custom');
   assert.equal(a.productId, 'agv1');
   assert.equal(b.name, '吊具搭建 2');
-  assert.equal(c.name, '新模块');
+  assert.equal(c.name, '新场景');
   assert.equal(p.scenes.length, 6);
   assert.equal(ws.activeScene.name, '场景搭建');
 });
@@ -45,6 +52,15 @@ test('saving an archive deep-copies the project into the case library, newest fi
   assert.notEqual(first.project, p);
   assert.equal(second.name, '改过的名字');
   assert.equal(second.project.scenes.length, 4);
+  assert.equal(first.projectId, p.id);
+  assert.equal(second.projectId, p.id);
+  assert.deepEqual(ws.archivesOf(p.id).map((a) => a.id), [second.id, first.id]);
+  assert.equal(ws.archiveVersion(first.id), 1);
+  assert.equal(ws.archiveVersion(second.id), 2);
+  const other = ws.createProject('二期');
+  assert.equal(ws.archiveProject(other.id, 3000).projectId, other.id);
+  assert.equal(ws.archivesOf(p.id).length, 2);
+  ws.removeArchive(ws.archivesOf(other.id)[0].id);
   ws.renameArchive(first.id, '一期方案');
   assert.equal(ws.archive(first.id).name, '一期方案');
   ws.removeArchive(second.id);
@@ -92,12 +108,55 @@ test('normalize migrates old workspaces: 主场景 becomes 场景搭建 and the 
   assert.equal(a.activeScene, 's2');
   assert.deepEqual(b.scenes.map((s) => [s.name, s.kind]), [['一号', 'site'], ['鞍座搭建', 'saddle'], ['产品搭建', 'product']]);
   assert.deepEqual(ws.archives, []);
-  assert.equal(ws.data.v, 2);
-  // Saved again as v2, a module the user deleted is not brought back.
+  assert.equal(ws.data.v, 3);
+  // Saved again as v3, a module the user deleted is not brought back.
   ws.removeScene(b.id, b.scenes[2].id);
   const again = normalize(JSON.parse(JSON.stringify(ws.data)));
   assert.equal(again.projects[1].scenes.length, 2);
   assert.equal(again.projects[0].scenes[1].kind, 'custom');
+});
+
+test('v2 workspaces: an auto-named extra scene folds into an empty 场景搭建', () => {
+  const v2 = {
+    v: 2,
+    activeProject: 'p1',
+    projects: [
+      {
+        id: 'p1', name: '冷轧', activeScene: 's2', products: [], assets: ['d1'],
+        scenes: [
+          { id: 's1', name: '场景搭建', kind: 'site', drawing: null, placed: [], productId: 'z1' },
+          { id: 's2', name: '场景', kind: 'custom', drawing: 'd1', placed: [{ assetId: 'm', x: 1, y: 2 }], productId: 'agv1' },
+          { id: 's3', name: '鞍座搭建', kind: 'saddle' },
+          { id: 's4', name: '产品搭建', kind: 'product' },
+        ],
+      },
+      {
+        id: 'p2', name: '已有厂房', activeScene: 't2',
+        scenes: [
+          { id: 't1', name: '场景搭建', kind: 'site', drawing: 'd9' },
+          { id: 't2', name: '场景', kind: 'custom', drawing: 'd1' },
+          { id: 't3', name: '鞍座搭建', kind: 'saddle' },
+          { id: 't4', name: '产品搭建', kind: 'product' },
+        ],
+      },
+    ],
+    archives: [{ id: 'a1', name: '旧案例', archivedAt: 7, project: { id: 'p1', name: '冷轧', scenes: [{ id: 'x1', name: '场景搭建', kind: 'site' }, { id: 'x2', name: '新场景', kind: 'custom', drawing: 'd1' }] } }],
+  };
+  const ws = new Workspace(v2);
+  const [a, b] = ws.projects;
+  assert.deepEqual(a.scenes.map((s) => s.name), ['场景搭建', '鞍座搭建', '产品搭建']);
+  assert.equal(a.activeScene, 's1');
+  assert.equal(ws.activeScene.drawing, 'd1');
+  assert.deepEqual(ws.activeScene.placed, [{ assetId: 'm', x: 1, y: 2 }]);
+  assert.equal(ws.activeScene.productId, 'agv1');
+  // 场景搭建 already has a plant: the extra scene is the user's and stays.
+  assert.deepEqual(b.scenes.map((s) => s.name), ['场景搭建', '场景', '鞍座搭建', '产品搭建']);
+  assert.equal(b.activeScene, 't2');
+  assert.deepEqual(ws.archives[0].project.scenes.map((s) => s.name), ['场景搭建']);
+  assert.equal(ws.archives[0].projectId, 'p1');
+  // Once saved as v3 nothing is folded again.
+  ws.addModule(a.id, '场景');
+  assert.equal(normalize(JSON.parse(JSON.stringify(ws.data))).projects[0].scenes.length, 4);
 });
 
 test('normalize keeps valid archives and drops broken ones', () => {
@@ -110,7 +169,7 @@ test('normalize keeps valid archives and drops broken ones', () => {
   assert.equal(n.archives[0].archivedAt, 42);
   assert.equal(n.archives[1].name, '旧案例');
   assert.equal(n.archives[1].archivedAt, 0);
-  assert.equal(n.archives[1].project.scenes.length, 1); // v2 data: no migration inside
+  assert.equal(n.archives[1].project.scenes.length, 1); // v3 data: no migration inside
 });
 
 test('adding a standard product twice keeps one entry', () => {

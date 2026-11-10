@@ -333,7 +333,7 @@ export function createExtTools(app, { runCore }) {
     define_process: (a) => {
       const r = flow.define(a);
       app.renderFlow();
-      app.openCard?.('secProcess');
+      app.cards?.open('secProcess');
       flow.focus(null);
       return { result: r, chip: `流程 · ${r.节点数} 个节点` };
     },
@@ -342,7 +342,7 @@ export function createExtTools(app, { runCore }) {
       if (a.stop) { flow.stop(); app.renderFlow(); return { result: { 已停止: true }, chip: '停止演示' }; }
       const r = flow.start(a);
       app.renderFlow();
-      app.openCard?.('secProcess');
+      app.cards?.open('secProcess');
       return { result: r, chip: a.mode === 'node' ? `节点流程 · ${a.node}` : '全流程演示' };
     },
 

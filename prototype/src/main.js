@@ -1009,27 +1009,51 @@ $('taktBody').addEventListener('click', (e) => {
   if (li) app.play({ mode: 'step', step: Number(li.dataset.play) });
 });
 
-// Left column: the five process steps, current one highlighted with live progress.
+// 工序流程 (left rail): the AGV + crane plan's process steps (RM-01 接卷 → … → 空车返回), current
+// one highlighted with live progress. Defining a new process is done by talking to 小华, not here.
+// The list always comes from the process plant: while a drawing-built plant is open (its build
+// steps are on the bottom timeline) a click first goes back to the process plant, then plays.
 const DEV_CLASS = { AGV: '', 行车: 'crane', 建造: 'build' };
 const devName = (d) => (d === 'AGV' ? 'AGV' : d === '行车' ? '行车' : d);
 function renderProcList() {
-  if (!site.process) return;
-  $('procTotal').textContent = fmtTime(site.duration);
-  $('procList').innerHTML = site.process.steps.map((s) => `<li data-play="${s.n}"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${devName(s.device)}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
+  const steps = processSite.process?.steps ?? [];
+  const note = $('procNote');
+  if (note) {
+    note.hidden = !site.isScene;
+    note.textContent = site.isScene ? `当前打开的是图纸生成的厂房（${site.sourceName ?? '图纸'} · 建造动画）。点下面的工序会切回 AGV + 行车方案并播放到这一步。` : '';
+  }
+  $('procList').classList.toggle('off', Boolean(site.isScene));
+  if (!steps.length) {
+    $('procTotal').textContent = '';
+    $('procList').innerHTML = '';
+    return;
+  }
+  $('procTotal').textContent = `${steps.length} 步 · ${fmtTime(processSite.duration)}`;
+  $('procList').innerHTML = steps.map((s) => `<li data-play="${s.n}" title="点击播放第 ${s.n} 步"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${devName(s.device)}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
 }
 const progressOf = (s) => Math.min(100, Math.max(0, ((site.time - s.t0) / s.duration) * 100));
 function updateProcList() {
-  const n = site.stepAt().n;
+  const live = !site.isScene && site.process;
+  const n = live ? site.stepAt().n : 0;
   for (const li of $('procList').children) {
     const k = Number(li.dataset.play);
     li.classList.toggle('cur', k === n);
-    li.classList.toggle('done', k < n);
-    li.querySelector('.pg').style.width = k === n ? `${progressOf(site.process.steps[k - 1])}%` : '0';
+    li.classList.toggle('done', live && k < n);
+    const pg = li.querySelector('.pg');
+    if (pg) pg.style.width = k === n ? `${progressOf(site.process.steps[k - 1])}%` : '0';
   }
 }
 $('procList').addEventListener('click', (e) => {
   const li = e.target.closest('[data-play]');
-  if (li) app.play({ mode: 'step', step: Number(li.dataset.play) });
+  if (!li) return;
+  const step = Number(li.dataset.play);
+  if (site.isScene) {
+    const title = processSite.process?.steps[step - 1]?.title ?? `第 ${step} 步`;
+    if (!confirm(`当前是图纸生成的厂房。切回 AGV + 行车工序方案并播放「${title}」？
+图纸厂房可以随时在 AI3D工厂 › 文件 里重新生成。`)) return;
+    app.exitScene();
+  }
+  app.play({ mode: 'step', step });
 });
 
 // Bottom timeline: one segment per step, sized by its duration, plus a scrubber over the cycle.
@@ -1234,10 +1258,35 @@ const relayout = () => {
 // Rails only show panel headers; a header opens its panel as a floating card over the view.
 initPopcards(app);
 app.cards.registerStrip('secProcess', () => {
-  const cur = $('procList').querySelector('li.cur b')?.textContent;
+  const cur = $('procList').querySelector('li.cur b')?.lastChild?.textContent; // the title, without the device tag
   return `${cur ? `<b>${escHtml(cur)}</b> · ` : ''}${escHtml($('procTotal').textContent)}`;
 });
-// Header module nav [data-open-card] chips are opened and lit by popcard.js.
+// Minimised strips of the library sections: the key facts on one line.
+app.cards.registerStrip('secCases', () => {
+  const list = app.library?.ws?.archives ?? [];
+  return list.length ? `${list.length} 个案例 · 最新 <b>${escHtml(list[0].name)}</b>` : '还没有归档的项目';
+});
+app.cards.registerStrip('secProducts', () => `${app.library?.std.length ?? 0} 个标准产品`);
+app.cards.registerStrip('secFactory', () => {
+  const ws = app.library?.ws;
+  if (!ws) return '';
+  return `<b>${escHtml(ws.active.name)}</b> · ${escHtml(ws.activeScene.name)} · ${ws.active.scenes.length} 个场景`;
+});
+// Header module nav: [data-open-card] chips are opened and lit by popcard.js; each chip's <em
+// data-mirror> repeats its section's figure so the header reads as a second display of the rail.
+const MIRROR = {
+  factoryScene: () => app.library?.ws?.activeScene.name ?? '',
+  procSteps: () => (processSite.process?.steps.length ? `${processSite.process.steps.length} 步` : ''),
+};
+const syncModNav = () => {
+  for (const em of document.querySelectorAll('#modNav em[data-mirror]')) {
+    const key = em.dataset.mirror;
+    const text = MIRROR[key] ? MIRROR[key]() : $(key)?.textContent.trim() ?? '';
+    if (em.textContent !== text) em.textContent = text;
+  }
+};
+setInterval(syncModNav, 1000);
+syncModNav();
 app.cards.registerStrip('secDevice', () => `<b>${escHtml($('hudTitle').textContent)}</b> · ${escHtml($('hudWindow').textContent)}`);
 // Chat cards: only the newest is open; click a card title to open or fold it.
 $('msgs').addEventListener('click', (e) => {

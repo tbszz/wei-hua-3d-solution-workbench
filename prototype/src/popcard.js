@@ -12,6 +12,7 @@
 //   - A minimised card shows a strip: `registerStrip(panelId, () => html)`, else the panel's
 //     `data-strip` text, else the header's figures (`.num`, `span`, `.scnsel`).
 //   - Removing `min-on` from a rail panel (old code that "opened" a panel) opens its card.
+//   - A new card is cascaded so its corner never lands on another open card's corner.
 //   - `document` gets `popcard:change` events ({ id, state: 'open' | 'min' | 'closed' }) and
 //     `[data-open-card]` elements get `.pc-on` while their card is open or minimised.
 
@@ -188,6 +189,17 @@ export function initPopcards(app = {}) {
 
   const persist = (s) => saveGeom(keyOf(s.panel), s.geom);
 
+  // A card never opens squarely on top of another: step it along the cascade until its corner is
+  // clear of every visible card's corner (a remembered position can collide just like a default).
+  function avoid(s) {
+    const others = [...cards.values()].filter((o) => o !== s && o.geom && !o.minimised);
+    for (let i = 0; i < 12; i++) {
+      if (!others.some((o) => Math.abs(o.geom.x - s.geom.x) < CASCADE && Math.abs(o.geom.y - s.geom.y) < CASCADE)) break;
+      s.geom.x += CASCADE;
+      s.geom.y += CASCADE;
+    }
+  }
+
   // ------------------------------------------------------------ build / open / close
 
   function build(panel) {
@@ -229,6 +241,7 @@ export function initPopcards(app = {}) {
     card.setAttribute('aria-label', titleText(panel));
 
     s.geom = loadGeom(keyOf(panel)) ?? defaultGeom(s);
+    avoid(s);
     apply(s);
     bindCard(s);
     // Scroll-to-bottom lists (the chat) were measured while hidden.

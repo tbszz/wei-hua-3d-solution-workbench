@@ -232,7 +232,7 @@ export class Library {
     const t = $('projTitle');
     if (t) {
       t.textContent = p.name;
-      t.title = `当前项目：${p.name} · 模块：${s.name}`;
+      t.title = `当前项目：${p.name}（编号 ${p.id}）· 场景：${s.name}`;
     }
     const set = (id, text) => {
       const el = $(id);
@@ -295,7 +295,7 @@ export class Library {
     return list.map((a) => {
       const p = a.project;
       const head = `<div class="row arc ${this.sel === `ar:${a.id}` ? 'sel' : ''}" tabindex="-1" data-row="ar:${a.id}" data-kind="archive" data-archive="${a.id}" data-toggle title="点击预览（只读），双击恢复为当前项目">
-        <i class="car"></i><span class="ico">${ICON.archive}</span><span class="nm"><b>${esc(a.name)}</b><small class="num">${fmtDate(a.archivedAt)} · ${p.scenes.length} 个场景</small></span>
+        <i class="car"></i><span class="ico">${ICON.archive}</span><span class="nm"><b>${esc(a.name)}<i class="kd">第 ${this.ws.archiveVersion(a.id)} 版</i></b><small class="num">${fmtDate(a.archivedAt)} · ${p.scenes.length} 个场景 · 编号 ${esc(a.projectId)}</small></span>
         <span class="racts"><button class="go" data-act="restore" title="复制一份到 AI3D工厂，作为当前项目">恢复</button></span>
         <button class="ib more" data-act="menu" title="恢复 / 重命名 / 删除">${ICON.more}</button>
       </div>`;
@@ -310,24 +310,32 @@ export class Library {
     }).join('');
   }
 
-  // AI3D工厂: the active project, its build modules, its products and its files.
+  // Top of the AI3D工厂 card: the project's id (cases are filed under it), 保存归档 and ＋ 场景.
+  factoryBar(p) {
+    const n = this.ws.archivesOf(p.id).length;
+    return `<div class="facbar"><span class="pid" title="项目编号：保存归档时按这个编号存进项目案例库">编号 <b class="num">${esc(p.id)}</b>${n ? `<em>已归档 ${n} 版</em>` : ''}</span>
+      <button type="button" class="go" data-act="add-module" title="添加一个场景">${ICON.plus}场景</button>
+      <button type="button" class="go pri" data-act="archive-save" title="把当前项目（含三维里的现状）存一份到项目案例库">${ICON.archive}保存归档</button></div>`;
+  }
+
+  // AI3D工厂: the active project, its scenes (build modules), its products and its files.
   factoryHtml() {
     const p = this.ws.active;
     const head = `<div class="row proj ${this.sel === `pj:${p.id}` ? 'sel' : ''}" tabindex="-1" data-row="pj:${p.id}" data-kind="project" data-project="${p.id}" data-drop="project" title="当前项目（双击或 F2 重命名，右键更多操作）">
-      <span class="ico">${ICON.folder}</span><span class="nm"><b>${esc(p.name)}</b><small>${p.scenes.length} 个模块 · ${p.products.length} 个产品 · ${p.assets.length} 个文件</small></span>
+      <span class="ico">${ICON.folder}</span><span class="nm"><b>${esc(p.name)}</b><small>${p.scenes.length} 个场景 · ${p.products.length} 个产品 · ${p.assets.length} 个文件</small></span>
       <button class="ib more" data-act="menu" title="重命名 / 切换项目 / 新建项目">${ICON.more}</button>
     </div>`;
     const mods = p.scenes.map((s) => {
       const open = s.id === p.activeScene;
       const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
       const n = s.placed.length;
-      return `<div class="row sc mod d1 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-module="${esc(s.kind)}" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的模块' : '点击打开这个模块'}">
+      return `<div class="row sc mod d1 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-module="${esc(s.kind)}" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的场景' : '点击打开这个场景'}">
         <span class="ico sc">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
         ${open ? '<span class="tag">打开中</span>' : '<span class="racts"><button class="go" data-act="open-scene">打开</button></span>'}
       </div>`;
     }).join('');
-    const add = `<div class="addmod d1"><button type="button" data-act="add-module" title="添加一个搭建模块">${ICON.plus}<span>添加模块</span></button></div>`;
-    return head + mods + add + this.projectFolds(p);
+    const add = `<div class="addmod d1"><button type="button" data-act="add-module" title="添加一个场景（例如：吊具搭建、产线搭建）">${ICON.plus}<span>添加场景</span></button></div>`;
+    return this.factoryBar(p) + head + mods + add + this.projectFolds(p);
   }
 
   // The active project's own 产品库 and 文件, kept compact as two folds under the modules.
@@ -666,8 +674,8 @@ export class Library {
   // ＋ in AI3D工厂: ask for a name, add the module and open it.
   async addModule(name) {
     const p = this.ws.active;
-    const suggest = this.ws.uniqueName('新模块', p.scenes.map((s) => s.name));
-    const label = name ?? prompt('新模块名称（例如：吊具搭建、产线搭建）', suggest);
+    const suggest = this.ws.uniqueName('新场景', p.scenes.map((s) => s.name));
+    const label = name ?? prompt('新场景名称（例如：吊具搭建、产线搭建）', suggest);
     if (label === null || label === undefined) return null;
     this.captureScene();
     const s = this.ws.addModule(p.id, label.trim() || suggest, { productId: this.app.product?.id });
@@ -696,7 +704,7 @@ export class Library {
     const s = this.ws.activeScene;
     const errors = await this.applyScene(s);
     this.persistSoon();
-    this.app.openCard?.('secFactory');
+    this.app.cards?.open('secFactory');
     this.app.toast(errors.length ? `已把案例「${rec.name}」恢复为当前项目「${p.name}」，${errors.length} 项没能还原：${errors[0]}` : `已把案例「${rec.name}」恢复为当前项目「${p.name}」`, errors.length > 0);
     this.flash(`pj:${p.id}`);
     return p;
@@ -714,7 +722,7 @@ export class Library {
   async deleteProject(id) {
     const p = this.ws.project(id);
     if (this.ws.projects.length <= 1) throw new Error('至少要保留一个项目');
-    if (!confirm(`删除项目「${p.name}」？\n项目里的产品引用和搭建模块会一起删除；标准产品库和已上传的文件本身不受影响。`)) return;
+    if (!confirm(`删除项目「${p.name}」？\n项目里的产品引用和场景会一起删除；标准产品库和已上传的文件本身不受影响。`)) return;
     const wasActive = this.ws.active.id === id;
     this.ws.removeProject(id);
     if (wasActive) {
@@ -731,7 +739,7 @@ export class Library {
 
   async deleteScene(projectId, sceneId) {
     const s = this.ws.scene(projectId, sceneId);
-    if (!confirm(`删除模块「${s.name}」？\n这个模块里放的模型位置会一起删除；文件本身不受影响。`)) return;
+    if (!confirm(`删除场景「${s.name}」？\n这个场景里放的模型位置会一起删除；文件本身不受影响。`)) return;
     const wasOpen = projectId === this.ws.active.id && this.ws.active.activeScene === sceneId;
     this.ws.removeScene(projectId, sceneId);
     if (wasOpen) {
@@ -743,7 +751,7 @@ export class Library {
       }
     }
     this.persistSoon();
-    this.app.toast(`已删除模块「${s.name}」`);
+    this.app.toast(`已删除场景「${s.name}」`);
   }
 
   async switchProject(projectId, sceneId) {
@@ -765,7 +773,7 @@ export class Library {
   async newScene(projectId, { copyCurrent = false } = {}) {
     if (projectId === this.ws.active.id) this.captureScene();
     const from = copyCurrent ? this.ws.activeScene : null;
-    const s = this.ws.addScene(projectId, copyCurrent ? `${from.name} 副本` : '新模块', from ?? { productId: this.app.product?.id }, 'custom');
+    const s = this.ws.addScene(projectId, copyCurrent ? `${from.name} 副本` : '新场景', from ?? { productId: this.app.product?.id }, 'custom');
     await this.switchProject(projectId, s.id);
     this.render();
     const row = this.rowEl(`sc:${projectId}:${s.id}`);
@@ -935,7 +943,7 @@ export class Library {
         return [
           { label: '重命名', key: 'F2', disabled: !isCur, act: () => this.startRename(row) },
           { label: '保存归档', hint: '存一份到项目案例库', disabled: !isCur, act: run(() => this.archiveActive()) },
-          { label: '添加模块…', disabled: !isCur, act: run(() => this.addModule()) },
+          { label: '添加场景…', disabled: !isCur, act: run(() => this.addModule()) },
           { label: '从标准产品库添加', sub: this.stdSub(info.project) },
           { sep: true },
           { label: '切换到项目', sub: projectsSub((pid) => this.switchProject(pid), { except: cur.id, makeNew: () => this.newProject() }) },
@@ -964,11 +972,11 @@ export class Library {
         const open = info.project === cur.id && cur.activeScene === info.scene;
         return [
           { label: '打开', disabled: open, act: run(() => this.openScene(info.project, info.scene)) },
-          { label: '复制模块', act: run(async () => { await this.openScene(info.project, info.scene); await this.newScene(info.project, { copyCurrent: true }); }) },
-          { label: '添加模块…', act: run(() => this.addModule()) },
+          { label: '复制场景', act: run(async () => { await this.openScene(info.project, info.scene); await this.newScene(info.project, { copyCurrent: true }); }) },
+          { label: '添加场景…', act: run(() => this.addModule()) },
           { sep: true },
           { label: '重命名', key: 'F2', act: () => this.startRename(row) },
-          { label: '删除模块', key: 'Del', danger: true, disabled: ws.project(info.project).scenes.length <= 1, act: run(() => this.deleteScene(info.project, info.scene)) },
+          { label: '删除场景', key: 'Del', danger: true, disabled: ws.project(info.project).scenes.length <= 1, act: run(() => this.deleteScene(info.project, info.scene)) },
         ];
       }
       case 'asset': {
@@ -1015,8 +1023,7 @@ export class Library {
   // Uploads go through the 小华 chat (it converts files and reports back); target the project first.
   async pickUpload(projectId) {
     if (projectId !== this.ws.active.id) await this.switchProject(projectId);
-    const agent = document.querySelector('.panel.agent');
-    agent?.classList.remove('min-on');
+    this.app.cards?.open('secAgent');
     $('chatFiles')?.click();
   }
 
@@ -1031,11 +1038,11 @@ export class Library {
       return { label: s.name, hint: drawing, tag: open ? '打开中' : '', disabled: open, act: run(() => this.openScene(p.id, s.id)) };
     });
     return [
-      { lab: `「${cur.name}」的模块` },
+      { lab: `「${cur.name}」的场景` },
       ...sceneItems(cur),
       { sep: true },
-      { label: '添加模块…', act: run(() => this.addModule()) },
-      { label: '复制当前模块', act: run(() => this.newScene(cur.id, { copyCurrent: true })) },
+      { label: '添加场景…', act: run(() => this.addModule()) },
+      { label: '复制当前场景', act: run(() => this.newScene(cur.id, { copyCurrent: true })) },
       ...(ws.projects.length > 1 ? [{ sep: true }, { lab: '其他项目' }, ...ws.projects.filter((p) => p.id !== cur.id).map((p) => ({ label: p.name, sub: sceneItems(p) }))] : []),
     ];
   }
@@ -1256,7 +1263,7 @@ export class Library {
     const pid = this.ws.active.id;
     for (const a of assets) this.ws.addAsset(pid, a.id);
     this.ws.setOpen(`pj:${pid}:sc`, true);
-    this.app.openCard?.('secFactory');
+    this.app.cards?.open('secFactory');
     await this.reload();
     this.persistSoon();
     if (assets[0]) this.flash(`as:${pid}:${assets[0].id}`);
@@ -1752,8 +1759,9 @@ export class Library {
       项目场景: p.scenes.map((s) => s.name),
       项目文件: p.assets.map((id) => this.asset(id)).filter(Boolean).map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 可用: Library.usable(a), 图纸类型: a.kind === 'site' ? (a.meta?.convention === 'generic' ? '普通厂房图（生成厂房）' : '工序图纸') : undefined })),
       其他项目: ws.projects.filter((x) => x.id !== p.id).map((x) => x.name),
+      项目编号: p.id,
       搭建模块: p.scenes.map((s) => ({ 名称: s.name, 类型: ({ site: '场景搭建', saddle: '鞍座搭建', product: '产品搭建' })[s.kind] ?? '自定义', 打开中: s.id === p.activeScene })),
-      项目案例库: ws.archives.map((a) => ({ id: a.id, 名称: a.name, 归档日期: fmtDate(a.archivedAt), 场景数: a.project.scenes.length })),
+      项目案例库: ws.archives.map((a) => ({ id: a.id, 项目编号: a.projectId, 名称: a.name, 归档日期: fmtDate(a.archivedAt), 场景数: a.project.scenes.length })),
     };
   }
 }

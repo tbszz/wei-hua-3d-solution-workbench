@@ -45,11 +45,15 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .ttlrow>b{flex:none;font-size:16px;white-space:nowrap;letter-spacing:.02em;line-height:1.2}
 /* module nav: one chip per left-rail section, plus the dashboard */
 .modnav{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
-.mod{flex:none;height:22px;padding:0 8px;border-radius:11px;border:1px solid transparent;font-size:12px;color:var(--ink2);white-space:nowrap;line-height:20px}
-.mod:hover{background:rgba(31,35,41,.06);color:var(--ink)}
-.mod.on{color:var(--red);background:var(--red-light);border-color:rgba(215,0,15,.3);font-weight:600}
-.mod.dash{margin-left:4px;color:#fff;background:var(--ink)}
-.mod.dash:hover{background:var(--red);color:#fff}
+.modnav .mod{flex:none;height:22px;padding:0 8px;border-radius:11px;border:1px solid transparent;font-size:12px;color:var(--ink2);white-space:nowrap;line-height:20px}
+.modnav .mod:hover{background:rgba(31,35,41,.06);color:var(--ink)}
+.modnav .mod.on,.modnav .mod.pc-on{color:var(--red);background:var(--red-light);border-color:rgba(215,0,15,.3);font-weight:600}
+/* each chip mirrors its section's key figure (casesCount, prodCount, …) */
+.modnav .mod em{font-style:normal;font-family:var(--num);font-size:10.5px;margin-left:4px;padding:0 5px;border-radius:7px;background:rgba(31,35,41,.07);color:var(--ink3);line-height:14px;display:inline-block;vertical-align:1px;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.modnav .mod em:empty{display:none}
+.modnav .mod.pc-on em{background:rgba(215,0,15,.12);color:var(--red)}
+.modnav .mod.dash{margin-left:4px;color:#fff;background:var(--ink)}
+.modnav .mod.dash:hover{background:var(--red);color:#fff}
 .steps{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
 .step{display:flex;align-items:center;gap:4px;padding:0 7px 0 2px;border-radius:2px;color:var(--ink2);font-size:12px;white-space:nowrap;height:20px}
 .step:hover{background:rgba(31,35,41,.06)}
@@ -93,9 +97,10 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 /* AI3D工厂 header: current project name + 保存归档 */
 .ph .phsub{flex:0 1 auto;min-width:0;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--ink2);background:rgba(31,35,41,.06);border-radius:9px;padding:0 7px;line-height:18px}
 .ph .phsub:empty{display:none}
+/* the rail is too narrow for name + 保存归档: the name shows in the card, strip and header chip */
+.left #secFactory>.ph .phsub{display:none}
 .ph .arcbtn{flex:none;height:22px;padding:0 8px;border-radius:var(--r);border:1px solid rgba(215,0,15,.4);color:var(--red);background:#fff;font-size:11.5px;white-space:nowrap}
 .ph .arcbtn:hover{background:var(--red);border-color:var(--red);color:#fff}
-.panel.min-on .ph .arcbtn{display:none}
 .flowbox{margin:0 6px 6px;padding:6px 8px;border:1px solid rgba(31,35,41,.08);border-radius:var(--r);background:rgba(255,255,255,.6);font-size:12px}
 .flowbox[hidden]{display:none}
 
@@ -350,7 +355,7 @@ table.t tr.clickable:hover td{background:var(--bg)}
   /* steps shrink to numbers (name in the tooltip), the module chips tighten */
   .step,.step.cur{font-size:0;gap:0;padding:0 2px}
   .step i{font-size:11px}
-  .mod{padding:0 6px;font-size:11.5px}
+  .modnav .mod{padding:0 6px;font-size:11.5px}
   .ttlrow{gap:6px}
   .runst{padding:4px 8px}
   .legend,.proj{display:none}
@@ -364,8 +369,9 @@ table.t tr.clickable:hover td{background:var(--bg)}
   .clock b{font-size:22px}
   .acts-top{gap:4px}
   .acts-top button{padding:5px 8px}
-  .mod{padding:0 5px}
-  .mod.dash{margin-left:2px}
+  .modnav .mod{padding:0 5px}
+  .modnav .mod.dash{margin-left:2px}
+  .modnav .mod em{max-width:52px;margin-left:3px;padding:0 4px}
 }
 @media (max-width: 1100px){
   :root{--lw:220px;--rw:300px}
@@ -515,6 +521,19 @@ body.clean .keyhelp{right:var(--gap)}
 .tree .row.mod.on{background:rgba(215,0,15,.05)}
 .tree .row.mod.on .nm b{color:var(--red)}
 .tree .addmod{padding:2px 4px 4px 16px}
+/* AI3D工厂 card toolbar: 项目编号 · ＋场景 · 保存归档 */
+.tree .facbar{display:flex;align-items:center;gap:6px;padding:6px 4px 6px 6px;border-bottom:1px dashed rgba(31,35,41,.1)}
+.tree .facbar .pid{flex:1;min-width:0;font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree .facbar .pid b{font-weight:500;color:var(--ink2)}
+.tree .facbar .pid em{font-style:normal;margin-left:6px;color:var(--red)}
+.tree .facbar .go{flex:none}
+.tree .facbar .go.pri{background:var(--red);border-color:var(--red);color:#fff}
+.tree .facbar .go.pri:hover{background:#b8000d;color:#fff}
+.tree .row.arc .kd{color:var(--ink2);background:rgba(31,35,41,.07);margin-left:6px}
+/* 工序流程 card */
+.procnote{margin:6px 6px 0;padding:6px 8px;font-size:11.5px;line-height:1.5;color:#8a5a00;background:rgba(245,184,0,.12);border:1px solid rgba(245,184,0,.4);border-radius:var(--r)}
+.procnote[hidden]{display:none}
+.proclist.off li{opacity:.78}
 .tree .addmod button{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;height:26px;border:1px dashed rgba(31,35,41,.22);border-radius:var(--r);font-size:12px;color:var(--ink2)}
 .tree .addmod button:hover{border-color:var(--red);color:var(--red);background:var(--red-light)}
 .tree .folds{margin-top:4px;padding-top:4px;border-top:1px dashed rgba(31,35,41,.1)}

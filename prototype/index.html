@@ -22,14 +22,15 @@
     <div class="ttl">
       <div class="ttlrow">
         <b>AI3D智能工厂</b>
-        <!-- Module nav mirrors the left rail. [data-open-card] opens that rail section;
+        <!-- Module nav mirrors the left rail. [data-open-card] opens that rail section as a floating
+             card (popcard.js); <em data-mirror="id"> repeats that section's header figure.
              [data-open-dashboard] opens the full-screen dashboard (bound by the dashboard module). -->
         <nav class="modnav" id="modNav" aria-label="模块">
-          <button class="mod" data-open-card="secCases" title="项目案例库：已归档的历史项目">项目案例库</button>
-          <button class="mod" data-open-card="secProducts" title="产品库：标准产品与参数">产品库</button>
-          <button class="mod" data-open-card="secFactory" title="AI3D工厂：当前项目的搭建模块">AI3D工厂</button>
-          <button class="mod" data-open-card="secProcess" title="工序流程：当前方案的工序步骤">工序流程</button>
-          <button class="mod" data-open-card="secTakt" title="生产节拍：单件节拍、产能与瓶颈">生产节拍</button>
+          <button class="mod" data-open-card="secCases" title="项目案例库：已归档的历史项目">项目案例库<em data-mirror="casesCount"></em></button>
+          <button class="mod" data-open-card="secProducts" title="产品库：标准产品与参数">产品库<em data-mirror="prodCount"></em></button>
+          <button class="mod" data-open-card="secFactory" title="AI3D工厂：当前项目与场景">AI3D工厂<em data-mirror="factoryScene"></em></button>
+          <button class="mod" data-open-card="secProcess" title="工序流程：点工序播放到这一步">工序流程<em data-mirror="procSteps"></em></button>
+          <button class="mod" data-open-card="secTakt" title="生产节拍：单件节拍、产能与瓶颈">生产节拍<em data-mirror="taktSum"></em></button>
           <button class="mod dash" data-open-dashboard title="可视化大屏">可视化大屏</button>
         </nav>
       </div>
@@ -55,8 +56,8 @@
   </div>
 </header>
 
-<!-- Left rail: five sections, each a .panel > .ph header + body. Folded (min-on) they show only
-     their headers; the rail scrolls when open sections overflow. -->
+<!-- Left rail: five sections, each a .panel > .ph header + body. The rail only shows headers
+     (min-on); clicking one opens its body as a floating card (popcard.js), never inline. -->
 <aside class="left">
   <section class="panel glass min-on" id="secCases">
     <header class="ph"><b><i>01</i>项目案例库</b><span class="num" id="casesCount"></span><button class="min" data-min title="缩小 / 展开"></button></header>
@@ -81,6 +82,7 @@
   <section class="panel glass min-on" id="secProcess">
     <header class="ph"><b><i>04</i>工序流程</b><span class="num" id="procTotal"></span><button class="min" data-min title="缩小 / 展开"></button></header>
     <div class="secbody">
+      <div class="procnote" id="procNote" hidden></div>
       <ol class="proclist" id="procList"></ol>
       <div class="flowbox" id="flowBox" hidden></div>
       <div class="libhint">定义或修改工艺流程：对右边的小华说，例如「按 开卷→矫直→剪切→堆垛→入库 定义流程并演示」</div>

@@ -16,7 +16,11 @@ export const MODULES = [
 export const MODULE_KINDS = [...MODULES.map((m) => m.kind), 'custom'];
 export const DEFAULT_SCENE_NAME = MODULES[0].name;
 const LEGACY_SCENE_NAME = '主场景'; // the single scene of workspaces saved before modules existed
-const VERSION = 2;
+// Names older versions gave a scene automatically. A v2 workspace can hold one of these as an extra
+// custom scene next to an empty 场景搭建 (the plant the user was really working in); v3 folds it
+// into 场景搭建 so a project shows exactly 场景搭建 / 鞍座搭建 / 产品搭建 plus scenes the user named.
+const AUTO_SCENE_NAMES = ['场景', '新场景', '主场景', '新模块'];
+const VERSION = 3;
 
 let seq = 0;
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
@@ -70,9 +74,28 @@ function migrateScenes(scenes) {
   return scenes;
 }
 
-function normalizeProject(p, legacy) {
+const isEmptyScene = (s) => !s.drawing && !s.overlay && !s.placed.length;
+
+// v2 -> v3: an auto-named custom scene is folded into an empty 场景搭建 (its drawing, models and
+// product move over, the scene id is kept as an alias for activeScene). Returns the id map.
+function foldAutoScene(scenes) {
+  const site = scenes.find((s) => s.kind === 'site');
+  const extra = scenes.find((s) => s.kind === 'custom' && AUTO_SCENE_NAMES.includes(s.name));
+  if (!site || !extra || !isEmptyScene(site)) return null;
+  Object.assign(site, { drawing: extra.drawing, overlay: extra.overlay, placed: extra.placed, productId: extra.productId ?? site.productId });
+  scenes.splice(scenes.indexOf(extra), 1);
+  return { from: extra.id, to: site.id };
+}
+
+// `from` is the stored version (0 when unknown).
+function normalizeProject(p, from = VERSION) {
   let scenes = (Array.isArray(p.scenes) ? p.scenes : []).filter((s) => s && typeof s === 'object').map((s) => ({ ...newScene(s.name, s), id: s.id || uid('s') }));
-  if (legacy) scenes = migrateScenes(scenes);
+  if (from < 2) scenes = migrateScenes(scenes);
+  let active = p.activeScene;
+  if (from < 3) {
+    const moved = foldAutoScene(scenes);
+    if (moved && active === moved.from) active = moved.to;
+  }
   if (!scenes.length) scenes = defaultModules();
   return {
     id: p.id || uid('p'),
@@ -80,28 +103,29 @@ function normalizeProject(p, legacy) {
     products: (Array.isArray(p.products) ? p.products : []).filter((x) => x?.productId).map((x) => ({ key: x.key || uid('pp'), productId: x.productId, name: x.name ?? null })),
     scenes,
     assets: [...new Set((Array.isArray(p.assets) ? p.assets : []).filter((x) => typeof x === 'string'))],
-    activeScene: scenes.some((s) => s.id === p.activeScene) ? p.activeScene : scenes[0].id,
+    activeScene: scenes.some((s) => s.id === active) ? active : scenes[0].id,
   };
 }
 
-function normalizeArchive(a, legacy) {
+function normalizeArchive(a, from) {
   if (!a || typeof a !== 'object' || !a.project || typeof a.project !== 'object') return null;
-  const project = normalizeProject(a.project, legacy);
+  const project = normalizeProject(a.project, from);
   const at = Number(a.archivedAt);
-  return { id: a.id || uid('a'), name: clean(a.name, project.name), archivedAt: Number.isFinite(at) ? at : 0, project };
+  // projectId: the project the case was archived from (its 项目编号); older records use the copy's id.
+  return { id: a.id || uid('a'), projectId: String(a.projectId || project.id), name: clean(a.name, project.name), archivedAt: Number.isFinite(at) ? at : 0, project };
 }
 
 // Repair whatever came back from storage so the UI never meets a half-formed record.
 export function normalize(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.projects) || !data.projects.length) return defaultWorkspace();
-  const legacy = !(Number(data.v) >= VERSION);
-  const projects = data.projects.filter((p) => p && typeof p === 'object').map((p) => normalizeProject(p, legacy));
+  const from = Number(data.v) || 0;
+  const projects = data.projects.filter((p) => p && typeof p === 'object').map((p) => normalizeProject(p, from));
   if (!projects.length) return defaultWorkspace();
   return {
     v: VERSION,
     activeProject: projects.some((p) => p.id === data.activeProject) ? data.activeProject : projects[0].id,
     projects,
-    archives: (Array.isArray(data.archives) ? data.archives : []).map((a) => normalizeArchive(a, legacy)).filter(Boolean),
+    archives: (Array.isArray(data.archives) ? data.archives : []).map((a) => normalizeArchive(a, from)).filter(Boolean),
     open: data.open && typeof data.open === 'object' ? { ...data.open } : {},
   };
 }
@@ -212,10 +236,10 @@ export class Workspace {
     return s;
   }
 
-  // A build module the user adds next to 场景搭建 / 鞍座搭建 / 产品搭建. `from` seeds the scene
+  // A scene the user adds with ＋ next to 场景搭建 / 鞍座搭建 / 产品搭建. `from` seeds the scene
   // (e.g. { productId }); without a drawing in `from` it starts from the sample plant.
   addModule(projectId, name, from = null) {
-    return this.addScene(projectId, clean(name, '新模块'), from, 'custom');
+    return this.addScene(projectId, clean(name, '新场景'), from, 'custom');
   }
 
   renameScene(projectId, sceneId, name) {
@@ -257,12 +281,25 @@ export class Workspace {
     return a;
   }
 
-  // Snapshot a project (deep copy) into the case library, newest first. The project stays as it is.
+  // Snapshot a project (deep copy) into the case library, newest first, filed under its project
+  // id. The project stays as it is; archiving it again adds a newer version.
   archiveProject(projectId = this.data.activeProject, now = Date.now()) {
     const p = this.project(projectId);
-    const record = { id: uid('a'), name: p.name, archivedAt: now, project: copy(p) };
+    const record = { id: uid('a'), projectId: p.id, name: p.name, archivedAt: now, project: copy(p) };
     this.archives.unshift(record);
     return record;
+  }
+
+  // Archived versions of one project, newest first.
+  archivesOf(projectId) {
+    return this.archives.filter((a) => a.projectId === projectId);
+  }
+
+  // 1-based version number of an archive among the archives of the same project (oldest = 1).
+  archiveVersion(archiveId) {
+    const a = this.archive(archiveId);
+    const list = this.archivesOf(a.projectId);
+    return list.length - list.indexOf(a);
   }
 
   // Restore an archived case as a new project (fresh ids, so the archive itself stays untouched)
