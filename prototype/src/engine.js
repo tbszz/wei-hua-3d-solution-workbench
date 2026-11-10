@@ -231,7 +231,7 @@ export class ProcessSite extends Site {
 
   update(delta, camera) {
     if (!this.timeline) return;
-    updateCutaway(this.built.sides, camera);
+    updateCutaway(this.built.sides, camera, this.built.roof);
     if (this.playing) {
       this.time += delta * this.speed;
       if (this.window) {

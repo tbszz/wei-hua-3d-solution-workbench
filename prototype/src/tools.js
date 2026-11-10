@@ -10,15 +10,41 @@ const fn = (name, description, properties = {}, required = []) => ({
 });
 
 export const SCHEMAS = [
-  fn('list_library', '列出资源库：产品库车型、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型。'),
-  fn('place_asset', '把场景库里的三维模型放进厂房。不给坐标就放在厂房中部空地。', {
-    asset: { type: 'string', description: '场景库文件 id 或名称' },
+  fn('list_library', '列出资源库：产品库（车型和已登记的产品模型）、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型实例。'),
+  fn('place_asset', '把产品库或场景库里的三维模型（起重机、大车、铝卷、设备等）放进当前厂房，可一次放多个。图纸生成的厂房里可按跨定位（bay + along_m），起重机类模型用 mount=runway 装到该跨行车轨道上（自动横跨该跨、缩放到跨度、替换该跨的示意行车）。不给位置就放在中间跨的中部。', {
+    asset: { type: 'string', description: '模型 id 或名称，如 “起重机”“铝卷”' },
+    bay: { type: 'string', description: '跨名，如 A、B（图纸生成的厂房）' },
+    along_m: { type: 'number', description: '沿跨长方向距厂房起点的米数' },
     x_mm: { type: 'number' },
     y_mm: { type: 'number' },
-    size_m: { type: 'number', description: '把最长边缩放到这个米数（可选）' },
+    mount: { type: 'string', enum: ['floor', 'runway'], description: 'floor 放地面（默认）；runway 装到行车轨道上' },
+    count: { type: 'integer', description: '放几个，沿跨长方向排成一排，1–20' },
+    size_m: { type: 'number', description: '把最长边缩放到这个米数（可选；默认按模型原尺寸，毫米模型自动换算）' },
+    heading_deg: { type: 'number', description: '绕竖轴转角（度）' },
+    elevation_m: { type: 'number', description: '底面离地高度（米），如放在货架上' },
   }, ['asset']),
-  fn('remove_asset', '把已放进场景的模型移出。', { asset: { type: 'string' } }, ['asset']),
-  fn('load_site_asset', '用场景库里的 DXF/DWG 图纸替换当前厂房，重新生成点位和工序；图纸缺少约定图层时会保留原厂房并报错。', { asset: { type: 'string' } }, ['asset']),
+  fn('move_asset', '移动 / 旋转 / 缩放已放入场景的模型实例。可给绝对位置（x_mm/y_mm 或 bay/along_m）、相对平移（east_m/north_m）、绝对朝向 heading_deg 或相对转角 rotate_deg、新的最长边 size_m。', {
+    asset: { type: 'string', description: '实例 id（list_library 的 已放入场景.id）或模型名' },
+    bay: { type: 'string' },
+    along_m: { type: 'number' },
+    x_mm: { type: 'number' },
+    y_mm: { type: 'number' },
+    east_m: { type: 'number', description: '向 +X 平移米数' },
+    north_m: { type: 'number', description: '向 +Y 平移米数' },
+    heading_deg: { type: 'number' },
+    rotate_deg: { type: 'number' },
+    size_m: { type: 'number' },
+    elevation_m: { type: 'number' },
+  }, ['asset']),
+  fn('remove_asset', '把已放进场景的模型实例移出；asset=all 清空全部。', { asset: { type: 'string' } }, ['asset']),
+  fn('add_to_product_library', '把场景库里上传好的模型登记进产品库（之后在产品库里能看到并直接放入场景）。', {
+    asset: { type: 'string', description: '场景库模型 id 或名称' },
+    model: { type: 'string', description: '产品型号 / 显示名，默认用文件名' },
+    name: { type: 'string', description: '中文名称，如 “双梁桥式起重机”' },
+    category: { type: 'string', description: '分类（英文小写），如 overhead_crane、coil、vehicle；不填按名称推断' },
+  }, ['asset']),
+  fn('load_site_asset', '载入场景库里的 DXF/DWG 图纸。普通厂房图纸：识别柱网、跨、吊车梁、墙、门窗和设备，生成新的三维厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。带卫华约定图层（A-WALL/AGV-PATH/AGV-STAT）的图纸：替换 AGV + 行车工序方案的厂房。', { asset: { type: 'string' } }, ['asset']),
+  fn('exit_scene', '离开图纸生成的厂房，回到原来的 AGV + 行车工序方案。'),
   fn('record_video', '开始或停止录制三维视口视频（停止后自动下载 WebM）。', { on: { type: 'boolean' } }, ['on']),
   fn('get_scene_state', '读取当前方案状态：产品、参数、点位、工序、节拍、播放进度。'),
   fn('set_step', '切换顶部功能流程步骤（1 图纸变三维·点位标定，2 选型与参数，3 流程说明，4 流程动画，5 效率与节拍，6 行程可视化，7 出图下发·后期），同时切换底部面板。', {
@@ -58,9 +84,9 @@ export const SCHEMAS = [
     home: { type: 'string', description: 'AGV 返回的充电位，如 CHG-01' },
   }, ['pick', 'handoff', 'drop', 'home']),
   fn('confirm_process', '用户确认工序表后调用，让工序生效并重新生成动画和时间轴。'),
-  fn('play_animation', '播放动画。mode: all 全流程从头播；step 只播第 step 步（镜头对准设备）；next 下一步；pause 暂停；resume 继续。speed 为倍速 0.25–16。', {
+  fn('play_animation', '播放动画。工序方案里是 AGV + 行车工序；图纸生成的厂房里是建造过程。mode: all 从头播；step 只播第 step 步（镜头对准该步）；next 下一步；pause 暂停；resume 继续。speed 为倍速 0.25–16。', {
     mode: { type: 'string', enum: ['all', 'step', 'next', 'pause', 'resume'] },
-    step: { type: 'integer', minimum: 1, maximum: 5 },
+    step: { type: 'integer', minimum: 1, maximum: 9 },
     speed: { type: 'number' },
   }, ['mode']),
   fn('seek', '把时间轴跳到某一秒。', { seconds: { type: 'number' } }, ['seconds']),
@@ -69,9 +95,13 @@ export const SCHEMAS = [
     hours: { type: 'number', description: '班次时长 0.5–24 小时' },
   }, ['hours']),
   fn('show_travel', '显示或隐藏行程可视化：视口轨迹线、行程表、甘特图。', { visible: { type: 'boolean' } }, ['visible']),
-  fn('set_camera', '切换镜头。', {
+  fn('set_camera', '切换镜头。overview 总览，top 俯视；工序方案里 follow 跟随 AGV、crane 跟行车、point 看点位；图纸生成的厂房里 follow 是站在某跨里看（可给 bay），crane 看某跨的行车（bay），point 看某个坐标或已放入的模型（asset）。', {
     view: { type: 'string', enum: ['overview', 'top', 'follow', 'crane', 'point'] },
-    point_id: { type: 'string', description: 'view=point 时的点位编号' },
+    point_id: { type: 'string', description: 'view=point 时的点位编号（工序方案）' },
+    bay: { type: 'string', description: '跨名（图纸生成的厂房）' },
+    asset: { type: 'string', description: 'view=point 时看这个已放入的模型' },
+    x_mm: { type: 'number' },
+    y_mm: { type: 'number' },
   }, ['view']),
 ];
 
@@ -97,11 +127,52 @@ export function processCard(site, roles, { pending, steps }) {
 }
 
 export function createTools(app) {
-  const site = app.site;
+  // The current site changes when a drawing is built as a new plant, so always look it up.
+  const site = new Proxy({}, {
+    get(_, key) {
+      const s = app.site;
+      const v = s[key];
+      return typeof v === 'function' ? v.bind(s) : v;
+    },
+    set(_, key, value) {
+      app.site[key] = value;
+      return true;
+    },
+  });
   const span = () => Math.abs(site.runway.high - site.runway.low) / 1000;
   const maxLift = () => 8.5;
 
+  const sceneSummary = () => ({
+    模式: '图纸生成的厂房',
+    图纸: site.sourceName,
+    识别结果: site.summary,
+    跨: site.bays.map((b) => ({ 跨: b.name, 跨度_m: +(b.span / 1000).toFixed(1), 中心线_mm: Math.round(b.centre) })),
+    沿跨方向: site.alongX ? '+X（along_m 从厂房西端算起）' : '+Y（along_m 从厂房南端算起）',
+    厂房范围_mm: site.hallBounds,
+    示意行车: site.craneInfo().map((c) => ({ 跨: c.bay, 跨度_m: c.span / 1000, 已被模型替换: c.replaced })),
+    建造步骤: site.process.steps.map((s) => ({ n: s.n, 阶段: s.title, 用时_s: s.duration, 内容: s.detail })),
+    已放入模型: app.library.placedList(),
+    播放: { 时间_s: +site.time.toFixed(1), 总长_s: +site.duration.toFixed(1), 播放中: site.playing, 分步: site.window?.step ?? null, 倍速: site.speed, 建造完成: site.time >= site.duration },
+  });
+
+  // Frame placed model instances: aim at their middle height, fit the whole row.
+  const look = (entries) => {
+    const list = entries.filter(Boolean);
+    if (!list.length) return;
+    const xs = list.map((e) => e.x);
+    const ys = list.map((e) => e.y);
+    const spread = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 1000;
+    const e = list[0];
+    app.setView('point', { x: (Math.max(...xs) + Math.min(...xs)) / 2, y: (Math.max(...ys) + Math.min(...ys)) / 2, h: e.base + e.height / 2, size: e.size + spread });
+  };
+
+  // Tools that only make sense for the AGV + crane process plant.
+  const processOnly = (name) => {
+    if (site.isScene) throw new Error(`${name}只用于 AGV + 行车工序方案；当前是按图纸 ${site.sourceName} 生成的厂房。需要的话先调用 exit_scene 回到工序方案`);
+  };
+
   const stateSummary = () => {
+    if (site.isScene) return sceneSummary();
     const eff = site.efficiency;
     return {
       方案版本: app.version,
@@ -131,6 +202,7 @@ export function createTools(app) {
     get_scene_state: () => ({ result: stateSummary(), chip: '读取方案' }),
 
     set_step: ({ step }) => {
+      processOnly('顶部流程步骤');
       check('步骤', step, 1, 7, '');
       app.setStep(step);
       const result = { step };
@@ -139,6 +211,7 @@ export function createTools(app) {
     },
 
     import_site: () => {
+      app.exitScene();
       app.setStep(1);
       app.setView('overview');
       const p = site.base;
@@ -147,6 +220,7 @@ export function createTools(app) {
     },
 
     add_station: ({ id, name, role, ref, east_m = 0, north_m = 0, x_mm, y_mm }) => {
+      processOnly('作业点位');
       let x = x_mm;
       let y = y_mm;
       if (ref) {
@@ -166,6 +240,7 @@ export function createTools(app) {
     },
 
     select_product: async ({ model }) => {
+      processOnly('AGV 选型');
       const product = await app.selectProduct(model);
       app.setStep(2);
       app.bump();
@@ -173,6 +248,7 @@ export function createTools(app) {
     },
 
     set_params: (args) => {
+      processOnly('AGV / 行车参数');
       const product = app.product;
       const taktBefore = site.efficiency.takt;
       const vehicle = {};
@@ -227,6 +303,7 @@ export function createTools(app) {
     },
 
     set_process: ({ pick, handoff, drop, home }) => {
+      processOnly('工序表');
       const missing = [pick, handoff, drop, home].filter((id) => !site.findPoint(id));
       if (missing.length) throw new Error(`点位不存在：${missing.join('、')}。现有：${site.points().map((p) => p.id).join('、')}`);
       const roles = { pick, handoff, drop, home };
@@ -240,6 +317,7 @@ export function createTools(app) {
     },
 
     confirm_process: () => {
+      processOnly('工序确认');
       if (!app.pendingProcess) throw new Error('没有待确认的工序表，先用 set_process 整理流程');
       site.setRoles(app.pendingProcess);
       app.pendingProcess = null;
@@ -258,12 +336,14 @@ export function createTools(app) {
     play_animation: ({ mode, step, speed }) => {
       if (speed !== undefined) check('倍速', speed, 0.25, 16, '×');
       if (mode === 'step') check('步骤', step, 1, site.process.steps.length, '');
-      app.setStep(4);
+      if (!site.isScene) app.setStep(4);
+      if (site.isScene && mode === 'resume' && site.time >= site.duration) mode = 'all';
       const r = app.play({ mode, step, speed });
       const s = r.window ? site.process.steps[r.window.step - 1] : null;
+      const all = site.isScene ? '建造全过程' : '全流程';
       return {
-        result: s ? { 播放: `第 ${s.n} 步 ${s.title}`, 用时_s: +s.duration.toFixed(1), 说明: s.detail } : { 播放: mode, 全流程_s: +site.duration.toFixed(1), 倍速: site.speed },
-        chip: s ? `第 ${s.n} 步 · ${s.duration.toFixed(0)} s` : `${{ all: '全流程', pause: '暂停', resume: '继续' }[mode] ?? mode} · ${site.speed}×`,
+        result: s ? { 播放: `第 ${s.n} 步 ${s.title}`, 用时_s: +s.duration.toFixed(1), 说明: s.detail } : { 播放: mode, [`${all}_s`]: +site.duration.toFixed(1), 倍速: site.speed },
+        chip: s ? `第 ${s.n} 步 · ${s.title}` : `${{ all, pause: '暂停', resume: '继续' }[mode] ?? mode} · ${site.speed}×`,
       };
     },
 
@@ -275,6 +355,7 @@ export function createTools(app) {
     },
 
     set_takt: ({ target_seconds }) => {
+      processOnly('节拍分析');
       check('目标节拍', target_seconds, 10, 3600, 's');
       site.target = target_seconds;
       site.replan();
@@ -291,6 +372,7 @@ export function createTools(app) {
     },
 
     simulate_shift: ({ hours }) => {
+      processOnly('班次模拟');
       check('班次时长', hours, 0.5, 24, '小时');
       const shift = simulateShift(site.efficiency, site.duration, hours);
       app.shift = shift;
@@ -304,6 +386,7 @@ export function createTools(app) {
     },
 
     show_travel: ({ visible }) => {
+      processOnly('行程可视化');
       site.setTravelVisible(visible);
       document.getElementById('travelBtn').classList.toggle('on', visible);
       if (visible) {
@@ -322,29 +405,57 @@ export function createTools(app) {
       await lib.reload();
       return {
         result: {
-          产品库: lib.products.map((p) => p.model ?? p.name),
-          场景库: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 说明: a.message || undefined })),
+          当前厂房: site.isScene ? `图纸生成：${site.sourceName}` : 'AGV + 行车工序方案',
+          产品库: lib.products.map((p) => ({ id: p.id, 型号: p.model ?? p.name, 名称: p.name, 分类: p.category, 有三维模型: Boolean(p.modelUrl) || CATALOG.some((c) => c.id === p.id) })),
+          场景库: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 图纸类型: a.kind === 'site' ? (a.meta?.convention === 'generic' ? '普通厂房图（生成厂房）' : '工序图纸') : undefined, 说明: a.message || undefined })),
           已放入场景: lib.placedList(),
         },
         chip: `产品 ${lib.products.length} · 场景 ${lib.assets.length}`,
       };
     },
 
-    place_asset: async ({ asset, x_mm, y_mm, size_m }) => {
-      const r = await app.library.place(asset, { x: x_mm, y: y_mm, size: size_m });
-      app.setView('overview');
-      return { result: r, chip: `放入 ${r.名称}` };
+    place_asset: async ({ asset, bay, along_m, x_mm, y_mm, mount, count, size_m, heading_deg, elevation_m }) => {
+      const r = await app.library.place(asset, { bay, along: along_m, x: x_mm, y: y_mm, mount, count, size: size_m, heading: heading_deg, elevation: elevation_m });
+      if (site.isScene) look(r.实例.map((e) => app.library.findPlaced(e.id)));
+      else app.setView('overview');
+      return { result: r, chip: `放入 ${r.名称}${r.实例.length > 1 ? ` × ${r.实例.length}` : ''}` };
+    },
+
+    move_asset: ({ asset, bay, along_m, x_mm, y_mm, east_m, north_m, heading_deg, rotate_deg, size_m, elevation_m }) => {
+      const r = app.library.move(asset, { bay, along: along_m, x: x_mm, y: y_mm, east: east_m, north: north_m, heading: heading_deg, rotate: rotate_deg, size: size_m, elevation: elevation_m });
+      if (site.isScene) look([app.library.findPlaced(r.id)]);
+      return { result: r, chip: `调整 ${r.id}` };
     },
 
     remove_asset: ({ asset }) => {
-      if (!app.library.remove(asset)) throw new Error(`场景里没有 ${asset}`);
+      if (/^(all|全部|所有)$/i.test(String(asset))) {
+        const lib = app.library;
+        const ids = [...lib.placed.keys()];
+        for (const id of ids) lib.remove(id);
+        app.bump();
+        return { result: { 已移出: ids }, chip: `清空 ${ids.length} 个模型` };
+      }
+      const key = app.library.remove(asset);
+      if (!key) throw new Error(`场景里没有 ${asset}。已放入：${app.library.placedList().map((p) => p.id).join('、') || '无'}`);
       app.bump();
-      return { result: { 已移出: asset }, chip: `移出 ${asset}` };
+      return { result: { 已移出: key }, chip: `移出 ${key}` };
+    },
+
+    add_to_product_library: async ({ asset, model, name, category }) => {
+      const p = await app.library.addProduct(asset, { model, name, category });
+      return { result: { 已登记: { id: p.id, 型号: p.model, 名称: p.name, 分类: p.category }, 说明: '已出现在左侧产品库，可用 place_asset 放入场景' }, chip: `入产品库 ${p.model}` };
     },
 
     load_site_asset: async ({ asset }) => {
       const r = await app.library.loadSite(asset);
-      return { result: r, chip: `图纸 ${r.图纸}` };
+      return { result: r, chip: r.模式?.startsWith('图纸生成') ? `生成厂房 · ${r.图纸}` : `图纸 ${r.图纸}` };
+    },
+
+    exit_scene: () => {
+      if (!site.isScene) throw new Error('当前已经是 AGV + 行车工序方案');
+      app.exitScene();
+      app.library.render();
+      return { result: { 已返回: 'AGV + 行车工序方案', 说明: '图纸生成的厂房和其中放入的模型已移除，需要时可以重新 load_site_asset' }, chip: '返回工序方案' };
     },
 
     record_video: ({ on }) => {
@@ -352,7 +463,17 @@ export function createTools(app) {
       return { result: { 录制中: recording }, chip: recording ? '开始录制' : '停止录制 · 已下载' };
     },
 
-    set_camera: ({ view, point_id }) => {
+    set_camera: ({ view, point_id, bay, asset, x_mm, y_mm }) => {
+      if (site.isScene) {
+        const opts = { bay };
+        if (bay) site.bayPoint(bay); // throws a readable error for an unknown bay
+        const placed = view === 'point' && asset ? app.library.findPlaced(asset) : null;
+        if (asset && view === 'point' && !placed) throw new Error(`场景里没有 ${asset}`);
+        if (view === 'point' && !placed && (!Number.isFinite(x_mm) || !Number.isFinite(y_mm))) throw new Error('view=point 需要 asset 或 x_mm/y_mm');
+        if (placed) look([placed]);
+        else app.setView(view, view === 'point' ? { x: x_mm, y: y_mm } : opts);
+        return { result: { 镜头: view, 跨: bay ?? null }, chip: { overview: '总览', top: '俯视', follow: `室内${bay ? ` · ${bay} 跨` : ''}`, crane: `行车${bay ? ` · ${bay} 跨` : ''}`, point: asset ?? '定位' }[view] };
+      }
       if (view === 'point' && !site.findPoint(point_id)) throw new Error(`点位 ${point_id} 不存在`);
       app.setView(view, { id: point_id });
       return { result: { 镜头: view }, chip: { overview: '总览', top: '俯视', follow: '跟随 AGV', crane: '行车', point: point_id }[view] };

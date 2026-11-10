@@ -1,7 +1,7 @@
 :root{
   --red:#D7000F;--red-dark:#A3000B;--red-light:#FCE8EA;--ink:#1F2329;--ink2:#646A73;--ink3:#8F959E;
   --bg:#ECEEF1;--surface:#fff;--surface2:#F2F3F5;--line:#E1E4E8;--blue:#2B7DE9;--yellow:#F5B800;--ok:#2EA121;
-  --glass:rgba(255,255,255,.84);--glass-line:rgba(255,255,255,.9);
+  --glass:rgba(255,255,255,.93);--glass-line:rgba(255,255,255,.9);
   --num:"Bahnschrift","DIN Alternate","DIN Next",Consolas,monospace;
   --r:4px;--gap:10px;
   --top:64px;--bottom:92px;--lw:clamp(240px,16vw,290px);--rw:clamp(330px,22vw,390px);
@@ -25,7 +25,7 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .toast[hidden]{display:none}
 
 /* floating glass panels */
-.glass{background:var(--glass);backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);border:1px solid var(--glass-line);box-shadow:0 6px 24px rgba(31,35,41,.10);border-radius:var(--r)}
+.glass{background:var(--glass);border:1px solid var(--glass-line);box-shadow:0 6px 24px rgba(31,35,41,.10);border-radius:var(--r)}
 .panel{position:relative;min-height:0;min-width:0}
 .panel::before{content:"";position:absolute;left:-1px;top:-1px;width:12px;height:12px;border-left:2px solid var(--red);border-top:2px solid var(--red);border-top-left-radius:var(--r);pointer-events:none;z-index:3}
 .ph{height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;border-bottom:1px solid rgba(31,35,41,.08);flex:none}
@@ -326,8 +326,16 @@ table.t tr.clickable:hover td{background:var(--bg)}
 .right .agent.min-on{margin-top:auto}
 
 /* one-click clean screen: only the 3D site and a restore button */
-.restore{display:none;position:absolute;left:var(--gap);top:var(--gap);z-index:6;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--glass-line);box-shadow:0 4px 16px rgba(31,35,41,.12);color:var(--ink);font-size:12.5px;padding:6px 14px;border-radius:var(--r);border-left:3px solid var(--red)}
+.restore{display:none;position:absolute;left:var(--gap);top:var(--gap);z-index:6;background:var(--glass);border:1px solid var(--glass-line);box-shadow:0 4px 16px rgba(31,35,41,.12);color:var(--ink);font-size:12.5px;padding:6px 14px;border-radius:var(--r);border-left:3px solid var(--red)}
 .restore:hover{color:var(--red)}
 body.clean .top,body.clean .left,body.clean .right,body.clean .bottom,body.clean .drawer{display:none}
 body.clean .restore{display:block}
 body.clean .toast{bottom:28px}
+
+/* Plant generated from a drawing: no AGV process, a build sequence instead. */
+.scene-only{display:none}
+body.scene-mode .scene-only{display:revert}
+body.scene-mode #tabs button:not(.scene-only),body.scene-mode .legend,body.scene-mode #travelBtn,body.scene-mode #steps{display:none}
+body.scene-mode .proj{margin-left:auto}
+.proclist li .dev.build,.badge.build{background:#B26A00}
+.segs button.build{border-bottom:2px solid #F5B800}

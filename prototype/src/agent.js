@@ -16,19 +16,77 @@ const SYSTEM = `你是「小华」，卫华集团「3D 方案工作台」里的�
 5. 功能流程 7 步：1 图纸变三维·点位标定，2 选型与参数，3 流程说明，4 流程动画，5 效率与节拍，6 行程可视化，7 出图下发（后期，只做介绍）。
 6. 回答用简体中文，一到三句话，给关键数字，不要 Markdown 标题和长列表。速度、时间是示意值，必要时提一句。
 7. 不知道当前状态时先调 get_scene_state。
-8. 每条用户指令只执行一次：工具返回成功就停止，不要为同一条指令再次调用同一工具。"再加一台""车长加 200"这类相对说法，以用户发话时的状态为基准算一次。`;
+8. 每条用户指令只执行一次：工具返回成功就停止，不要为同一条指令再次调用同一工具。"再加一台""车长加 200"这类相对说法，以用户发话时的状态为基准算一次。
+
+左边有两种厂房，状态 JSON 里的「模式」会说明当前是哪种：
+A. AGV + 行车工序方案（默认）：上面的规则 4、5 适用。
+B. 图纸生成的厂房：用户在场景库上传普通厂房 DWG/DXF 后，load_site_asset 会识别柱网、跨、吊车梁、墙和设备，生成新厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。这时：
+  - 播放 / 分步 / 镜头仍用 play_animation、set_camera；"重新建造" 就是 play_animation mode=all。
+  - 用户说"把起重机/大车/铝卷放进来"时，先看状态里的资源库或调 list_library 找模型，再调 place_asset。位置用跨（bay：A、B…）和 along_m（沿跨长方向米数）表达；起重机、行车类模型用 mount=runway 装到该跨轨道上；"放 5 卷铝卷"用 count=5。
+  - 已放入的模型用 move_asset 移动/旋转/缩放，用 remove_asset 移出；实例 id 见 已放入模型。
+  - 用户上传的模型想长期复用、或说"放进产品库"时，调 add_to_product_library。
+  - 选型、参数、工序、节拍、班次、行程这些工具只属于 A；用户要回去时调 exit_scene。
+  - 资源库里没有用户要的模型时，直说没有，并请用户在左侧资源库上传（支持 GLB/GLTF/OBJ/STL/FBX/STEP），不要用别的模型冒充。`;
 
 const SUGGESTIONS = ['播放全流程', '只看第 3 步', '节拍改成 90 秒', '模拟一个 8 小时班', '显示行程', '车长改成 3200', '加一台 AGV', '在 H-01 东边 8 米加一个吊装点'];
+const SCENE_SUGGESTIONS = ['重新建造', '只看行车就位', '看 B 跨行车', '资源库里有哪些模型', '把起重机装到 B 跨轨道上', '在 A 跨放 5 卷铝卷', '俯视', '返回原方案'];
 
 const CN_NUM = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 const num = (s) => (s in CN_NUM ? CN_NUM[s] : Number(s));
 
+// Offline phrases for the generated plant (scene mode) and for the scene library.
+function sceneIntent(t, app) {
+  const calls = [];
+  const lib = app.library;
+  const site = app.site;
+  let m;
+  if (/(生成|建|造).*厂房|按图纸|图纸生成/.test(t)) {
+    const drawing = [...lib.assets].reverse().find((a) => a.kind === 'site' && a.meta?.convention === 'generic' && a.status === 'ready');
+    if (drawing) calls.push(['load_site_asset', { asset: drawing.id }]);
+    return calls;
+  }
+  if (/返回|回到|退出/.test(t) && /原|方案|工序/.test(t)) return [['exit_scene', {}]];
+  if (/资源库|有哪些模型|模型列表/.test(t)) calls.push(['list_library', {}]);
+  if ((m = t.match(/入产品库|放进产品库|加到产品库|登记/)) && (m = t.match(/把?(.+?)(放|加|登记)/))) calls.push(['add_to_product_library', { asset: m[1] }]);
+  else if (site.isScene && /放|装|摆/.test(t) && !/移出|删除|删掉|去掉/.test(t)) {
+    // "把起重机装到 B 跨轨道上" / "在 A 跨放 5 卷铝卷"
+    const any = t.match(/([A-Za-z])跨/);
+    const count = t.match(/([\d一二两三四五六七八九十]+)(?:个|台|卷|件)/);
+    const name = t.replace(/^(把|在)/, '').replace(/[A-Za-z]跨/g, '').replace(/([\d一二两三四五六七八九十]+)(个|台|卷|件)/, '').replace(/(放|装|摆|加)(到|进|在|上)?|轨道|行车梁|吊车梁|上|里|中|场景/g, '').trim();
+    if (name) {
+      const args = { asset: name };
+      if (any) args.bay = any[1].toUpperCase();
+      if (count) args.count = num(count[1]);
+      if (/轨道|行车梁|吊车梁/.test(t) || /起重机|行车|吊车|crane/i.test(name)) args.mount = 'runway';
+      calls.push(['place_asset', args]);
+    }
+  } else if (/移出|删除|删掉|去掉/.test(t) && (m = t.match(/(?:移出|删除|删掉|去掉)(.+)/))) calls.push(['remove_asset', { asset: /全部|所有/.test(m[1]) ? 'all' : m[1] }]);
+  if (!site.isScene) return calls;
+  if (/重新建造|重新播放|从头/.test(t)) calls.push(['play_animation', { mode: 'all' }]);
+  const steps = site.process.steps;
+  const named = steps.find((s) => t.includes(s.title.slice(0, 2)) && /只看|播放|看/.test(t));
+  if ((m = t.match(/第([1-9一二三四五六七八九])步/))) calls.push(['play_animation', { mode: 'step', step: num(m[1]) }]);
+  else if (named && !/跨/.test(t)) calls.push(['play_animation', { mode: 'step', step: named.n }]);
+  else if (/下一步/.test(t)) calls.push(['play_animation', { mode: 'next' }]);
+  else if (/暂停/.test(t)) calls.push(['play_animation', { mode: 'pause' }]);
+  else if (/继续/.test(t)) calls.push(['play_animation', { mode: 'resume' }]);
+  else if (/建造|播放/.test(t) && !calls.length) calls.push(['play_animation', { mode: 'all' }]);
+  const bay = t.match(/([A-Za-z])跨/)?.[1]?.toUpperCase();
+  if (/俯视/.test(t)) calls.push(['set_camera', { view: 'top' }]);
+  else if (/总览/.test(t)) calls.push(['set_camera', { view: 'overview' }]);
+  else if (/看.*(行车|起重机)/.test(t) && !calls.some(([n]) => n === 'place_asset')) calls.push(['set_camera', { view: 'crane', bay }]);
+  else if (/室内|跨里|进去/.test(t)) calls.push(['set_camera', { view: 'follow', bay }]);
+  return calls;
+}
+
 // Offline: map common phrases to tool calls.
 function localIntent(text, app) {
-  const calls = [];
   const t = text.replace(/\s+/g, '');
+  const scene = sceneIntent(t, app);
+  if (scene.length || app.site.isScene) return scene;
+  const calls = [];
   let m;
-  if (/导入|厂房/.test(t)) calls.push(['import_site', {}]);
+  if (/导入.*厂房|示例厂房/.test(t)) calls.push(['import_site', {}]);
   if ((m = t.match(/第([1-5一二三四五])步/))) calls.push(['play_animation', { mode: 'step', step: num(m[1]) }]);
   else if (/下一步/.test(t)) calls.push(['play_animation', { mode: 'next' }]);
   else if (/暂停/.test(t)) calls.push(['play_animation', { mode: 'pause' }]);
@@ -123,8 +181,19 @@ export class Agent {
     this.status.textContent = this.online ? `在线 · ${this.model.split('/').pop()}` : '离线模式';
     this.status.title = this.online ? `${this.llm} · ${this.model}` : '连不上模型服务，用本地规则解析常用指令';
     const s = this.app.site;
-    const eff = s.efficiency;
-    this.assistantBlock().text.textContent = `${s.sourceName} · ${this.app.product.model} + 行车，全流程 ${Math.round(s.duration)} s，节拍 ${eff.takt.toFixed(0)} s（瓶颈 ${eff.bottleneck}）。说一句话改方案，场景会跟着变。${this.online ? '' : '（离线：按本地规则解析常用指令）'}`;
+    const offline = this.online ? '' : '（离线：按本地规则解析常用指令）';
+    if (s.isScene) this.assistantBlock().text.textContent = `已按图纸 ${s.sourceName} 生成厂房。可以让我重播建造、看某一跨，或把资源库里的起重机、大车、铝卷放进来。${offline}`;
+    else {
+      const eff = s.efficiency;
+      this.assistantBlock().text.textContent = `${s.sourceName} · ${this.app.product?.model ?? 'AGV'} + 行车，全流程 ${Math.round(s.duration)} s，节拍 ${eff.takt.toFixed(0)} s（瓶颈 ${eff.bottleneck}）。说一句话改方案，场景会跟着变。上传普通厂房图纸后，说"按图纸生成厂房"即可建新厂房。${offline}`;
+    }
+  }
+
+  // Suggestion chips follow the plant on the left.
+  setSuggestions(scene) {
+    if (this.sceneSugg === scene) return;
+    this.sceneSugg = scene;
+    document.getElementById('sugg').innerHTML = (scene ? SCENE_SUGGESTIONS : SUGGESTIONS).map((s) => `<button type="button">${s}</button>`).join('');
   }
 
   submit() {
@@ -208,6 +277,7 @@ export class Agent {
       }
     } finally {
       ui.block.querySelector('.thinking')?.remove();
+      this.setSuggestions(Boolean(this.app.site.isScene));
       this.setBusy(false);
       this.scroll();
     }
@@ -230,7 +300,9 @@ export class Agent {
   async runOffline(text, ui) {
     const calls = localIntent(text, this.app);
     if (!calls.length) {
-      (ui.text ?? ui.newText()).textContent += '离线模式只认常用指令：导入厂房、只看第 N 步、播放全流程、节拍改成 N 秒、模拟 N 小时班、显示行程、车长改成 N、加一台 AGV、在 RM-01 东边 2 米加一个点。';
+      (ui.text ?? ui.newText()).textContent += this.app.site.isScene
+        ? '离线模式只认常用指令：重新建造、只看第 N 步、看 B 跨行车、俯视、资源库里有哪些模型、把起重机装到 B 跨轨道上、在 A 跨放 5 卷铝卷、删掉铝卷、返回原方案。'
+        : '离线模式只认常用指令：按图纸生成厂房、导入示例厂房、只看第 N 步、播放全流程、节拍改成 N 秒、模拟 N 小时班、显示行程、车长改成 N、加一台 AGV、在 RM-01 东边 2 米加一个点。';
       return;
     }
     const results = [];

@@ -6,6 +6,7 @@ import { SAMPLE_PLAN } from '../../demo/src/scene/site.js';
 import { applyBands, loadVehicle } from '../../demo/src/vehicle.js';
 import { Agent } from './agent.js';
 import { ProcessSite } from './engine.js';
+import { SceneSite } from './scene-site.js';
 import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
@@ -13,14 +14,17 @@ import { Library } from './library.js';
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
 const view = $('view');
-const QUALITY = { pixelRatio: 2, shadowSize: 4096, shadowRadius: 4 };
+// Tuned for integrated GPUs: a 2048 PCF shadow map that is redrawn only as often as things move,
+// and a pixel ratio that steps down when the frame rate drops (see adaptPixelRatio).
+const QUALITY = { pixelRatio: Math.min(devicePixelRatio, 1.5), shadowSize: 2048, shadowRadius: 2 };
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(QUALITY.pixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.8;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;
 
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 900);
 const controls = new OrbitControls(camera, canvas);
@@ -30,13 +34,17 @@ controls.minDistance = 2;
 controls.maxDistance = 320;
 controls.autoRotateSpeed = 0.35;
 
-const site = new ProcessSite(renderer, QUALITY);
-site.speed = 4;
+// The AGV + crane process site, and (while a generic drawing is shown) the generated plant.
+const processSite = new ProcessSite(renderer, QUALITY);
+processSite.speed = 4;
+let site = processSite;
 
 // ---------------------------------------------------------------- app state
 
 export const app = {
-  site,
+  get site() {
+    return site;
+  },
   step: 4,
   done: new Set([1, 2, 3]),
   tab: 'gantt',
@@ -94,6 +102,12 @@ app.vehicleState = () => ({ model: app.product?.model, ...stateOf() });
 
 const fly = { active: false };
 function flyTo(target, position, duration = 0.8) {
+  // A zero-size window (hidden tab at boot) can leave the camera at NaN; start from the goal then.
+  if (!Number.isFinite(camera.position.lengthSq()) || !Number.isFinite(controls.target.lengthSq())) {
+    camera.position.copy(position);
+    controls.target.copy(target);
+  }
+  if (!Number.isFinite(position.lengthSq())) return;
   Object.assign(fly, { active: true, t: 0, duration, track: null, fromTarget: controls.target.clone(), fromPos: camera.position.clone(), toTarget: target.clone(), toPos: position.clone() });
 }
 
@@ -160,6 +174,7 @@ function trackOffset(mode) {
 app.setView = (mode, opts = {}) => {
   app.view = mode;
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === mode);
+  if (site.isScene) return sceneView(mode, opts);
   const { centre, size } = site.built;
   const c = new THREE.Vector3(centre.x / 1000, 0, -centre.y / 1000);
   if (mode === 'overview') {
@@ -181,6 +196,42 @@ app.setView = (mode, opts = {}) => {
     flyTo(t, t.clone().add(new THREE.Vector3(-10, 12, 14)));
   }
 };
+
+// Generated plant: overview / top as usual, "follow" becomes an eye-level look down a bay,
+// "crane" frames one bay's crane from along the runway, "point" frames any CAD point.
+function sceneView(mode, opts = {}) {
+  fly.track = null;
+  const { centre, size } = site.built;
+  const c = new THREE.Vector3(centre.x / 1000, 0, -centre.y / 1000);
+  const world = (p, h) => new THREE.Vector3(p.x / 1000, h, -p.y / 1000);
+  // A unit vector along the runway, in world space.
+  const along = site.alongX ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, -1);
+  const across = new THREE.Vector3(-along.z, 0, along.x);
+  const bayName = opts.bay ?? site.bays[Math.floor((site.bays.length - 1) / 2)]?.name;
+  const length = (site.alongX ? size.x : size.y);
+  if (mode === 'overview') {
+    const dir = new THREE.Vector3(-0.26, 0.66, 0.7).normalize();
+    const diag = Math.hypot(size.x, size.y);
+    flyTo(c, c.clone().addScaledVector(dir, fitDistance(diag * 1.05, diag * 0.85)));
+  } else if (mode === 'top') {
+    flyTo(c, new THREE.Vector3(c.x, fitDistance(size.x * 1.04, size.y * 1.04), c.z + 0.01));
+  } else if (mode === 'follow' && site.bays.length) {
+    const eye = world(site.bayPoint(bayName, 3), 5.5);
+    const target = world(site.bayPoint(bayName, length * 0.45), 4);
+    flyTo(target, eye, 1.2);
+  } else if (mode === 'crane' && site.plant.cranes.length) {
+    const cranes = site.plant.cranes;
+    const crane = cranes.find((k) => k.attrs.BAY === String(bayName).toUpperCase().replace(/跨$/, '')) ?? cranes[(opts.index ?? 1) - 1] ?? cranes[0];
+    const t = world(crane, 8.5);
+    flyTo(t, t.clone().addScaledVector(along, -26).addScaledVector(across, 7).setY(13), 1.2);
+  } else if (mode === 'point' && Number.isFinite(opts.x) && Number.isFinite(opts.y)) {
+    // opts.h: height to aim at (m); opts.size: how much to fit in the frame (m).
+    const t = world(opts, opts.h ?? 1);
+    const d = Math.max(22, (opts.size ?? 0) * 1.5);
+    flyTo(t, t.clone().addScaledVector(new THREE.Vector3(-0.5, 0.55, 0.67).normalize(), d), 1.1);
+  } else return sceneView('overview');
+  return undefined;
+}
 
 // ---------------------------------------------------------------- labels
 
@@ -207,8 +258,8 @@ function place(el, v) {
   projected.copy(v).project(camera);
   const visible = projected.z < 1 && Math.abs(projected.x) < 1.1 && Math.abs(projected.y) < 1.1;
   el.style.display = visible ? '' : 'none';
-  el.style.left = `${(projected.x * 0.5 + 0.5) * view.clientWidth}px`;
-  el.style.top = `${(-projected.y * 0.5 + 0.5) * view.clientHeight}px`;
+  el.style.left = `${(projected.x * 0.5 + 0.5) * viewSize.w}px`;
+  el.style.top = `${(-projected.y * 0.5 + 0.5) * viewSize.h}px`;
 }
 
 function roleOf(point) {
@@ -220,7 +271,45 @@ function roleOf(point) {
   return [point.role === 'marker' ? 'marker' : point.role, point.name];
 }
 
+function placedPins(seen) {
+  for (const p of app.library?.placed.values() ?? []) {
+    const key = `a:${p.asset.id}`;
+    seen.add(key);
+    place(pin(key, 'asset', `<span class="lab">${p.asset.name}</span>`), new THREE.Vector3(p.x / 1000, p.base + p.height + 0.6, -p.y / 1000));
+  }
+}
+
+function dropPins(seen) {
+  for (const [key, el] of pins) if (!seen.has(key)) {
+    el.remove();
+    pins.delete(key);
+  }
+}
+
+// Generated plant: bay names on the floor, one pin per crane, uploaded models.
+function updateSceneLabels() {
+  const seen = new Set();
+  const built = site.stepAt().n > 1 || site.time > 0.5;
+  for (const bay of built ? site.bays : []) {
+    const key = `bay:${bay.name}`;
+    seen.add(key);
+    place(pin(key, 'marker', `<span class="lab">${bay.name} 跨 · ${(bay.span / 1000).toFixed(1)} m</span><span class="dot" style="background:#F5B800"></span>`), new THREE.Vector3(bay.label.x / 1000, 0.3, -bay.label.y / 1000));
+  }
+  const craneStep = site.process.steps.find((s) => s.stage === 'crane');
+  if (craneStep && site.time >= craneStep.t1) {
+    for (const crane of site.craneInfo()) {
+      if (crane.replaced) continue;
+      const key = `crane:${crane.bay}`;
+      seen.add(key);
+      place(pin(key, 'dev', `<span class="lab">行车 ${crane.bay} 跨 · ${(crane.span / 1000).toFixed(1)} m</span>`), new THREE.Vector3(crane.x / 1000, 12.4, -crane.y / 1000));
+    }
+  }
+  placedPins(seen);
+  dropPins(seen);
+}
+
 function updateLabels() {
+  if (site.isScene) return updateSceneLabels();
   const seen = new Set();
   const r = site.roles;
   for (const point of site.points()) {
@@ -241,16 +330,10 @@ function updateLabels() {
   const agv = pin('agv', 'dev agv', `<span class="lab">${app.product?.model ?? 'AGV'} · ${agvText}</span>`);
   place(agv, site.carrier.position.clone().setY(2.4));
   seen.add('agv');
-  for (const p of app.library?.placed.values() ?? []) {
-    const key = `a:${p.asset.id}`;
-    seen.add(key);
-    place(pin(key, 'asset', `<span class="lab">${p.asset.name}</span>`), new THREE.Vector3(p.x / 1000, p.height + 0.6, -p.y / 1000));
-  }
-  for (const [key, el] of pins) if (!seen.has(key)) {
-    el.remove();
-    pins.delete(key);
-  }
+  placedPins(seen);
+  dropPins(seen);
   void step;
+  return undefined;
 }
 
 // ---------------------------------------------------------------- HUD
@@ -265,7 +348,31 @@ const setHtml = (id, html) => {
 const metric = (label, value, unit = '', txt = false) => `<div><small>${label}</small><b class="${txt ? 'txt' : ''}">${value}${unit ? `<em>${unit}</em>` : ''}</b></div>`;
 
 // Right column device card: the step in progress and the live readings of its device.
+function updateSceneHud() {
+  const t = site.time;
+  const step = site.stepAt(t);
+  const s = site.summary;
+  $('hudNo').textContent = String(step.n).padStart(2, '0');
+  $('hudTitle').textContent = site.building ? step.title : '厂房已建成';
+  $('hudDev').textContent = site.building ? '建造中' : '完成';
+  $('hudDev').className = 'badge build';
+  $('hudWindow').textContent = `${fmtTime(step.t0)} – ${fmtTime(step.t1)}`;
+  $('hudBar').style.width = `${site.building ? Math.min(100, Math.max(0, ((t - step.t0) / step.duration) * 100)) : 100}%`;
+  setHtml('hudRow', metric('厂房', `${s.厂房_m[0]}×${s.厂房_m[1]}`, 'm') + metric('跨', site.bays.length ? `${site.bays.length}×${(site.bays[0].span / 1000).toFixed(1)}` : '—', 'm') + metric('柱距', s.柱距_m ?? '—', 'm') + metric('本步', step.detail, '', true));
+  setHtml('hudChips', `<span class="chip">${site.sourceName}</span><span class="chip">柱 ${s.柱.钢柱 + s.柱.混凝土柱} 根 · 行车 ${s.行车} 台</span><span class="chip">${app.library?.placed.size ?? 0} 个模型已放入</span>`);
+  setHtml('coord', '');
+  $('clock').textContent = fmtTime(t);
+  $('clockTotal').textContent = `/ ${fmtTime(site.duration)}`;
+  const playing = site.playing;
+  $('playBtn').textContent = playing ? '❚❚ 暂停' : site.building ? '▶ 继续' : '↻ 重新建造';
+  $('playBtn').classList.toggle('paused', !playing);
+  $('runSt').textContent = playing ? '建造中' : site.building ? '已暂停' : '已建成';
+  $('runSt').classList.toggle('pause', !playing);
+  $('allBtn').classList.toggle('on', !site.window);
+}
+
 function updateHud() {
+  if (site.isScene) return updateSceneHud();
   const t = site.time;
   const step = site.stepAt(t);
   const w = site.window;
@@ -293,6 +400,7 @@ function updateHud() {
   $('runSt').textContent = playing ? '运行中' : '已暂停';
   $('runSt').classList.toggle('pause', !playing);
   $('allBtn').classList.toggle('on', !w);
+  return undefined;
 }
 
 // ---------------------------------------------------------------- step bar
@@ -433,7 +541,31 @@ function laterHtml() {
   <p class="muted">本轮只放入口，见 PRD R14。需要先确定：出图标准（GB / 企业标准）、图框模板、下发目标系统（PDM / ERP / MES）。</p></div>`;
 }
 
+// Generated plant: what the drawing was read as, the build steps and the models placed in it.
+function sceneHtml() {
+  const s = site.summary;
+  const rows = [
+    ['图纸', site.sourceName],
+    ['厂房', `${s.厂房_m[0]} × ${s.厂房_m[1]} m（${s.方向}）`],
+    ['跨', s.跨.join('、') || '—'],
+    ['柱网', `${s.柱线} 条柱线${s.柱距_m ? `，柱距 ${s.柱距_m} m` : ''}；钢柱 ${s.柱.钢柱} · 混凝土柱 ${s.柱.混凝土柱}`],
+    ['吊车梁 / 行车', `${s.吊车梁} 根 / ${s.行车} 台`],
+    ['门 / 窗', `${s.大门} 樘 / ${s.窗} 处`],
+    ['设备 / 分区 / 轨道', `${s.设备} 台 / ${s.分区} 个 / ${s.轨道} 条`],
+    ['地面线条', `${s.地面线条} 条${s.厂区 ? '，含厂区边界' : ''}`],
+  ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  const steps = site.process.steps.map((x) => `<tr class="clickable" data-play="${x.n}"><td>${x.n}</td><td><b>${x.title}</b><div class="muted" style="font-size:11.5px">${x.detail}</div></td><td class="num">${x.duration.toFixed(1)} s</td></tr>`).join('');
+  const placed = [...(app.library?.placed.values() ?? [])].map((p) => `<tr><td>${p.asset.name}</td><td class="num">${Math.round(p.x)}, ${Math.round(p.y)}</td><td>${p.mount === 'runway' ? `${p.bay} 跨 行车轨道` : '地面'}</td></tr>`).join('');
+  return `<table class="t"><thead><tr><th colspan="2">图纸识别结果（自动）</th></tr></thead><tbody>${rows}</tbody></table>
+  <table class="t" style="margin-top:8px"><thead><tr><th>#</th><th>建造步骤</th><th>用时</th></tr></thead><tbody>${steps}</tbody></table>
+  ${placed ? `<table class="t" style="margin-top:8px"><thead><tr><th>已放入模型</th><th>X, Y mm</th><th>安装</th></tr></thead><tbody>${placed}</tbody></table>` : ''}`;
+}
+
 function renderDock() {
+  if (site.isScene) {
+    $('dockMain').innerHTML = sceneHtml();
+    return;
+  }
   if (!site.process || !app.product) return;
   const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml }[app.tab]();
   $('dockMain').innerHTML = body;
@@ -442,6 +574,16 @@ function renderDock() {
 app.renderDock = renderDock;
 
 function renderKpis() {
+  if (site.isScene) {
+    const s = site.summary;
+    $('kpis').innerHTML = `
+    <div><small>厂房面积</small><b>${Math.round(s.厂房_m[0] * s.厂房_m[1]).toLocaleString('zh-CN')}<em>m²</em></b></div>
+    <div><small>跨数 · 跨度</small><b>${site.bays.length}<em>跨 · ${site.bays.length ? (site.bays[0].span / 1000).toFixed(1) : '—'} m</em></b></div>
+    <div><small>柱</small><b>${s.柱.钢柱 + s.柱.混凝土柱}<em>根</em></b></div>
+    <div><small>行车</small><b>${s.行车}<em>台</em></b></div>
+    <div><small>放入模型</small><b>${app.library?.placed.size ?? 0}<em>个</em></b></div>`;
+    return;
+  }
   if (!site.efficiency) return;
   const eff = site.efficiency;
   const shift = app.shift ?? simulateShift(eff, site.duration, 8);
@@ -456,11 +598,12 @@ function renderKpis() {
 app.renderKpis = renderKpis;
 
 // Left column: the five process steps, current one highlighted with live progress.
-const DEV_CLASS = { AGV: '', 行车: 'crane' };
+const DEV_CLASS = { AGV: '', 行车: 'crane', 建造: 'build' };
+const devName = (d) => (d === 'AGV' ? 'AGV' : d === '行车' ? '行车' : d);
 function renderProcList() {
   if (!site.process) return;
   $('procTotal').textContent = fmtTime(site.duration);
-  $('procList').innerHTML = site.process.steps.map((s) => `<li data-play="${s.n}"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${s.device === 'AGV' ? 'AGV' : '行车'}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
+  $('procList').innerHTML = site.process.steps.map((s) => `<li data-play="${s.n}"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${devName(s.device)}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
 }
 const progressOf = (s) => Math.min(100, Math.max(0, ((site.time - s.t0) / s.duration) * 100));
 function updateProcList() {
@@ -480,7 +623,7 @@ $('procList').addEventListener('click', (e) => {
 // Bottom timeline: one segment per step, sized by its duration, plus a scrubber over the cycle.
 function renderTimeline() {
   if (!site.process) return;
-  $('tl').innerHTML = site.process.steps.map((s) => `<button data-play="${s.n}" class="${s.device === '行车' ? 'crane' : 'agv'}" style="flex:${s.duration} 1 0" title="${s.title} · ${s.duration.toFixed(0)} s"><i></i><span>${'①②③④⑤⑥⑦⑧⑨'[s.n - 1] ?? s.n} ${s.title} · ${s.duration.toFixed(0)}s</span></button>`).join('');
+  $('tl').innerHTML = site.process.steps.map((s) => `<button data-play="${s.n}" class="${s.device === '行车' ? 'crane' : s.device === '建造' ? 'build' : 'agv'}" style="flex:${s.duration} 1 0" title="${s.title} · ${s.duration.toFixed(0)} s"><i></i><span>${'①②③④⑤⑥⑦⑧⑨'[s.n - 1] ?? s.n} ${s.title} · ${s.duration.toFixed(0)}s</span></button>`).join('');
 }
 let scrubbing = false;
 function updateTimeline() {
@@ -533,7 +676,8 @@ app.play = ({ mode = 'all', step, speed } = {}) => {
   else if (mode === 'step') {
     site.playWindow(step);
     site.renderPose(); // move the AGV / crane to the step's start before aiming the camera
-    app.setView(site.process.steps[step - 1].device === '行车' ? 'crane' : 'follow');
+    if (site.isScene) app.setView(site.process.steps[step - 1].stage === 'crane' ? 'crane' : 'overview');
+    else app.setView(site.process.steps[step - 1].device === '行车' ? 'crane' : 'follow');
   } else if (mode === 'next') {
     const cur = site.window?.step ?? site.stepAt().n;
     const next = (cur % site.process.steps.length) + 1;
@@ -553,7 +697,76 @@ app.seek = (t) => {
   site.renderPose();
 };
 
-site.onWindowEnd = () => renderDock();
+processSite.onWindowEnd = () => renderDock();
+
+// ---------------------------------------------------------------- generated plant (scene mode)
+
+const VIEW_NAMES = { process: { follow: '跟随', crane: '行车' }, scene: { follow: '室内', crane: '行车' } };
+function setModeUi(scene) {
+  document.body.classList.toggle('scene-mode', scene);
+  app.agent?.setSuggestions(scene);
+  for (const b of document.querySelectorAll('[data-view]')) {
+    const name = VIEW_NAMES[scene ? 'scene' : 'process'][b.dataset.view];
+    if (name) b.textContent = name;
+  }
+}
+
+// Fit the orbit limits and the far plane to the plant, so a 200 m hall can still be framed.
+function fitCameraLimits() {
+  const { size } = site.built;
+  const diag = Math.hypot(size.x, size.y);
+  controls.maxDistance = Math.max(320, diag * 2.2);
+  camera.far = Math.max(900, diag * 6);
+  camera.updateProjectionMatrix();
+}
+
+// Generate a plant from any factory drawing and play its construction.
+app.enterScene = async (text, name, asset = null) => {
+  const next = new SceneSite(renderer, QUALITY);
+  next.share(processSite);
+  next.loadDrawing(text, name, asset);
+  next.onWindowEnd = () => renderDock();
+  const previous = site;
+  const cleared = app.library?.clearPlaced() ?? 0;
+  site = next;
+  if (previous !== processSite) disposeSite(previous);
+  if (!app.processSource) app.processSource = $('source').textContent;
+  $('source').textContent = `${name} · 图纸生成厂房`;
+  setModeUi(true);
+  fitCameraLimits();
+  resize();
+  app.setTab('scene', false);
+  app.refresh();
+  app.setView('overview');
+  renderer.shadowMap.needsUpdate = true;
+  app.bump();
+  return { summary: next.summary, steps: next.process.steps, cleared };
+};
+
+// Back to the AGV + crane process plant.
+app.exitScene = () => {
+  if (!site.isScene) return false;
+  const old = site;
+  app.library?.clearPlaced();
+  site = processSite;
+  disposeSite(old);
+  $('source').textContent = app.processSource ?? '某钢厂冷轧车间 · sample-plant.dxf';
+  setModeUi(false);
+  fitCameraLimits();
+  resize();
+  app.setTab('gantt', false);
+  app.refresh();
+  app.play({ mode: 'all' });
+  app.bump();
+  return true;
+};
+
+function disposeSite(old) {
+  old.scene.traverse((o) => {
+    if (o.isMesh || o.isLine) o.geometry?.dispose();
+  });
+  old.sun.shadow.map?.dispose();
+}
 
 // ---------------------------------------------------------------- events
 
@@ -563,6 +776,7 @@ $('drawerClose').addEventListener('click', () => app.setTab(app.tab, false));
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => app.setView(b.dataset.view)));
 $('playBtn').addEventListener('click', () => {
   if (!site.playing && site.window && site.time >= site.window.t1) site.time = site.window.t0;
+  else if (site.isScene && !site.playing && !site.building) site.time = 0;
   site.playing = !site.playing;
 });
 function markSpeed() {
@@ -695,9 +909,13 @@ $('dockMain').addEventListener('change', (e) => {
 
 // ---------------------------------------------------------------- loop
 
+// Cached so per-frame label placement never forces a layout.
+const viewSize = { w: 1, h: 1 };
 function resize() {
   const w = view.clientWidth;
   const h = view.clientHeight;
+  viewSize.w = w;
+  viewSize.h = h;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   measureFree();
@@ -712,12 +930,70 @@ controls.addEventListener('start', () => {
 });
 const clock = new THREE.Clock();
 let lastStep = 0;
+
+// Shadows: every other frame while the timeline plays, a few times a second otherwise
+// (enough for edits, uploads and the crane being dragged around).
+let shadowAge = Infinity;
+let shadowFrame = 0;
+function updateShadows(delta) {
+  shadowAge += delta;
+  shadowFrame++;
+  if (site.playing ? shadowFrame % 2 === 0 : shadowAge > 0.25) {
+    renderer.shadowMap.needsUpdate = true;
+    shadowAge = 0;
+  }
+}
+
+// Step the pixel ratio down when the frame rate stays low and back up when there is headroom.
+// Ignores the first seconds after boot (shader compiles), and stops retrying a ratio that failed twice.
+const pixel = { ratio: QUALITY.pixelRatio, floor: Math.min(devicePixelRatio, 1) * 0.75, frames: 0, since: 0, bad: 0, good: 0, failed: {} };
+function adaptPixelRatio() {
+  const now = performance.now();
+  if (!pixel.since) pixel.since = now + 3000;
+  if (now < pixel.since) return;
+  pixel.frames++;
+  const span = now - pixel.since;
+  if (span < 1000) return;
+  const fps = (pixel.frames * 1000) / span;
+  pixel.frames = 0;
+  pixel.since = now;
+  if (span > 1500 || document.hidden) return; // the tab was in the background
+  pixel.bad = fps < 42 ? pixel.bad + 1 : 0;
+  pixel.good = fps > 57 ? pixel.good + 1 : 0;
+  let next = pixel.ratio;
+  if (pixel.bad >= 2 && pixel.ratio > pixel.floor) {
+    pixel.failed[pixel.ratio] = (pixel.failed[pixel.ratio] ?? 0) + 1;
+    next = Math.max(pixel.floor, pixel.ratio - 0.25);
+  } else if (pixel.good >= 5 && pixel.ratio < QUALITY.pixelRatio) {
+    const up = Math.min(QUALITY.pixelRatio, pixel.ratio + 0.25);
+    if ((pixel.failed[up] ?? 0) < 2) next = up;
+  }
+  if (next === pixel.ratio) return;
+  pixel.ratio = next;
+  pixel.bad = pixel.good = 0;
+  renderer.setPixelRatio(next);
+}
+
+// Compile every shader and upload every texture up front (the roof included, which is hidden
+// from the start view), so the first look inside the hall does not stall.
+async function warmUp() {
+  const roof = site.built?.roof;
+  const shown = roof?.visible;
+  if (roof) roof.visible = true;
+  try {
+    await renderer.compileAsync(site.scene, camera);
+  } catch (error) {
+    console.warn('shader warm-up', error);
+  }
+  if (roof) roof.visible = shown;
+  for (const texture of Object.values(site.textures ?? {})) renderer.initTexture(texture);
+}
 let manual = false;
 // Debug: step frames by hand when the tab is hidden and rAF is paused.
 window.__frames = (n = 1) => { manual = true; for (let i = 0; i < n; i++) frame(1 / 30); manual = false; };
 function frame(dt) {
   const delta = dt ?? Math.min(clock.getDelta(), 0.1);
-  if (site.timeline && app.product) {
+  if (site.timeline && (app.product || site.isScene)) {
     site.update(delta, camera);
     if (fly.active) {
       if (fly.track) {
@@ -729,7 +1005,7 @@ function frame(dt) {
       controls.target.lerpVectors(fly.fromTarget, fly.toTarget, k);
       camera.position.lerpVectors(fly.fromPos, fly.toPos, k);
       if (fly.t >= 1) fly.active = false;
-    } else if (app.view === 'follow' || app.view === 'crane') {
+    } else if (!site.isScene && (app.view === 'follow' || app.view === 'crane')) {
       // Lock the orbit centre onto the subject; the user can still orbit and zoom around it.
       const moved = subjectOf(app.view).sub(controls.target);
       controls.target.add(moved);
@@ -737,7 +1013,9 @@ function frame(dt) {
     }
     controls.autoRotate = app.autoRotate && app.view === 'overview' && !fly.active;
     controls.update(delta);
+    updateShadows(delta);
     renderer.render(site.scene, camera);
+    if (!manual) adaptPixelRatio();
     updateLabels();
     updateHud();
     updatePlayhead();
@@ -774,6 +1052,8 @@ async function boot() {
     app.library.init();
     app.setView('overview');
     fly.duration = 0.01;
+    loading.textContent = '正在预编译材质…';
+    await warmUp();
     loading.hidden = true;
     frame();
   } catch (error) {
@@ -783,6 +1063,7 @@ async function boot() {
   }
   const tools = createTools(app);
   const agent = new Agent({ tools, app });
+  app.agent = agent;
   window.__app = app;
   window.__camera = camera;
   window.__controls = controls;
