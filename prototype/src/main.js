@@ -94,7 +94,7 @@ app.vehicleState = () => ({ model: app.product?.model, ...stateOf() });
 
 const fly = { active: false };
 function flyTo(target, position, duration = 0.8) {
-  Object.assign(fly, { active: true, t: 0, duration, fromTarget: controls.target.clone(), fromPos: camera.position.clone(), toTarget: target.clone(), toPos: position.clone() });
+  Object.assign(fly, { active: true, t: 0, duration, track: null, fromTarget: controls.target.clone(), fromPos: camera.position.clone(), toTarget: target.clone(), toPos: position.clone() });
 }
 
 // The canvas spans the whole window but panels float over its edges, so the camera
@@ -127,7 +127,35 @@ function fitDistance(w, h) {
 }
 
 const hookWorld = () => new THREE.Vector3(site.cranePose.x / 1000, site.cranePose.z / 1000, -site.cranePose.y / 1000);
-let lastFollow = new THREE.Vector3();
+// What the tracking views lock onto: the AGV body, or a point between the hook and the floor
+// so the coil and the hook fit in the frame. While an AGV waits near the hook (hand-over at
+// H-01) the aim slides towards it so both stay in shot.
+const subjectOf = (mode) => {
+  if (mode === 'follow') return site.carrier.position.clone().setY(0.8);
+  const h = hookWorld().setY(3);
+  const agv = site.carrier.position.clone().setY(1);
+  const w = THREE.MathUtils.clamp(1 - h.distanceTo(agv) / 16, 0, 1) * 0.5;
+  return h.lerp(agv, w);
+};
+// Columns and racks line the walls, so the AGV camera sits on the building-centre side of the
+// subject and looks outwards. The crane camera looks along the runway (world x) instead: the
+// bridge girder spans across the bay, so looking along it would put the girder in the way.
+function trackOffset(mode) {
+  const { centre } = site.built;
+  const s = subjectOf(mode);
+  const toCentre = new THREE.Vector3(centre.x / 1000 - s.x, 0, -centre.y / 1000 - s.z);
+  let dir, d, h;
+  if (mode === 'follow') {
+    dir = toCentre.length() < 3 ? new THREE.Vector3(-0.5, 0, 0.85) : toCentre.normalize();
+    dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.45); // a little off-axis so it reads as 3D
+    [d, h] = [9, 8];
+  } else {
+    // Stay almost in the hook's own aisle: a row of columns runs parallel to the runway.
+    dir = new THREE.Vector3(Math.sign(toCentre.x) || -1, 0, 0.12 * (Math.sign(toCentre.z) || 1)).normalize();
+    [d, h] = [14, 10];
+  }
+  return dir.multiplyScalar(d).setY(h);
+}
 
 app.setView = (mode, opts = {}) => {
   app.view = mode;
@@ -141,15 +169,12 @@ app.setView = (mode, opts = {}) => {
     flyTo(c, c.clone().addScaledVector(dir, fitDistance(diag * 1.05, diag * 0.85)));
   } else if (mode === 'top') {
     flyTo(c, new THREE.Vector3(c.x, fitDistance(size.x * 1.04, size.y * 1.04), c.z + 0.01));
-  } else if (mode === 'follow') {
-    const p = site.carrier.position.clone().setY(0.6);
-    flyTo(p, p.clone().add(new THREE.Vector3(-8, 9, 10)));
-    lastFollow = site.carrier.position.clone();
-  } else if (mode === 'crane') {
-    const h = hookWorld();
-    const target = new THREE.Vector3(h.x, 6.5, h.z);
-    flyTo(target, target.clone().add(new THREE.Vector3(-13, -3.5, 24)));
-    lastFollow = h;
+  } else if (mode === 'follow' || mode === 'crane') {
+    // The flight keeps re-aiming at the moving subject, so it lands on it, not where it was.
+    const t = subjectOf(mode);
+    const offset = trackOffset(mode);
+    flyTo(t, t.clone().add(offset));
+    fly.track = offset;
   } else if (mode === 'point') {
     const p = site.findPoint(opts.id);
     const t = new THREE.Vector3(p.x / 1000, 1, -p.y / 1000);
@@ -507,6 +532,7 @@ app.play = ({ mode = 'all', step, speed } = {}) => {
   else if (mode === 'resume') site.playing = true;
   else if (mode === 'step') {
     site.playWindow(step);
+    site.renderPose(); // move the AGV / crane to the step's start before aiming the camera
     app.setView(site.process.steps[step - 1].device === '行车' ? 'crane' : 'follow');
   } else if (mode === 'next') {
     const cur = site.window?.step ?? site.stepAt().n;
@@ -694,20 +720,21 @@ function frame(dt) {
   if (site.timeline && app.product) {
     site.update(delta, camera);
     if (fly.active) {
+      if (fly.track) {
+        fly.toTarget.copy(subjectOf(app.view));
+        fly.toPos.copy(fly.toTarget).add(fly.track);
+      }
       fly.t += delta / fly.duration;
       const k = THREE.MathUtils.smootherstep(Math.min(fly.t, 1), 0, 1);
       controls.target.lerpVectors(fly.fromTarget, fly.toTarget, k);
       camera.position.lerpVectors(fly.fromPos, fly.toPos, k);
       if (fly.t >= 1) fly.active = false;
     } else if (app.view === 'follow' || app.view === 'crane') {
-      const now = app.view === 'follow' ? site.carrier.position.clone() : hookWorld();
-      const moved = now.clone().sub(lastFollow);
-      if (app.view === 'crane') moved.y = 0;
+      // Lock the orbit centre onto the subject; the user can still orbit and zoom around it.
+      const moved = subjectOf(app.view).sub(controls.target);
       controls.target.add(moved);
       camera.position.add(moved);
-      lastFollow.copy(now);
     }
-    if (fly.active && (app.view === 'follow' || app.view === 'crane')) lastFollow.copy(app.view === 'follow' ? site.carrier.position : hookWorld());
     controls.autoRotate = app.autoRotate && app.view === 'overview' && !fly.active;
     controls.update(delta);
     renderer.render(site.scene, camera);
