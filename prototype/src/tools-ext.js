@@ -6,6 +6,7 @@ import { Warehouse } from './warehouse.js';
 import { FlowDemo } from './flow.js';
 import { LineViz } from './lineviz.js';
 import { replicate, simulateLine } from './linesim.js';
+import { ZoneMarkers, ZONE_KINDS } from './zones.js';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -80,6 +81,21 @@ export const EXT_SCHEMAS = [
     hours: { type: 'number', description: '仿真时长（小时），默认 8' }, arrival_s: { type: 'number', description: '来料间隔（秒），不给=来料充足' },
     warmup_h: num, replications: { type: 'integer', description: '重复次数 1–10，默认 5' }, replay_speed: { type: 'number', description: '三维回放倍速，默认 120' },
   }),
+  fn('mark_zone', '在场景地面上标注一个区域或点位（如 原材料存储区、1#气垫炉上线点），显示为带彩色圆点的标签，按名称自动配色（暂存黄、上线蓝、下线/成品黑、检验紫、存储青、工艺橙、充电绿、吊装红）。位置给 x_mm/y_mm，或给参考 at（已有点位 id 或已有区域标注）再加偏移 dx_m/dy_m（X 向东、Y 向北）。给 id 则修改已有标注（改名/改类型/移动）。', {
+    name: { type: 'string', description: '区域名称' },
+    kind: { type: 'string', enum: ZONE_KINDS.map((k) => k.key), description: '类型（不给按名称自动）：' + ZONE_KINDS.map((k) => `${k.key}=${k.label}`).join('，') },
+    x_mm: num, y_mm: num,
+    at: { type: 'string', description: '参考点位 id（如 RM-01）或区域标注 id/名称' },
+    dx_m: num, dy_m: num,
+    id: { type: 'string', description: '要修改的已有标注 id 或名称（可选）' },
+  }),
+  fn('remove_zone', '删除区域标注：zone 给 id 或名称；all=true 清空当前场景全部标注；source="图纸识别" 只清掉从图纸识别出来的。', {
+    zone: { type: 'string' }, all: { type: 'boolean' }, source: { type: 'string', enum: ['图纸识别', '小华', '手动'] },
+  }),
+  fn('read_zones_from_drawing', '把当前场景图纸（叠加的底图或载入的厂房图）上写的区域/点位名称识别出来并标注到地面上。普通文字直接读取；被炸成曲线的文字用本机 OCR 识别（首次约 10 秒）。重复识别会替换上次从这张图识别的标注。', {
+    drawing: { type: 'string', description: '图纸 id 或名称，不给则用当前场景里的图纸' },
+  }),
+  fn('look_at_zone', '镜头飞到某个区域标注。', { zone: { type: 'string', description: '区域标注 id 或名称' } }, ['zone']),
 ];
 
 function card(title, right, body) {
@@ -101,8 +117,10 @@ export function createExtTools(app, { runCore }) {
   app.warehouse = warehouse;
   app.flow = flow;
   app.line = line;
+  const zones = new ZoneMarkers(app);
+  app.zones = zones;
   app.frameHooks = [...(app.frameHooks ?? []), () => warehouse.update(), (dt) => flow.update(dt), (dt) => line.update(dt)];
-  app.labelHooks = [...(app.labelHooks ?? []), (ctx) => warehouse.labels(ctx), (ctx) => flow.labels(ctx), (ctx) => line.labels(ctx)];
+  app.labelHooks = [...(app.labelHooks ?? []), (ctx) => warehouse.labels(ctx), (ctx) => flow.labels(ctx), (ctx) => line.labels(ctx), (ctx) => zones.labels(ctx)];
   app.dockTabs = { ...(app.dockTabs ?? {}), slots: () => slotsHtml(), flow: () => flow.dockHtml(), linesim: () => line.dockHtml() };
 
   document.getElementById('dockMain')?.addEventListener('click', (e) => {
@@ -153,7 +171,40 @@ export function createExtTools(app, { runCore }) {
       ${r.product ? `<div><small>产品库</small>${esc(r.product.model)}（${esc(r.product.id)}）<span class="src">已入库</span></div>` : ''}${extra}</div>`);
   };
 
+  const zoneCard = (title, list) => card(title, `${list.length} 个`, `<div style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px">${list.map((z) => `<span><i style="display:inline-block;width:9px;height:9px;border-radius:${z.shape === 'area' ? '2px' : '50%'};background:${ZONE_KINDS.find((k) => k.key === z.kind)?.color};margin-right:4px"></i>${esc(z.name)}</span>`).join('')}</div>`);
   const H = {
+    mark_zone: (a) => {
+      let x = a.x_mm;
+      let y = a.y_mm;
+      if (a.at) {
+        const ref = site.findPoint(a.at) ?? zones.find(a.at);
+        if (!ref) throw new Error(`参考 ${a.at} 不存在（可用点位 id 或区域标注）`);
+        x = ref.x + (a.dx_m ?? 0) * 1000;
+        y = ref.y + (a.dy_m ?? 0) * 1000;
+      }
+      const z = a.id
+        ? zones.update(a.id, { name: a.name, kind: a.kind, x, y })
+        : zones.add({ name: a.name, kind: a.kind, x, y, source: '小华' });
+      return { result: { 标注: `${z.id} ${z.name}`, 类型: z.kind, x_mm: z.x, y_mm: z.y }, chip: `${a.id ? '修改' : '标注'} ${z.name}` };
+    },
+    remove_zone: (a) => {
+      if (a.all || a.source) {
+        const n = zones.clear(a.all ? undefined : a.source);
+        return { result: { 已删除: n }, chip: `清除 ${n} 个区域标注` };
+      }
+      const z = zones.remove(a.zone);
+      if (!z) throw new Error(`没有区域标注 ${a.zone}`);
+      return { result: { 已删除: `${z.id} ${z.name}` }, chip: `删除 ${z.name}` };
+    },
+    read_zones_from_drawing: async (a) => {
+      const r = await zones.readFromDrawing(a.drawing);
+      const list = zones.list.filter((z) => z.source === '图纸识别');
+      return { result: r, chip: `识别区域 ${r.新增区域} 个`, card: r.新增区域 ? zoneCard(`${r.图纸} · 区域`, list) : undefined };
+    },
+    look_at_zone: (a) => {
+      const z = zones.lookAt(a.zone);
+      return { result: { 镜头: `${z.id} ${z.name}` }, chip: z.name };
+    },
     cad_build_part: async (a) => {
       const product = { category: a.category, capacityT: a.capacity_t, industries: a.industries };
       const r = await postJson('/api/cad/part', { template: a.template, params: a.params ?? {}, name: a.name, register_product: Boolean(a.register_product), product });
@@ -330,6 +381,7 @@ export function createExtTools(app, { runCore }) {
     厂房范围_mm: site.built?.bounds ? Object.fromEntries(Object.entries(site.built.bounds).map(([k, v]) => [k, Math.round(v)])) : null,
     货位库存: warehouse.zones.size ? (({ 库区, ...rest }) => ({ ...rest, 库区: 库区.map((z) => ({ 库区: z.库区, 类型: z.类型, 货位: z.货位总数, 已用: z.已用, 范围_mm: z.范围_mm })) }))(warehouse.stats()) : null,
     工艺流程: flow.flow ? { 名称: flow.flow.name, 节点: flow.flow.nodes.map((n) => `${n.n}.${n.name}`), 演示中: flow.current() ? `${flow.current().node.name}` : null } : null,
+    区域标注: zones.list.length ? zones.summary().slice(0, 60) : null,
     产线仿真: line.result ? { 产出_每小时: +line.rep.throughput.mean.toFixed(1), 瓶颈: line.result.bottleneck.name, 工位: line.result.stations.map((s) => s.name) } : null,
   });
 

@@ -60,6 +60,7 @@ npm run preview
 | POST | `/api/library/scene` | multipart 上传，字段 `files`（可多个，单个 ≤ 200 MB），返回 `{ ok, assets }`，单个文件失败不影响其他文件 |
 | GET | `/api/library/scene`（可选 `?kind=model`）、`/api/library/scene/:id` | 素材列表 / 单个素材 |
 | DELETE | `/api/library/scene/:id` | 删除素材及文件 |
+| GET | `/api/library/scene/:id/text`（`?read=0` 不跑 OCR） | 图纸上写的文字（毫米坐标）：TEXT/MTEXT 直接读取；被炸成样条曲线的文字用本机 OCR 识别一次并缓存进 `site.json` 的 `drawnText`。前端「区域标注」和小华的 `read_zones_from_drawing` 用它把区域名标到地面上 |
 | GET | `/library/files/...`、`/library/product-models/...` | 转换结果和内置产品模型的静态文件 |
 | GET / PUT | `/api/projects/:id/state` | 浏览器引擎的状态快照 `{ version, state, updatedAt }`；PUT `{ state }` 版本号加 1，保留最近 50 个版本 |
 | GET | `/api/projects/:id/state/versions`、`/api/projects/:id/state/versions/:version` | 版本列表 / 取某个版本 |
@@ -76,5 +77,7 @@ npm run preview
 | PNG、JPG、WebP | `image`：原图，可作平面底图，`meta.width/height` |
 | PDF、Office、TXT、CSV 等 | `document`：只保存，供参考 |
 | ZIP | 安全解压（防路径穿越、防压缩炸弹），按 GLB > glTF > FBX > OBJ > DAE > 3MF > STEP > IGES > BREP > STL > PLY > DXF > DWG 选主文件转换 |
+
+图上文字识别依赖本机 Python 的 `rapidocr_onnxruntime`、`pillow`、`numpy`（`pip install rapidocr_onnxruntime`），解释器可用 `WORKBENCH_PYTHON` 指定；缺依赖时接口返回 `ocrError`，普通 TEXT 照常返回。
 
 单位推断：没有声明单位的格式（STL、OBJ、PLY、BREP、未声明的 GLB）如果最大边长 > 500，按毫米处理（缩放 0.001）；STL、3MF、STEP/IGES/BREP 视为 Z 向上并转成 Y 向上；FBX 使用文件里的 UnitScaleFactor，DAE 使用 `<unit>` 和 `<up_axis>`。贴图尽力保留：PNG/JPEG 原样嵌入 GLB，其他贴图格式会被去掉。
