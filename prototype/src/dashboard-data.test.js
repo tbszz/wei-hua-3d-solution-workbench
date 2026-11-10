@@ -115,3 +115,43 @@ test('snapshot carries what the board needs', () => {
   assert.equal(sim.ledger('GJ0000000000'), null);
   assert.ok(sim.findCoils(id.slice(-5)).includes(id));
 });
+
+test('per-zone in/out today agrees with the warehouse movements', () => {
+  const sim = createSim(4);
+  sim.step(6 * 3600);
+  const s = sim.snapshot();
+  const zone = (id) => s.inventory.find((z) => z.id === id);
+  assert.equal(zone('RAW').inToday.count, s.kpis.rawIn.count);
+  assert.equal(zone('RAW').outToday.count, s.kpis.rawOut.count);
+  assert.equal(zone('FG').inToday.count, s.kpis.fgIn.count);
+  assert.equal(zone('FG').outToday.count, s.kpis.ship.count);
+  assert.ok(Math.abs(zone('RAW').inToday.weight - s.kpis.rawIn.weight) < 0.2);
+  // Every coil that left a buffer today also entered it: dwell is known and non-negative.
+  for (const z of s.inventory) {
+    assert.ok(z.inToday.count >= 0 && z.outToday.count >= 0);
+    if (z.dwellAvg != null) assert.ok(z.dwellAvg >= 0 && z.dwellMax >= z.dwellAvg, z.name);
+  }
+  // Furnaces take in what AGV-1 delivered and give out what AGV-2 carried away.
+  const f = s.nodes.find((n) => n.key === 'agv_feed').count;
+  assert.equal(zone('F1').inToday.count + zone('F2').inToday.count, f);
+});
+
+test('each furnace line reports a plausible takt (min between discharges)', () => {
+  const s = createSim(2).snapshot();
+  for (const l of s.lines) {
+    assert.ok(l.takt != null, `${l.name} takt`);
+    assert.ok(l.takt > 5 && l.takt < 300, `${l.name} takt ${l.takt}`);
+  }
+});
+
+test('dispatch board lists each device queue and its recent finished moves', () => {
+  const sim = createSim(6);
+  sim.step(3 * 3600);
+  const s = sim.snapshot();
+  for (const e of s.equipment) {
+    assert.equal(e.pending.length, e.queue, `${e.name} queue`);
+    for (let i = 1; i < e.pending.length; i++) assert.ok(e.pending[i - 1].waited >= e.pending[i].waited);
+    assert.ok(e.recent.length > 0, `${e.name} has finished moves today`);
+    assert.ok(e.recent.every((r) => r.dur > 0 && /^GJ\d{10}$/.test(r.coil) && r.from !== '—' && r.to !== '—'));
+  }
+});

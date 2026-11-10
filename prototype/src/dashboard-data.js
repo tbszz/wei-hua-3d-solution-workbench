@@ -570,6 +570,7 @@ class CoilSim {
     });
     const leads = finishedToday.map(leadOf).filter((v) => v != null).map((v) => v / MIN);
 
+    const taktOf = (ends) => (ends.length < 2 ? null : round1((Math.max(...ends) - Math.min(...ends)) / (ends.length - 1) / MIN));
     const hourNow = Math.floor(t / HOUR);
     const hours = Array.from({ length: 12 }, (_, i) => hourNow - 11 + i);
     const lines = LINES.map((l) => {
@@ -594,6 +595,8 @@ class CoilSim {
         lead: round1(mean(lineLeads)),
         finished: finishedToday.filter((c) => c.line === l.id).length,
         util: round1(util * 100),
+        // 节拍: mean gap between consecutive furnace discharges over the last 4 h.
+        takt: taktOf(this.records.filter((r) => r.key === 'furnace' && r.line === l.id && r.end >= t - 4 * HOUR).map((r) => r.end)),
         hourly: hours.map((h) => this.records.filter((r) => r.key === 'furnace' && r.line === l.id && Math.floor(r.end / HOUR) === h).length),
       };
     });
@@ -625,11 +628,56 @@ class CoilSim {
         faultsToday: d.faultsToday,
         faultLeft: faulted ? round1((d.faultUntil - t) / MIN) : null,
         queue: queueOf(d.id),
+        // 调度队列: coils waiting for this device's next move, longest wait first.
+        pending: active.filter((c) => {
+          const next = STAGES[c.stage + 1];
+          return next && next.device === d.id && STAGES[c.stage].kind === 'wait';
+        }).map((c) => {
+          const next = STAGES[c.stage + 1];
+          return { coil: c.id, name: next.name, from: ZONE[c.location]?.name ?? c.location, to: next.to === 'FURNACE' ? '气垫炉' : ZONE[next.to].name, waited: round1((t - c.stageStart) / MIN) };
+        }).sort((a, b) => b.waited - a.waited),
+        // Today's finished moves, newest first.
+        recent: today.filter((r) => STAGES[STAGE_INDEX[r.key]].device === d.id).slice(-8).reverse().map((r) => {
+          const e = this.byId.get(r.coil)?.log.find((x) => x.key === r.key);
+          return { coil: r.coil, name: STAGES[STAGE_INDEX[r.key]].name, from: ZONE[e?.from]?.name ?? '—', to: ZONE[e?.to]?.name ?? '—', start: fmtClock(r.end - r.dur), end: fmtClock(r.end), dur: round1(r.dur / MIN), over: this.std[r.key] != null && r.dur > this.std[r.key] * MIN };
+        }),
       };
     });
 
+    // 每个区域今日进出: a crane / AGV move ending in the zone is an arrival, one starting from it a departure.
+    const flow = Object.fromEntries(ZONES.map((z) => [z.id, { in: { count: 0, weight: 0 }, out: { count: 0, weight: 0 }, dwell: [] }]));
+    for (const c of this.coils) {
+      let enteredAt = null;
+      for (const e of c.log) {
+        // Leaving the previous zone first, then arriving in the next one.
+        if (e.from && flow[e.from] && e.start >= dayStart) {
+          flow[e.from].out.count += 1;
+          flow[e.from].out.weight += c.weight;
+          if (enteredAt != null) flow[e.from].dwell.push((e.start - enteredAt) / MIN);
+        }
+        if (e.from) enteredAt = null;
+        if (e.to && flow[e.to] && e.end != null) {
+          if (e.end >= dayStart) {
+            flow[e.to].in.count += 1;
+            flow[e.to].in.weight += c.weight;
+          }
+          enteredAt = e.end;
+        }
+      }
+    }
+    for (const m of this.moves) {
+      if (m.t < dayStart) continue;
+      if (m.type === 'arrive') {
+        flow.ARRIVAL.in.count += 1;
+        flow.ARRIVAL.in.weight += m.weight;
+      } else if (m.type === 'ship') {
+        flow.FG.out.count += 1;
+        flow.FG.out.weight += m.weight;
+      }
+    }
     const inventory = ZONES.filter((z) => z.id !== 'ARRIVAL').map((z) => {
       const here = active.filter((c) => c.location === z.id);
+      const f = flow[z.id];
       return {
         id: z.id,
         name: z.name,
@@ -641,6 +689,10 @@ class CoilSim {
         incoming: this.reserved[z.id],
         coils: here.map((c) => c.id),
         waiting: here.filter((c) => STAGES[c.stage].kind === 'wait').length,
+        inToday: { count: f.in.count, weight: round1(f.in.weight) },
+        outToday: { count: f.out.count, weight: round1(f.out.weight) },
+        dwellAvg: round1(mean(f.dwell)),
+        dwellMax: round1(f.dwell.length ? Math.max(...f.dwell) : null),
       };
     });
 

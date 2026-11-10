@@ -1,7 +1,9 @@
 // 可视化大屏: the command-center board for the steel-coil plant (smart cranes + heavy AGVs).
-// It floats over the 3D view: a KPI band on top, module cards in a left and a right column, the
-// centre left clear so the twin stays visible. Every card pops out into a larger detail card;
-// coil ids, zones and devices are links that locate the matching thing in the 3D scene.
+// A pop-up layer over the whole app (it never resizes the app's panels): a KPI band on top, module
+// cards in a left and a right column, a live process-flow band at the bottom, and a clear window in
+// the centre onto the 3D twin — everything around that window is dimmed. Every card pops out into a
+// larger detail card on top; coil ids, zones and devices are links that locate the matching thing
+// in the 3D scene. Minimised, the board is one strip of key figures; a click on it restores the board.
 //
 //   initDashboard(app, { locate })  builds the layer, binds every [data-open-dashboard] element
 //                                   and exposes app.dashboard = { open, close, minimise, toggle, ... }
@@ -59,7 +61,65 @@ function flashLabels(words) {
   return n;
 }
 
-// target: { kind: 'zone' | 'dev' | 'coil', id, name, at? } — a coil carries `at`, where it is now.
+// Where each plant zone sits in a drawing-built hall that has no zone marker of that name yet:
+// [fraction along the runway, fraction across the bays]. A U-shaped flow — raw side up the first
+// bay, the furnaces in the middle bays, cooling → chemical line → finished goods back down the last
+// one. Only a schematic stand-in: a zone marker with the zone's name (区域标注) always wins.
+const SCHEMATIC = {
+  ARRIVAL: [0.05, 0], INSPECT: [0.15, 0], RAW: [0.35, 0], OUTBUF: [0.6, 0],
+  F1: [0.8, 1 / 3], F2: [0.8, 2 / 3],
+  COOLBUF: [0.92, 1], COOL: [0.75, 1], SEMI: [0.55, 1], CHEM: [0.4, 1], FGBUF: [0.26, 1], FG: [0.1, 1],
+};
+// Where an idle device waits: the start of its route.
+const DEV_HOME = { CR1: 'RAW', CR2: 'COOL', AGV1: 'OUTBUF', AGV2: 'F1', AGV3: 'SEMI', AGV4: 'CHEM' };
+
+// A plant zone → drawing coordinates (mm) in the current scene, or null.
+export function zonePosition(app, id) {
+  const m = SCENE_MAP.zones[id];
+  const zone = m?.names.map((n) => app.zones?.find?.(n)).find(Boolean);
+  if (zone) return { x: zone.x, y: zone.y, zone };
+  const site = app.site;
+  if (site?.isScene && site.hallBounds) {
+    const [fa, fb] = SCHEMATIC[id] ?? [0.5, 0.5];
+    const hb = site.hallBounds;
+    const [u0, u1, v0, v1] = site.alongX ? [hb.x0, hb.x1, hb.y0, hb.y1] : [hb.y0, hb.y1, hb.x0, hb.x1];
+    const bays = [...(site.bays ?? [])].sort((a, b) => a.centre - b.centre);
+    const v = bays.length ? bays[Math.round(fb * (bays.length - 1))].centre : v0 + (v1 - v0) * (0.25 + fb * 0.5);
+    const u = u0 + (u1 - u0) * fa;
+    return { ...(site.alongX ? { x: u, y: v } : { x: v, y: u }), schematic: true };
+  }
+  const pid = m?.points.find((p) => site?.findPoint?.(p));
+  const point = pid ? site.findPoint(pid) : null;
+  return point ? { x: point.x, y: point.y, point: pid } : null;
+}
+
+// A device → where it is now: part way along its current move, else at its home zone.
+function devicePosition(app, where) {
+  const r = where.route;
+  const a = zonePosition(app, r?.from ?? DEV_HOME[where.id]);
+  const b = r ? zonePosition(app, r.to) : null;
+  if (!a || !b) return a ?? b;
+  const k = Math.max(0, Math.min(1, r.frac ?? 0.5));
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, schematic: a.schematic || b.schematic };
+}
+
+// The located spot gets its own pin in the scene for a few seconds (drawn by the app's label pass).
+const marks = new WeakMap();
+function markSpot(app, pos, h, text) {
+  if (!marks.has(app)) {
+    marks.set(app, { until: 0 });
+    app.labelHooks = [...(app.labelHooks ?? []), ({ pin, place, seen }) => {
+      const m = marks.get(app);
+      if (!m.pos || performance.now() > m.until) return;
+      seen.add('db:loc');
+      place(pin('db:loc', 'dbloc', `<span class="lab">${esc(m.text)}</span><span class="dot"></span>`), { x: m.pos.x / 1000, y: m.h, z: -m.pos.y / 1000 });
+    }];
+  }
+  Object.assign(marks.get(app), { pos, h, text, until: performance.now() + 9000 });
+}
+
+// target: { kind: 'zone' | 'dev' | 'coil', id, name, at? } — a coil carries `at`, where it is now;
+// a device (or a coil riding on one) carries `route` { from, to, frac } while it is moving a coil.
 export function createSceneLocator(app) {
   return (target) => {
     const where = target.kind === 'coil' ? target.at : target;
@@ -67,36 +127,27 @@ export function createSceneLocator(app) {
     let found = null;
     try {
       const site = app.site;
-      if (where?.kind === 'dev') {
-        const m = SCENE_MAP.devices[where.id];
-        if (m && site?.isScene) {
-          app.setView(m.object === 'crane' ? 'crane' : 'follow', { index: m.index });
-          found = m.object === 'crane' ? '行车' : '跨内视角';
-        } else if (m && app.select?.(m.object)) {
-          app.focusObject(m.object);
-          found = m.object === 'crane' ? '行车（示意）' : 'AGV（示意）';
-        }
-      } else if (where?.kind === 'zone') {
-        const m = SCENE_MAP.zones[where.id];
-        const zone = m?.names.map((n) => app.zones?.find?.(n)).find(Boolean);
-        if (zone) {
-          app.zones.lookAt(zone.id);
-          flashLabels([zone.name]);
-          found = `区域标注 ${zone.name}`;
-        } else if (!site?.isScene) {
-          const pid = m?.points.find((id) => site?.findPoint?.(id));
-          if (pid) {
-            app.setView('point', { id: pid });
-            flashLabels([pid]);
-            found = `点位 ${pid}`;
-          }
-        }
+      const crane = where?.kind === 'dev' && SCENE_MAP.devices[where.id]?.object === 'crane';
+      const pos = where?.kind === 'zone' ? zonePosition(app, where.id) : where?.kind === 'dev' ? devicePosition(app, where) : null;
+      if (pos?.zone && where.kind === 'zone') {
+        app.zones.lookAt(pos.zone.id);
+        found = `区域标注 ${pos.zone.name}`;
+      } else if (pos && site?.isScene) {
+        app.setView('point', { x: pos.x, y: pos.y, h: crane ? 8 : 1, size: 26 });
+        found = pos.schematic ? '示意位置（可用「区域标注」标出实际位置）' : '对应位置';
+      } else if (pos?.point && where.kind === 'zone') {
+        app.setView('point', { id: pos.point });
+        found = `点位 ${pos.point}`;
+      } else if (where?.kind === 'dev' && app.select?.(SCENE_MAP.devices[where.id]?.object)) {
+        app.focusObject(SCENE_MAP.devices[where.id].object);
+        found = crane ? '行车（示意）' : 'AGV（示意）';
       }
+      if (pos) markSpot(app, pos, crane ? 9.5 : where.kind === 'dev' ? 2.6 : 1.2, `◎ ${label}`);
     } catch (error) {
       console.warn('大屏定位失败', error);
     }
-    if (!found) flashLabels([where?.name, target.name, target.id]);
-    app.toast?.(`已定位：${label}${found ? ` → 场景${found}` : ''}`);
+    flashLabels([where?.name, target.name, target.id]);
+    app.toast?.(`已定位：${label}${found ? ` → ${found}` : ''}`);
     return found;
   };
 }
@@ -243,7 +294,7 @@ function nodesHTML(s) {
       <span class="db-num db-nt">${num(n.avg, 1)}<s>/${n.std ?? '—'}</s></span>
     </div>`).join('');
   return `<div class="db-cats">${cats}</div>
-    <div class="db-node db-nh"><i></i><span>节点</span><span>完成</span><span>在途</span><span>平均 / 标准耗时</span><span>min</span></div>
+    <div class="db-node db-nh"><i></i><span>节点</span><span>完成</span><span>在途</span><span>平均/标准</span><span>min</span></div>
     <div class="db-scroll" data-scroll>${rows}</div>`;
 }
 
@@ -254,7 +305,7 @@ function linesHTML(s) {
       ${gauge(l.util, { color: LINE_COLOR[l.id], label: '炉膛利用率' })}
       <div class="db-lk"><small>今日出炉</small><b class="db-num">${l.done}<em>卷</em></b></div>
       <div class="db-lk"><small>平均加工</small><b class="db-num">${num(l.avg, 1)}<em>min</em></b></div>
-      <div class="db-lk"><small>平均周期</small><b class="db-num">${l.lead == null ? '—' : num(l.lead / 60, 1)}<em>h</em></b></div>
+      <div class="db-lk"><small>出炉节拍</small><b class="db-num">${num(l.takt, 0)}<em>min/卷</em></b></div>
       <div class="db-lk"><small>在炉</small><b class="db-num">${l.inFurnace}<em>/${l.cap}</em></b></div>
     </div>`;
   return `<div class="db-lines">${col(a)}<div class="db-vsx">VS</div>${col(b)}</div>
@@ -295,9 +346,11 @@ function equipmentHTML(s) {
   }).join('')}</div>`;
 }
 
-function alarmRow(a) {
-  const link = a.target.kind === 'coil' ? coilLink(a.target.id) : a.target.kind === 'dev' ? devLink(a.target.id, a.title.split(' ')[0]) : zoneLink(a.target.id, a.title.split(' ')[0]);
-  const rest = a.title.split(' ').slice(1).join(' ');
+function alarmRow(a, s) {
+  const { kind, id } = a.target;
+  const name = kind === 'coil' ? id : kind === 'dev' ? s.equipment.find((e) => e.id === id)?.name ?? id : s.inventory.find((z) => z.id === id)?.name ?? id;
+  const link = kind === 'coil' ? coilLink(id) : kind === 'dev' ? devLink(id, name) : zoneLink(id, name);
+  const rest = a.title.startsWith(name) ? a.title.slice(name.length).trim() : a.title;
   return `<div class="db-al ${LEVEL_CLS[a.level]}${a.active ? ' on' : ''}">
     <span class="db-num db-at">${esc(a.time)}</span><span class="db-lv">${esc(a.level)}</span>
     <div class="db-am"><div>${link} ${esc(rest)}</div><small>${esc(a.detail)}${a.active ? '' : ' · 已恢复'}</small></div>
@@ -307,7 +360,7 @@ function alarmRow(a) {
 function alarmsHTML(s) {
   const active = s.alarms.filter((a) => a.active);
   const recent = s.alarms.filter((a) => !a.active).slice(0, 30);
-  return `<div class="db-scroll" data-scroll>${active.length ? '' : '<div class="db-ok">当前无活动告警</div>'}${[...active, ...recent].map(alarmRow).join('')}</div>`;
+  return `<div class="db-scroll" data-scroll>${active.length ? '' : '<div class="db-ok">当前无活动告警</div>'}${[...active, ...recent].map((a) => alarmRow(a, s)).join('')}</div>`;
 }
 
 function coilsHTML(s) {
@@ -316,6 +369,35 @@ function coilsHTML(s) {
       ${coilLink(c.id)}<span class="db-cs">${esc(c.stageName)}</span><span class="db-num db-ce">${num(c.elapsed, 0)}<s>${c.std ? `/${c.std}` : ''} min</s></span>${ledgerBtn(c.id)}
       <span class="db-cp"><i style="width:${c.progress * 100}%;background:${c.line ? LINE_COLOR[c.line] : C.muted}"></i></span>
     </div>`).join('')}</div>`;
+}
+
+// The route as one live chain under the 3D window: buffers / stores / process zones with their load,
+// and between them the crane or AGV doing that move (lit while it is carrying a coil).
+const FLOW = [
+  ['INSPECT', '检验区'], 'CR1', ['RAW', '原料库'], 'CR1', ['OUTBUF', '出库暂存'], 'AGV1', [['F1', '1#炉'], ['F2', '2#炉']],
+  'AGV2', ['COOLBUF', '冷却暂存'], 'CR2', ['COOL', '冷却区'], 'CR2', ['SEMI', '半成品暂存'], 'AGV3', ['CHEM', '化学线'], 'AGV4', ['FGBUF', '成品暂存'], 'CR2', ['FG', '成品库'],
+];
+const DEV_SHORT = { CR1: '吊1', CR2: '吊2', AGV1: 'A1', AGV2: 'A2', AGV3: 'A3', AGV4: 'A4' };
+
+function flowHTML(s) {
+  const hot = new Set(s.alarms.filter((a) => a.active && a.target.kind === 'zone').map((a) => a.target.id));
+  const node = ([id, short]) => {
+    const z = s.inventory.find((x) => x.id === id);
+    const pct = z.cap ? (z.count / z.cap) * 100 : 0;
+    const full = hot.has(id) || (z.kind === '暂存点' && z.count >= z.cap) || pct >= 90;
+    return `<a class="db-fn${full ? ' full' : ''}" data-loc="zone:${id}" title="${esc(z.name)} · ${z.count}/${z.cap} 卷 · ${num(z.weight, 1)} t · 今日入 ${z.inToday.count} / 出 ${z.outToday.count}（点击定位）">
+      <small>${esc(short)}</small><b class="db-num">${z.count}<s>/${z.cap}</s></b>${bar(pct, full ? C.red : pct >= 67 ? C.amber : C.cyan)}</a>`;
+  };
+  const items = FLOW.map((f) => {
+    if (typeof f === 'string') {
+      const e = s.equipment.find((x) => x.id === f);
+      const st = STATUS[e.status];
+      return `<a class="db-fa ${st.cls}" data-loc="dev:${f}" title="${esc(e.name)} · ${e.status}${e.task ? ` · ${e.task.coil}` : ''}（点击定位）"><i></i><small>${DEV_SHORT[f]}</small></a>`;
+    }
+    return Array.isArray(f[0]) ? `<div class="db-fpair">${f.map(node).join('')}</div>` : node(f);
+  }).join('');
+  return `<div class="db-fh" data-open="nodes" title="查看全工序耗时统计"><b>工艺流程 · 实时在制</b><span class="db-sub">来料 ${s.kpis.arrive.count} 卷 → … → 成品发货 ${s.kpis.ship.count} 卷</span>${legend([['运行', C.green], ['空闲', C.blue], ['充电', C.amber], ['故障', C.red]])}</div>
+    <div class="db-fl">${items}</div>`;
 }
 
 // ---------------------------------------------------------------- detail cards
@@ -367,7 +449,7 @@ function detailLines(s) {
       <div class="db-box"><div class="db-lines">${s.lines.map((l) => `<div class="db-line">${gauge(l.util, { size: 110, color: LINE_COLOR[l.id], label: l.name.replace('产线', '') })}</div>`).join('<div class="db-vsx">VS</div>')}</div>
         <table class="db-tab"><thead><tr><th>指标</th>${s.lines.map((l) => `<th>${zoneLink(l.zone, l.name)}</th>`).join('')}</tr></thead><tbody>
         ${stat('今日出炉（卷）', (l) => l.done)}${stat('出炉重量（t）', (l) => num(l.weight, 1))}${stat('平均加工（min）', (l) => num(l.avg, 1))}${stat('最长加工（min）', (l) => num(l.max, 1))}
-        ${stat('加工超标（次）', (l) => l.over)}${stat('今日成品入库（卷）', (l) => l.finished)}${stat('平均流转周期（h）', (l) => (l.lead == null ? '—' : num(l.lead / 60, 1)))}${stat('炉膛利用率（%）', (l) => num(l.util, 1))}
+        ${stat('加工超标（次）', (l) => l.over)}${stat('今日成品入库（卷）', (l) => l.finished)}${stat('平均流转周期（h）', (l) => (l.lead == null ? '—' : num(l.lead / 60, 1)))}${stat('炉膛利用率（%）', (l) => num(l.util, 1))}${stat('出炉节拍（min/卷，近 4 h）', (l) => num(l.takt, 1))}
         </tbody></table></div>
       <div class="db-box"><div class="db-subt">逐时出炉对比（卷）${legend([['1# 气垫炉', LINE_COLOR.L1], ['2# 气垫炉', LINE_COLOR.L2]])}</div>${lineChart(s.lines.map((l) => ({ name: l.name, values: l.hourly, color: LINE_COLOR[l.id] })), s.hours, { w: 480, h: 190 })}</div>
       ${running}
@@ -382,6 +464,8 @@ function detailInventory(s) {
       <div class="db-subt">${zoneLink(z.id, z.name)}<span class="db-tag">${esc(z.kind)}</span></div>
       <div class="db-zk"><b class="db-num">${z.count}<em>/${z.cap} 卷</em></b><span class="db-num">${num(z.weight, 1)} t</span><span>${z.incoming ? `在途 ${z.incoming}` : ''}</span></div>
       ${bar(pct, full ? C.red : pct >= 67 ? C.amber : C.cyan)}
+      <div class="db-zio"><span>今日入 <b class="db-num">${z.inToday.count}</b> 卷 · ${num(z.inToday.weight, 1)} t</span><span>今日出 <b class="db-num">${z.outToday.count}</b> 卷 · ${num(z.outToday.weight, 1)} t</span>
+        <span>平均停留 <b class="db-num">${z.dwellAvg == null ? '—' : fmtDuration(z.dwellAvg * 60)}</b>${z.dwellMax != null ? ` · 最长 ${fmtDuration(z.dwellMax * 60)}` : ''}</span></div>
       <div class="db-chips" data-scroll>${z.coils.map((id) => coilLink(id)).join('') || '<span class="db-muted">空</span>'}</div>
     </div>`;
   }).join('')}</div>`;
@@ -399,7 +483,15 @@ function detailEquipment(s) {
       <td class="db-num ${e.faultsToday ? 'db-red' : ''}">${e.faultsToday}</td></tr>`;
   }).join('');
   return `<div class="db-devgrid">${s.equipment.map((e) => `<div class="db-box">${gauge(e.util, { size: 92, color: STATUS[e.status].color, label: e.name })}</div>`).join('')}</div>
-    <div class="db-tabwrap"><table class="db-tab"><thead><tr><th>设备</th><th>状态</th><th>当前任务</th><th>排队</th><th>今日任务</th><th>平均任务 min</th><th>利用率</th><th>电量</th><th>今日故障</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="db-tabwrap"><table class="db-tab"><thead><tr><th>设备</th><th>状态</th><th>当前任务</th><th>排队</th><th>今日任务</th><th>平均任务 min</th><th>利用率</th><th>电量</th><th>今日故障</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="db-subt db-gap">调度队列与今日任务记录</div>
+    <div class="db-queues">${s.equipment.map((e) => `<div class="db-box">
+      <div class="db-subt">${devLink(e.id, e.name)}<span class="db-tag ${STATUS[e.status].cls}">${e.status}</span><small class="db-muted">${esc(e.role)}</small></div>
+      <div class="db-qh">待执行 ${e.pending.length} 项</div>
+      ${e.pending.length ? e.pending.map((q) => `<div class="db-q">${coilLink(q.coil)}<span>${esc(q.from)} → ${esc(q.to)}</span><span class="db-num">已等 ${num(q.waited)} min</span></div>`).join('') : '<div class="db-q db-muted">队列为空</div>'}
+      <div class="db-qh">今日最近完成</div>
+      ${e.recent.length ? e.recent.map((r) => `<div class="db-q${r.over ? ' over' : ''}">${coilLink(r.coil)}<span>${esc(r.start)}–${esc(r.end)} ${esc(r.from)} → ${esc(r.to)}</span><span class="db-num">${num(r.dur, 1)} min</span></div>`).join('') : '<div class="db-q db-muted">今日暂无</div>'}
+    </div>`).join('')}</div>`;
 }
 
 function detailAlarms(s, filter) {
@@ -407,7 +499,7 @@ function detailAlarms(s, filter) {
   const types = {};
   for (const a of s.alarms) types[a.type] = (types[a.type] ?? 0) + 1;
   return `<div class="db-cats">${Object.entries(types).map(([t, n]) => `<div class="db-cat"><small>${esc(t)}</small><b class="db-num">${n}</b><span>近期</span></div>`).join('')}</div>
-    <div class="db-alist">${list.map(alarmRow).join('') || '<div class="db-ok">没有符合条件的告警</div>'}</div>`;
+    <div class="db-alist">${list.map((a) => alarmRow(a, s)).join('') || '<div class="db-ok">没有符合条件的告警</div>'}</div>`;
 }
 
 function detailCoils(s) {
@@ -446,6 +538,7 @@ const CARDS = {
   right: [['equipment', '起重机 & AGV 设备调度', '2 台起重机 · 4 台 AGV'], ['alarms', '异常告警日志', '超时 · 积压 · 故障'], ['coils', '在制钢卷 · 单卷台账', '点编号定位，点台账看全流程']],
 };
 const SPEEDS = [[60, '1 分/秒'], [300, '5 分/秒'], [1200, '20 分/秒']];
+const PHONE = '(max-width: 760px)';
 const ICON = {
   min: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 8h10"/></svg>',
   close: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
@@ -464,26 +557,30 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
   const root = document.createElement('div');
   root.className = 'db-root';
   root.dataset.state = state;
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-label', '可视化大屏');
   const card = ([key, title, sub]) => `<section class="db-card" data-card="${key}">
       <header class="db-ch"><b>${title}</b><span class="db-sub">${sub}</span><button class="db-pop" data-open="${key}" title="放大查看">${ICON.pop}</button></header>
       <div class="db-cb" data-body="${key}"></div>
     </section>`;
   root.innerHTML = `
     <div class="db-board" role="region" aria-label="可视化大屏">
+      <div class="db-win" aria-hidden="true"><span>孪生场景 · 点击钢卷编号 / 区域 / 设备即在此定位</span></div>
       <header class="db-head">
         <div class="db-time"><b class="db-num" data-clock>--:--:--</b><small data-date></small><span class="db-live">实时</span></div>
         <div class="db-title"><b>钢卷加工智能物流 · 指挥大屏</b><small>智能起重机 + 重载 AGV 数字孪生</small></div>
         <div class="db-ctl">
           <div class="db-seg" title="仿真倍速">${SPEEDS.map(([v, l]) => `<button data-speed="${v}" class="${v === speed ? 'on' : ''}">${l}</button>`).join('')}</div>
-          <button class="db-ib" data-act="min" title="缩为顶部条">${ICON.min}</button>
+          <button class="db-ib" data-act="min" title="缩为一条关键指标（Esc）">${ICON.min}</button>
           <button class="db-ib" data-act="close" title="关闭大屏">${ICON.close}</button>
         </div>
       </header>
       <div class="db-kpis" data-body="kpi"></div>
       <div class="db-col db-left">${CARDS.left.map(card).join('')}</div>
       <div class="db-col db-right">${CARDS.right.map(card).join('')}</div>
+      <section class="db-flow" data-body="flow"></section>
     </div>
-    <div class="db-strip" role="button" tabindex="0" title="展开大屏"></div>
+    <div class="db-strip" role="button" tabindex="0" title="点击展开大屏"></div>
     <div class="db-mask" hidden>
       <div class="db-detail" role="dialog" aria-modal="true">
         <header class="db-dh"><b data-dtitle></b><div class="db-dctl" data-dctl></div><button class="db-ib" data-act="dclose" title="关闭 (Esc)">${ICON.close}</button></header>
@@ -509,17 +606,19 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
     setHTML(bodies.equipment, equipmentHTML(snap));
     setHTML(bodies.alarms, alarmsHTML(snap));
     setHTML(bodies.coils, coilsHTML(snap));
+    setHTML(bodies.flow, flowHTML(snap));
     root.querySelector('[data-card="alarms"] .db-sub').textContent = snap.kpis.alarms ? `活动 ${snap.kpis.alarms} 条 · 严重 ${snap.kpis.critical}` : '超时 · 积压 · 故障';
   }
 
   function renderStrip() {
     const k = snap.kpis;
+    const [l1, l2] = snap.lines;
     setHTML(strip, `<b class="db-st">大屏</b>
-      <span>入库 <b class="db-num">${k.inCount}</b></span>
-      <span>出库 <b class="db-num">${k.outCount}</b></span>
-      <span>在制 <b class="db-num">${k.wip}</b></span>
-      <span class="db-so">设备 <b class="db-num">${k.online}/${k.totalDevices}</b></span>
-      <span class="db-sa${k.alarms ? ' on' : ''}" data-open="alarms">告警 <b class="db-num">${k.alarms}</b></span>
+      <span class="db-s-wip">在制 <b class="db-num">${k.wip}</b></span>
+      <span class="db-s-in">入库 <b class="db-num">${k.inCount}</b></span>
+      <span class="db-s-out">出库 <b class="db-num">${k.outCount}</b></span>
+      <span class="db-sa${k.alarms ? ' on' : ''}" data-open="alarms" title="查看告警">告警 <b class="db-num">${k.alarms}</b></span>
+      <span class="db-s-takt" title="近 4 小时出炉节拍">节拍 1# <b class="db-num">${num(l1.takt, 0)}</b>′ · 2# <b class="db-num">${num(l2.takt, 0)}</b>′</span>
       <span class="db-num db-sc">${snap.clock.slice(0, 5)}</span>
       <button class="db-ib" data-act="restore" title="展开大屏">${ICON.max}</button>
       <button class="db-ib" data-act="close" title="关闭大屏">${ICON.close}</button>`);
@@ -557,6 +656,8 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
   function setState(next) {
     state = next;
     root.dataset.state = next;
+    // While open the board covers the app, floating cards included (dashboard.css hides them).
+    document.body.classList.toggle('db-open', next === 'open');
     if (next !== 'open') closeDetail();
     for (const el of document.querySelectorAll('[data-open-dashboard]')) {
       el.classList.toggle('on', next !== 'closed');
@@ -595,16 +696,25 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
 
   function locateRef(ref) {
     const [kind, id] = ref.split(/:(.*)/s);
+    // A device carrying a coil is located part way along its move (by elapsed vs standard time).
+    const dev = (devId, name) => {
+      const e = snap?.equipment.find((x) => x.id === devId);
+      const std = e?.task ? snap.nodes.find((n) => n.key === e.task.stage)?.std : null;
+      const route = e?.task ? { from: e.task.fromId, to: e.task.toId, frac: std ? e.task.elapsed / std : 0.5 } : null;
+      return { kind: 'dev', id: devId, name: name ?? e?.name ?? devId, route };
+    };
     let target;
     if (kind === 'coil') {
       const c = snap?.coils.find((x) => x.id === id);
-      const at = !c ? null : c.location.startsWith('dev:') ? { kind: 'dev', id: c.location.slice(4), name: c.locationName } : { kind: 'zone', id: c.location, name: c.locationName };
+      const at = !c ? null : c.location.startsWith('dev:') ? dev(c.location.slice(4), c.locationName) : { kind: 'zone', id: c.location, name: c.locationName };
       target = { kind: 'coil', id, name: id, at };
-    } else if (kind === 'dev') target = { kind, id, name: snap?.equipment.find((e) => e.id === id)?.name ?? id };
+    } else if (kind === 'dev') target = dev(id);
     else target = { kind: 'zone', id, name: snap?.inventory.find((z) => z.id === id)?.name ?? id };
     locate?.(target);
+    // A detail card covers the 3D window: close it so the jump can be seen.
+    if (detail) closeDetail();
     // On a phone the board covers the scene: get out of the way so the jump can be seen.
-    if (window.matchMedia('(max-width: 760px)').matches && state === 'open') minimise();
+    if (window.matchMedia(PHONE).matches && state === 'open') minimise();
   }
 
   root.addEventListener('click', (e) => {
@@ -658,7 +768,9 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
     }
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && detail) closeDetail();
+    if (e.key !== 'Escape' || state !== 'open') return;
+    if (detail) closeDetail();
+    else if (!document.querySelector('.pop-mask:not([hidden]), .ctx')) minimise();
   });
   // Any [data-open-dashboard] element (header chip, view bar button, …) toggles the board.
   document.addEventListener('click', (e) => {
@@ -667,6 +779,10 @@ export function initDashboard(app, { locate = createSceneLocator(app), seed = 20
     e.preventDefault();
     toggle();
   });
+  // Asking for a floating card (header module nav, …) while the board is open: step aside to the strip.
+  document.addEventListener('click', (e) => {
+    if (state === 'open' && e.target.closest?.('[data-open-card]') && !root.contains(e.target)) minimise();
+  }, true);
 
   // ------------------------------------------------ live data
 
