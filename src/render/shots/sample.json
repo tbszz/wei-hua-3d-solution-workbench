@@ -1,0 +1,40 @@
+{
+  "title": "AGV1 钢卷搬运方案",
+  "subtitle": "模拟厂房 sample-plant.dxf · 演示数据",
+  "titleSeconds": 3,
+  "badge": "演示",
+  "product": "agv1",
+  "fps": 30,
+  "width": 1920,
+  "height": 1080,
+  "segments": [
+    {
+      "start": 0,
+      "end": 6,
+      "camera": "overview",
+      "scene": [60, 96],
+      "caption": "演示：AGV1 在模拟厂房里按 CAD 平面图的路线行驶"
+    },
+    {
+      "start": 6,
+      "end": 10.5,
+      "camera": "follow",
+      "scene": [100, 109],
+      "caption": "演示：驶入取料工位 RM-01，到位后定位校准"
+    },
+    {
+      "start": 10.5,
+      "end": 15,
+      "camera": "follow",
+      "scene": [109, 118],
+      "caption": "演示：支架下降，钢卷落到车上，载货驶出"
+    },
+    {
+      "start": 15,
+      "end": 20,
+      "camera": "top",
+      "scene": [118, 190],
+      "caption": "演示：俯视全程，载卷驶向加工工位 CELL-01（快放）"
+    }
+  ]
+}

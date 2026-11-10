@@ -507,8 +507,49 @@ function frameVehicle() {
   camera.position.copy(controls.target).addScaledVector(toCamera.normalize(), distance);
 }
 
+// Offline recording (src/render/record.mjs). With ?record=1 the live clock stops once the site is up:
+// a frame is drawn only when the recorder seeks and calls renderFrame(), so frame N is always the same.
+const RECORD = new URLSearchParams(location.search);
+let recording = false;
+
+async function startRecorder() {
+  const product = CATALOG.find((item) => item.id === RECORD.get('product')) ?? CATALOG[0];
+  await chooseProduct(product, false);
+  await goTo('site');
+  if (app.step !== 'site') throw new Error('现场没有加载成功');
+  document.body.classList.add('recording');
+  resize();
+  site.playing = false;
+  controls.enabled = false;
+  recording = true;
+  window.__recorder = {
+    duration: site.timeline.duration,
+    seek(time) {
+      site.time = Math.max(0, Math.min(time, site.timeline.duration));
+      site.renderPose();
+    },
+    setCamera(preset) {
+      if (!['overview', 'follow', 'top'].includes(preset)) throw new Error(`没有这个镜头预设：${preset}`);
+      setView(preset);
+    },
+    renderFrame() {
+      // Follow is placed from the carrier directly instead of accumulating its movement.
+      if (viewMode === 'follow') setView('follow');
+      camera.lookAt(controls.target);
+      camera.updateMatrixWorld();
+      site.update(0, camera);
+      renderer.render(site.scene, camera);
+    },
+    state() {
+      const { x, y, heading, speed } = site.pose;
+      return { time: site.time, x, y, heading, speed, status: site.status().text };
+    },
+  };
+}
+
 const clock = new THREE.Clock();
 function animate() {
+  if (recording) return;
   const delta = Math.min(clock.getDelta(), 0.1);
   if (app.step === 'site') {
     site.update(delta, camera);
@@ -560,5 +601,12 @@ buildCatalog();
 new ResizeObserver(resize).observe(stage);
 resize();
 showDimensions(false);
-chooseProduct(CATALOG[0], false);
+if (RECORD.has('record')) {
+  startRecorder().catch((error) => {
+    console.error(error);
+    window.__recorderError = error.message;
+  });
+} else {
+  chooseProduct(CATALOG[0], false);
+}
 animate();

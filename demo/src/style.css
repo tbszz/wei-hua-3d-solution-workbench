@@ -234,3 +234,8 @@ input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 
   .catalog { grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; }
 }
+
+/* Offline recording (?record=1): the 3D view fills the window, the panel is hidden. */
+body.recording { display: block; }
+body.recording .panel { display: none; }
+body.recording .stage { position: fixed; inset: 0; }
