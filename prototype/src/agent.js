@@ -270,6 +270,8 @@ export class Agent {
         wrap.innerHTML = html;
         const el = wrap.firstElementChild;
         el.querySelector(':scope > h4')?.insertAdjacentHTML('beforeend', popButton('弹出这张卡片'));
+        // Only the newest card stays open; earlier ones fold to their title (click to reopen).
+        for (const old of document.querySelectorAll('#msgs .card:not(.fold)')) if (old.querySelector(':scope > h4')) old.classList.add('fold');
         block.append(el);
         self.chips = null;
         self.text = null;

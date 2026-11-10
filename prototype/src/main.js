@@ -33,6 +33,9 @@ controls.maxPolarAngle = Math.PI * 0.495;
 controls.minDistance = 2;
 controls.maxDistance = 320;
 controls.autoRotateSpeed = 0.35;
+// Rhino-style mouse: right-drag rotates, Shift+right-drag pans, Ctrl/Alt+right-drag and the wheel
+// zoom, middle-drag pans. The left button is for picking objects (see the selection section).
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
 
 const site = new ProcessSite(renderer, QUALITY);
 site.speed = 4;
@@ -136,8 +139,12 @@ const hookWorld = () => new THREE.Vector3(site.cranePose.x / 1000, site.cranePos
 // What the tracking views lock onto: the AGV body, or a point between the hook and the floor
 // so the coil and the hook fit in the frame. While an AGV waits near the hook (hand-over at
 // H-01) the aim slides towards it so both stay in shot.
+// Set by a library jump to the crane: track the whole bridge instead of the hook.
+let craneWide = false;
+const craneBox = new THREE.Box3();
 const subjectOf = (mode) => {
   if (mode === 'follow') return site.carrier.position.clone().setY(0.8);
+  if (craneWide && site.crane) return craneBox.setFromObject(site.crane.root).getCenter(new THREE.Vector3()).setY(7);
   const h = hookWorld().setY(3);
   const agv = site.carrier.position.clone().setY(1);
   const w = THREE.MathUtils.clamp(1 - h.distanceTo(agv) / 16, 0, 1) * 0.5;
@@ -163,7 +170,19 @@ function trackOffset(mode) {
   return dir.multiplyScalar(d).setY(h);
 }
 
+function craneWideOffset() {
+  const { centre } = site.built;
+  const s = subjectOf('crane');
+  const sx = Math.sign(centre.x / 1000 - s.x) || -1;
+  const sz = Math.sign(-centre.y / 1000 - s.z) || 1;
+  const span = new THREE.Box3().setFromObject(site.crane.root).getSize(new THREE.Vector3());
+  const d = fitDistance(Math.max(span.x, span.z) * 1.5, Math.max(span.x, span.z) * 1.1);
+  return new THREE.Vector3(sx * 0.55, 0.78, sz * 0.3).normalize().multiplyScalar(d);
+}
+
 app.setView = (mode, opts = {}) => {
+  if (!opts.noHistory) rememberView();
+  craneWide = Boolean(opts.wide && mode === 'crane');
   app.view = mode;
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === mode);
   const { centre, size } = site.built;
@@ -175,10 +194,18 @@ app.setView = (mode, opts = {}) => {
     flyTo(c, c.clone().addScaledVector(dir, fitDistance(diag * 1.05, diag * 0.85)));
   } else if (mode === 'top') {
     flyTo(c, new THREE.Vector3(c.x, fitDistance(size.x * 1.04, size.y * 1.04), c.z + 0.01));
+  } else if (mode === 'front' || mode === 'right') {
+    // Rhino Front looks north (along +Y of the drawing), Right looks west (along -X).
+    const t = c.clone().setY(5);
+    const front = mode === 'front';
+    const d = fitDistance((front ? size.x : size.y) * 1.04, 14);
+    flyTo(t, t.clone().add(front ? new THREE.Vector3(0, 0.6, d) : new THREE.Vector3(d, 0.6, 0)));
   } else if (mode === 'follow' || mode === 'crane') {
     // The flight keeps re-aiming at the moving subject, so it lands on it, not where it was.
     const t = subjectOf(mode);
-    const offset = trackOffset(mode);
+    // wide: jumping from the library frames the whole crane from above the column rows,
+    // sized to its span, instead of the close hook shot used while it works.
+    const offset = opts.wide && mode === 'crane' ? craneWideOffset() : trackOffset(mode);
     flyTo(t, t.clone().add(offset));
     fly.track = offset;
   } else if (mode === 'point') {
@@ -187,6 +214,339 @@ app.setView = (mode, opts = {}) => {
     flyTo(t, t.clone().add(new THREE.Vector3(-10, 12, 14)));
   }
 };
+
+// ---------------------------------------------------------------- Rhino-style navigation
+
+// Assigned once the toolbar functions below exist (they are declared further down the file).
+let setRotateLater = () => {};
+let setCleanLater = () => {};
+
+// View history for Home (undo view change) / End (redo view change).
+const viewHist = { back: [], fwd: [] };
+const snapView = () => ({ p: camera.position.clone(), t: controls.target.clone(), view: app.view });
+function rememberView() {
+  const last = viewHist.back.at(-1);
+  if (last && last.p.distanceTo(camera.position) < 1e-3 && last.t.distanceTo(controls.target) < 1e-3) return;
+  viewHist.back.push(snapView());
+  if (viewHist.back.length > 60) viewHist.back.shift();
+  viewHist.fwd.length = 0;
+}
+function markView(mode) {
+  app.view = mode;
+  for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === mode);
+}
+function stepView(from, to) {
+  const s = from.pop();
+  if (!s) return false;
+  to.push(snapView());
+  // A stored tracking view is a moment of a moving subject, so it comes back as a free view.
+  markView(s.view === 'follow' || s.view === 'crane' ? 'free' : s.view);
+  setRotateLater(false);
+  flyTo(s.t, s.p, 0.45);
+  return true;
+}
+app.undoView = () => stepView(viewHist.back, viewHist.fwd);
+app.redoView = () => stepView(viewHist.fwd, viewHist.back);
+
+function takeOver(pan = false) {
+  fly.active = false;
+  setRotateLater(false);
+  // Panning away from a tracked subject leaves the tracking view.
+  if (pan && (app.view === 'follow' || app.view === 'crane')) markView('free');
+}
+const sph = new THREE.Spherical();
+function orbitBy(dTheta, dPhi) {
+  takeOver();
+  const off = camera.position.clone().sub(controls.target);
+  sph.setFromVector3(off);
+  sph.theta += dTheta;
+  sph.phi = THREE.MathUtils.clamp(sph.phi + dPhi, 0.02, controls.maxPolarAngle);
+  camera.position.copy(controls.target).add(off.setFromSpherical(sph));
+}
+function panBy(dx, dy) {
+  takeOver(true);
+  const k = camera.position.distanceTo(controls.target) * 0.06;
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const move = right.multiplyScalar(dx * k).addScaledVector(up, dy * k);
+  camera.position.add(move);
+  controls.target.add(move);
+}
+function zoomBy(f) {
+  takeOver();
+  const off = camera.position.clone().sub(controls.target);
+  off.setLength(THREE.MathUtils.clamp(off.length() * f, controls.minDistance, controls.maxDistance));
+  camera.position.copy(controls.target).add(off);
+}
+// Frame a box from the current viewing direction (Rhino ZoomExtents / ZoomSelected).
+function frameBox(box, label) {
+  rememberView();
+  const centre = box.getCenter(new THREE.Vector3());
+  const r = box.getSize(new THREE.Vector3()).length() / 2 || 1;
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  markView('free');
+  setRotateLater(false);
+  flyTo(centre, centre.clone().addScaledVector(dir, Math.max(controls.minDistance + 1, fitDistance(r * 2.1, r * 2.1))));
+  if (label) app.toast(label);
+}
+app.zoomExtents = () => {
+  const { centre, size } = site.built;
+  const c = new THREE.Vector3(centre.x / 1000, 5, -centre.y / 1000);
+  frameBox(new THREE.Box3().setFromCenterAndSize(c, new THREE.Vector3(size.x, 10, size.y)), '缩放至全部（ZE）');
+};
+app.zoomSelected = () => {
+  const roots = selectables().filter((s) => s.key === selection.key).map((s) => s.root);
+  if (!roots.length) return app.toast('没有选取物件，先左键点选一个设备', true);
+  const box = new THREE.Box3();
+  for (const r of roots) box.expandByObject(r);
+  frameBox(box, '缩放至选取（ZS）');
+};
+
+// ---------------------------------------------------------------- selection
+
+// Left click picks a device (AGV, crane, placed model) with a Rhino-style yellow box; Esc clears.
+const selection = { key: null, helpers: [] };
+function selectables() {
+  const list = (site.carriers ?? [site.carrier]).map((root, i) => ({ key: 'agv', root, name: `${app.product?.model ?? 'AGV'}${site.agvCount > 1 ? ` #${i + 1}` : ''}` }));
+  if (site.crane) list.push({ key: 'crane', root: site.crane.root, name: '行车 #1 · 双梁桥式起重机（示意）' });
+  for (const p of app.library?.placed.values() ?? []) list.push({ key: `asset:${p.asset.id}`, root: p.root, name: p.asset.name });
+  return list;
+}
+app.select = (key) => {
+  for (const h of selection.helpers) {
+    h.removeFromParent();
+    h.dispose();
+  }
+  selection.helpers = [];
+  const hits = key ? selectables().filter((s) => s.key === key) : [];
+  selection.key = hits.length ? key : null;
+  for (const s of hits) {
+    const h = new THREE.BoxHelper(s.root, 0xffd21f);
+    h.material.depthTest = false;
+    h.material.transparent = true;
+    h.renderOrder = 999;
+    h.userData.root = s.root;
+    site.scene.add(h);
+    selection.helpers.push(h);
+  }
+  app.library?.reveal(selection.key);
+  return hits[0] ?? null;
+};
+function updateSelection() {
+  if (!selection.key) return;
+  // The crane and the AGVs are rebuilt after some edits; re-attach the highlight to the new ones.
+  if (selection.helpers.some((h) => !h.userData.root.parent)) return void app.select(selection.key);
+  for (const h of selection.helpers) h.update();
+}
+// Jump from the library (or a pick) to an object in the scene.
+app.focusObject = (key) => {
+  const hit = app.select(key);
+  if (!hit) return app.toast('场景中找不到这个物件', true);
+  if (key === 'agv') app.setView('follow', { wide: true });
+  else if (key === 'crane') app.setView('crane', { wide: true });
+  else frameBox(new THREE.Box3().setFromObject(hit.root));
+  setRotateLater(false);
+  app.toast(`已跳转到 ${hit.name}`);
+  return hit;
+};
+
+const raycaster = new THREE.Raycaster();
+const pickStart = { x: 0, y: 0, on: false };
+// Runs before OrbitControls (capture on the parent): choose what the right button does.
+view.addEventListener('pointerdown', (e) => {
+  if (e.target !== canvas) return;
+  if (e.button === 2) controls.mouseButtons.RIGHT = (e.ctrlKey || e.metaKey || e.altKey) && !e.shiftKey ? THREE.MOUSE.DOLLY : THREE.MOUSE.ROTATE;
+  if (e.button === 0) Object.assign(pickStart, { x: e.clientX, y: e.clientY, on: true });
+}, true);
+
+// The right button belongs to the 3D view: a right-drag that starts on the scene always rotates and
+// never opens the browser menu, wherever it is released. Cancelling pointerdown also suppresses the
+// legacy mousedown/mouseup that page-level mouse-gesture scripts listen for.
+let rightDrag = 0;
+addEventListener('pointerdown', (e) => {
+  if (e.button !== 2 || e.target !== canvas) return;
+  e.preventDefault();
+  rightDrag = Infinity;
+}, true);
+addEventListener('pointerup', (e) => {
+  if (e.button === 2 && rightDrag === Infinity) rightDrag = performance.now() + 400;
+}, true);
+for (const type of ['contextmenu', 'auxclick']) {
+  addEventListener(type, (e) => {
+    if (e.button !== 2 && type === 'auxclick') return;
+    if (e.target !== canvas && performance.now() > rightDrag) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+}
+canvas.addEventListener('lostpointercapture', () => {
+  if (rightDrag === Infinity) rightDrag = performance.now() + 400;
+});
+// Floor point (mm, plan coordinates) under a window position; used when a model is dragged in.
+app.floorAt = (cx, cy) => {
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  const p = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), p)) return null;
+  return { x: p.x * 1000, y: -p.z * 1000 };
+};
+canvas.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || !pickStart.on) return;
+  pickStart.on = false;
+  if (Math.hypot(e.clientX - pickStart.x, e.clientY - pickStart.y) > 5) return;
+  const r = canvas.getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const items = selectables();
+  const hit = raycaster.intersectObjects(items.map((s) => s.root), true).find((h) => h.object.visible);
+  let found = null;
+  for (let o = hit?.object; o && !found; o = o.parent) found = items.find((s) => s.root === o);
+  if (!found) return void app.select(null);
+  app.select(found.key);
+  app.toast(`已选取 ${found.name}（ZS 回车缩放至选取，Esc 取消）`);
+});
+
+// Command line: type a Rhino command or alias, Enter/Space runs it, Enter on an empty line repeats.
+const COMMANDS = {
+  ZE: ['缩放至全部', () => app.zoomExtents()],
+  ZEA: ['缩放至全部', () => app.zoomExtents()],
+  ZOOMEXTENTS: ['缩放至全部', () => app.zoomExtents()],
+  ZS: ['缩放至选取', () => app.zoomSelected()],
+  ZSA: ['缩放至选取', () => app.zoomSelected()],
+  ZOOMSELECTED: ['缩放至选取', () => app.zoomSelected()],
+  TOP: ['俯视', () => app.setView('top')],
+  FRONT: ['前视', () => app.setView('front')],
+  RIGHT: ['右视', () => app.setView('right')],
+  PERSPECTIVE: ['透视', () => app.setView('overview')],
+  SELNONE: ['取消选取', () => app.select(null)],
+  HIDE: ['隐藏面板', () => setCleanLater(true)],
+  SHOW: ['显示面板', () => setCleanLater(false)],
+  HELP: ['快捷键说明', () => toggleHelp(true)],
+};
+const cmd = { buf: '', last: null };
+const cmdEl = document.createElement('div');
+cmdEl.className = 'cmdline';
+cmdEl.hidden = true;
+view.append(cmdEl);
+function showCmd() {
+  cmdEl.hidden = !cmd.buf;
+  const hint = Object.keys(COMMANDS).filter((k) => cmd.buf && k.startsWith(cmd.buf)).slice(0, 4).map((k) => `${k} ${COMMANDS[k][0]}`).join(' · ');
+  cmdEl.innerHTML = `<b>命令:</b><span class="num">${cmd.buf}</span><i></i><small>${hint || '未知命令'}</small>`;
+}
+function runCmd(name) {
+  const c = COMMANDS[name];
+  cmd.buf = '';
+  showCmd();
+  if (!c) return app.toast(`未知命令：${name}`, true);
+  cmd.last = name;
+  c[1]();
+}
+
+// Shortcut sheet (F1).
+const helpEl = document.createElement('div');
+helpEl.className = 'keyhelp glass';
+helpEl.hidden = true;
+helpEl.innerHTML = `<header><b>快捷键 · 犀牛 Rhino 习惯</b><button type="button" data-help-x title="关闭（Esc）">✕</button></header>
+<div class="kh"><h5>鼠标</h5>
+<p><kbd>右键拖动</kbd>旋转视图</p><p><kbd>Shift</kbd>+<kbd>右键拖动</kbd>平移</p><p><kbd>Ctrl</kbd>/<kbd>Alt</kbd>+<kbd>右键拖动</kbd>缩放</p>
+<p><kbd>滚轮</kbd>缩放</p><p><kbd>中键拖动</kbd>平移</p><p><kbd>左键单击</kbd>选取设备（黄框），点空白取消</p>
+<h5>键盘</h5>
+<p><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd>旋转视图</p><p><kbd>Shift</kbd>+方向键 平移</p><p><kbd>PgUp</kbd>/<kbd>PgDn</kbd>缩放</p>
+<p><kbd>Home</kbd>/<kbd>End</kbd>上一个 / 下一个视图</p><p><kbd>Ctrl</kbd>+<kbd>F1</kbd>俯视　<kbd>Ctrl</kbd>+<kbd>F2</kbd>前视　<kbd>Ctrl</kbd>+<kbd>F3</kbd>右视</p>
+<p><kbd>Ctrl</kbd>+<kbd>F4</kbd> 在浏览器里会关闭标签页，透视请用命令 <kbd>Perspective</kbd> 或「总览」按钮</p><p><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>缩放至全部</p>
+<p><kbd>Esc</kbd>取消命令 / 取消选取</p><p><kbd>Delete</kbd>移出选中的上传模型</p>
+<h5>命令行（直接打字，回车或空格执行；空行回车重复上一条）</h5>
+<p><kbd>ZE</kbd>缩放至全部　<kbd>ZS</kbd>缩放至选取</p><p><kbd>Top</kbd> <kbd>Front</kbd> <kbd>Right</kbd> <kbd>Perspective</kbd>切换视图</p><p><kbd>SelNone</kbd>取消选取　<kbd>Hide</kbd>/<kbd>Show</kbd>隐藏 / 显示面板</p>
+<h5>本工作台</h5>
+<p><kbd>空格</kbd>播放 / 暂停（命令行为空时）</p><p><kbd>H</kbd>清屏 / 恢复面板</p><p><kbd>F1</kbd>打开 / 关闭本说明</p></div>`;
+view.append(helpEl);
+function toggleHelp(on = helpEl.hidden) {
+  helpEl.hidden = !on;
+  $('keysBtn')?.classList.toggle('on', on);
+}
+helpEl.addEventListener('click', (e) => { if (e.target.closest('[data-help-x]')) toggleHelp(false); });
+$('keysBtn')?.addEventListener('click', () => toggleHelp());
+
+const VIEW_KEYS = { F1: 'top', F2: 'front', F3: 'right' };
+addEventListener('keydown', (e) => {
+  if (e.target.closest?.('textarea,input,select,[contenteditable="true"]')) return;
+  if (app.popout?.current) return; // the pop-out window owns Esc
+  const k = e.key;
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && VIEW_KEYS[k]) {
+    e.preventDefault();
+    app.setView(VIEW_KEYS[k]);
+    return;
+  }
+  if (ctrl && e.shiftKey && k.toLowerCase() === 'e') {
+    e.preventDefault();
+    app.zoomExtents();
+    return;
+  }
+  if (k === 'F1') {
+    e.preventDefault();
+    toggleHelp();
+    return;
+  }
+  if (ctrl || e.altKey) return; // leave the browser's own shortcuts alone
+  const step = THREE.MathUtils.degToRad(5);
+  if (k.startsWith('Arrow')) {
+    e.preventDefault();
+    const dx = k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : 0;
+    const dy = k === 'ArrowUp' ? 1 : k === 'ArrowDown' ? -1 : 0;
+    if (e.shiftKey) panBy(dx, dy);
+    else orbitBy(-dx * step, -dy * step);
+    return;
+  }
+  if (k === 'PageUp' || k === 'PageDown') {
+    e.preventDefault();
+    zoomBy(k === 'PageUp' ? 0.85 : 1 / 0.85);
+    return;
+  }
+  if (k === 'Home' || k === 'End') {
+    e.preventDefault();
+    if (!(k === 'Home' ? app.undoView() : app.redoView())) app.toast(k === 'Home' ? '没有更早的视图' : '没有下一个视图');
+    return;
+  }
+  if (k === 'Escape') {
+    if (cmd.buf) {
+      cmd.buf = '';
+      showCmd();
+    } else if (!helpEl.hidden) toggleHelp(false);
+    else if (selection.key) app.select(null);
+    else if (document.body.classList.contains('clean')) setCleanLater(false);
+    return;
+  }
+  if (k === 'Backspace' && cmd.buf) {
+    e.preventDefault();
+    cmd.buf = cmd.buf.slice(0, -1);
+    showCmd();
+    return;
+  }
+  if (k === 'Enter' || k === ' ') {
+    e.preventDefault();
+    if (cmd.buf) runCmd(cmd.buf);
+    else if (k === 'Enter' && cmd.last) runCmd(cmd.last);
+    else if (k === ' ') $('playBtn').click();
+    return;
+  }
+  if (k === 'Delete' && selection.key) {
+    if (selection.key.startsWith('asset:')) {
+      app.library.remove(selection.key.slice(6));
+      app.select(null);
+      app.toast('已把选中的模型移出场景');
+    } else app.toast('AGV 和行车是方案设备，不能删除', true);
+    return;
+  }
+  if (/^[a-z]$/i.test(k)) {
+    // A lone H keeps toggling the clean screen; letters after others build a command.
+    if (!cmd.buf && (k === 'h' || k === 'H')) {
+      setCleanLater(!document.body.classList.contains('clean'));
+      return;
+    }
+    cmd.buf += k.toUpperCase();
+    showCmd();
+  }
+});
 
 // ---------------------------------------------------------------- labels
 
@@ -388,8 +748,10 @@ function paramsHtml() {
   const product = app.product;
   const state = stateOf();
   const prod = CATALOG.map((p) => `<button data-product="${p.id}" class="${p.id === product.id ? 'on' : ''}">${p.model}</button>`).join('');
-  const vehicle = Object.entries(product.params).map(([k, p]) => `<div class="param"><label>${p.label}<b class="num">${Math.round(state[k])} mm</b></label><input type="range" data-vparam="${k}" min="${p.min}" max="${p.max}" step="${p.step}" value="${state[k]}" title="产品库范围 ${p.min}–${p.max} mm"></div>`).join('');
-  const motion = SLIDERS.map((s) => `<div class="param"><label>${s.label}<b class="num">${Number(s.get().toFixed(2))} ${s.unit}</b></label><input type="range" data-mparam="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.get()}" title="${s.min}–${s.max} ${s.unit}"></div>`).join('');
+  // Typed values, checked against the range when the field is committed (Enter / Tab / click away).
+  const field = (attr, key, label, value, min, max, unit, digits) => `<div class="param"><label>${label}<small class="num">${min}–${max} ${unit}</small></label><div class="nin"><input type="number" inputmode="decimal" ${attr}="${key}" min="${min}" max="${max}" step="any" value="${Number(value.toFixed(digits))}" title="输入数值后回车，范围 ${min}–${max} ${unit}"><em>${unit}</em></div></div>`;
+  const vehicle = Object.entries(product.params).map(([k, p]) => field('data-vparam', k, p.label, state[k], p.min, p.max, 'mm', 1)).join('');
+  const motion = SLIDERS.map((s) => field('data-mparam', s.key, s.label, s.get(), s.min, s.max, s.unit, 2)).join('');
   return `<div class="prod">${prod}</div><div class="params">${vehicle}${motion}
   <div class="param"><label>起重机跨度<b class="num">${(Math.abs(site.runway.high - site.runway.low) / 1000).toFixed(2)} m</b></label><label>吊具 / 卷材<b>C 形钩 · Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</b></label></div></div>`;
 }
@@ -443,7 +805,14 @@ function laterHtml() {
 function renderDock() {
   if (!site.process || !app.product) return;
   const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml, ...(app.dockTabs ?? {}) }[app.tab]();
+  const focused = document.activeElement?.closest?.('#dockMain input');
+  const key = focused && (focused.dataset.vparam ? `[data-vparam="${focused.dataset.vparam}"]` : focused.dataset.mparam ? `[data-mparam="${focused.dataset.mparam}"]` : null);
   $('dockMain').innerHTML = body;
+  if (key) {
+    const next = $('dockMain').querySelector(key);
+    next?.focus();
+    next?.select();
+  }
   updatePlayhead();
 }
 app.renderDock = renderDock;
@@ -515,6 +884,7 @@ app.refresh = () => {
   renderKpis();
   renderProcList();
   renderTimeline();
+  app.library?.render();
   app.save?.();
 };
 
@@ -595,6 +965,7 @@ const setRotate = (on) => {
   $('rotateBtn').classList.toggle('on', on);
 };
 $('rotateBtn').addEventListener('click', () => setRotate(!app.autoRotate));
+setRotateLater = setRotate;
 $('labelBtn').addEventListener('click', () => {
   document.body.classList.toggle('nolabels');
   $('labelBtn').classList.toggle('on', !document.body.classList.contains('nolabels'));
@@ -607,13 +978,26 @@ $('resetBtn').addEventListener('click', () => {
 // Panels fold to their header; the camera re-centres on the space they free up.
 const relayout = () => {
   resize();
-  if (app.view === 'overview' || app.view === 'top') app.setView(app.view);
+  if (['overview', 'top', 'front', 'right'].includes(app.view)) app.setView(app.view, { noHistory: true });
 };
+// Every card starts folded to its header; clicking the header opens or folds it. Controls inside
+// the header (library tabs, pop-out) only open a folded card.
 document.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-min]');
-  if (!b) return;
-  b.closest('.panel').classList.toggle('min-on');
+  const head = e.target.closest('.panel > .ph, .panel > .ahead');
+  if (!head) return;
+  const panel = head.closest('.panel');
+  if (panel.classList.contains('popped')) return;
+  const control = e.target.closest('button, input, label, a');
+  if (control && !control.matches('[data-min]')) {
+    if (!panel.classList.contains('min-on')) return;
+    panel.classList.remove('min-on');
+  } else panel.classList.toggle('min-on');
   relayout();
+});
+// Chat cards: only the newest is open; click a card title to open or fold it.
+$('msgs').addEventListener('click', (e) => {
+  const h = e.target.closest('.card > h4');
+  if (h && !e.target.closest('[data-pop]')) h.parentElement.classList.toggle('fold');
 });
 // One-click clean screen: hide every panel, keep only the 3D site.
 const setClean = (on) => {
@@ -622,12 +1006,7 @@ const setClean = (on) => {
 };
 $('clearBtn').addEventListener('click', () => setClean(true));
 $('restoreBtn').addEventListener('click', () => setClean(false));
-addEventListener('keydown', (e) => {
-  if (e.target.closest('textarea,input,select')) return;
-  if (e.key === 'h' || e.key === 'H') setClean(!document.body.classList.contains('clean'));
-  else if (e.key === 'Escape' && document.body.classList.contains('clean')) setClean(false);
-  else if (e.key === ' ') { e.preventDefault(); $('playBtn').click(); }
-});
+setCleanLater = setClean;
 
 // Record the 3D view to a WebM file.
 app.record = (on = !app.recorder) => {
@@ -686,18 +1065,46 @@ $('dockMain').addEventListener('click', async (e) => {
   return undefined;
 });
 
-$('dockMain').addEventListener('input', (e) => {
-  const v = e.target.dataset.vparam;
-  const m = e.target.dataset.mparam;
-  if (v) {
-    app.setVehicleParams({ [v]: Number(e.target.value) });
-  } else if (m) {
-    SLIDERS.find((s) => s.key === m).set(Number(e.target.value));
-    app.refresh();
-  }
-});
+// Parameters are typed in; nothing changes until the value is committed, and an out-of-range
+// or empty value is refused with the allowed range instead of being clamped silently.
 $('dockMain').addEventListener('change', (e) => {
-  if (e.target.dataset.vparam || e.target.dataset.mparam) app.bump();
+  const input = e.target;
+  const v = input.dataset.vparam;
+  const m = input.dataset.mparam;
+  if (!v && !m) return;
+  const value = Number(String(input.value).replace(',', '.'));
+  const min = Number(input.min);
+  const max = Number(input.max);
+  const unit = input.nextElementSibling?.textContent ?? '';
+  const label = input.closest('.param')?.querySelector('label')?.firstChild?.textContent ?? '';
+  if (input.value === '' || !Number.isFinite(value) || value < min || value > max) {
+    input.classList.add('bad');
+    app.toast(`${label} 需在 ${min}–${max} ${unit} 之间`, true);
+    return;
+  }
+  input.classList.remove('bad');
+  // Re-render after the focus has moved, so Tab lands on the next field of the new markup.
+  setTimeout(() => {
+    try {
+      if (v) app.setVehicleParams({ [v]: value });
+      else {
+        SLIDERS.find((s) => s.key === m).set(value);
+        app.refresh();
+      }
+      app.bump();
+      app.toast(`${label} 已设为 ${value} ${unit}`);
+    } catch (error) {
+      app.toast(error.message, true);
+    }
+  }, 0);
+});
+// No wheel-scrubbing of typed values: the wheel scrolls the drawer instead.
+$('dockMain').addEventListener('wheel', (e) => { if (e.target.matches('.nin input')) e.target.blur(); }, { passive: true });
+$('dockMain').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && e.target.matches('.nin input')) {
+    e.target.blur();
+    renderDock();
+  }
 });
 
 // ---------------------------------------------------------------- loop
@@ -720,6 +1127,7 @@ function resize() {
 new ResizeObserver(resize).observe(view);
 
 controls.addEventListener('start', () => {
+  rememberView();
   fly.active = false;
   setRotate(false);
 });
@@ -812,6 +1220,7 @@ function frame(dt) {
     fitDepthRange(camera, controls.target);
     updateShadows(delta);
     for (const hook of app.frameHooks ?? []) hook(delta);
+    updateSelection();
     renderer.render(site.scene, camera);
     if (!manual) adaptPixelRatio();
     updateLabels();
@@ -840,14 +1249,17 @@ async function boot() {
     });
     await site.loadBase(text, '模拟平面图 sample-plant.dxf');
     app.baseDxf = { text, name: '模拟平面图 sample-plant.dxf' };
-    $('source').textContent = '某钢厂冷轧车间 · sample-plant.dxf';
+    app.sampleDxf = app.baseDxf; // a new scene starts from the sample plant
+    $('source').textContent = '主场景 · sample-plant.dxf';
     loading.textContent = '正在加载 AGV1…';
     await app.selectProduct('agv1');
     resize();
     app.setStep(4);
     app.setTab('gantt', false);
+    loading.textContent = '正在载入项目库…';
     app.library = new Library(app);
-    app.library.init();
+    app.save = () => app.library?.persistSoon();
+    await app.library.init();
     // Any panel, the table drawer or a chat card can be popped out into a large window.
     app.popout = initPopout({
       titleFor: (el) => (el.id === 'drawer' ? document.querySelector('#tabs button.on')?.textContent : null),

@@ -11,7 +11,7 @@ const fn = (name, description, properties = {}, required = []) => ({
 });
 
 export const SCHEMAS = [
-  fn('list_library', '列出资源库：产品库车型、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型。'),
+  fn('list_library', '列出资源库：标准产品库车型，当前项目的产品库、场景和文件（用户上传并已转换的模型/图纸/图片），以及已放进场景的模型。'),
   fn('place_asset', '把场景库里的三维模型放进厂房（已放过的会挪到新位置）。位置按用户原话给：绝对坐标 x_mm/y_mm，或参考点位 ref 加偏移 east_m/north_m（X 向东、Y 向北）。用户没说位置时先问，不要自己定。', {
     asset: { type: 'string', description: '场景库文件 id 或名称' },
     ref: { type: 'string', description: '参考点位编号，如 RM-01、H-01' },
@@ -119,7 +119,7 @@ export function createTools(app) {
       效率: { 节拍_s: +eff.takt.toFixed(1), 每小时: +eff.perHour.toFixed(1), 瓶颈: eff.bottleneck, 目标节拍_s: eff.target, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1) },
       播放: { 时间_s: +site.time.toFixed(1), 总长_s: +site.duration.toFixed(1), 播放中: site.playing, 分步: site.window?.step ?? null, 倍速: site.speed },
       待确认工序: app.pendingProcess ?? null,
-      场景库: (app.library?.assets ?? []).slice(-12).map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 可用: a.status === 'ready', 底图: a.meta?.convention === 'generic' || undefined })),
+      项目库: app.library?.ws ? app.library.summary() : null,
       已放入模型: app.library?.placedList() ?? [],
     };
   };
@@ -329,11 +329,11 @@ export function createTools(app) {
       await lib.reload();
       return {
         result: {
-          产品库: lib.products.map((p) => p.model ?? p.name),
-          场景库: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 说明: a.message || undefined })),
+          ...lib.summary(),
+          全部上传文件: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 说明: a.message || undefined })),
           已放入场景: lib.placedList(),
         },
-        chip: `产品 ${lib.products.length} · 场景 ${lib.assets.length}`,
+        chip: `标准产品 ${lib.std.length} · ${lib.ws.active.name}`,
       };
     },
 

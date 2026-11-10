@@ -400,7 +400,7 @@ export async function convertModel({ format, buffer, name, vfs = null, mainDir =
 
 const DXF_UNITS = { 0: null, 1: 25.4, 2: 304.8, 4: 1, 5: 10, 6: 1000, 14: 100 };
 
-function decodeDxf(buffer) {
+export function decodeDxf(buffer) {
   const utf8 = buffer.toString('utf8');
   if (!utf8.includes('�')) return utf8.replace(/^﻿/, '');
   if (/ANSI_936|GB2312|GBK/i.test(buffer.toString('latin1', 0, 1 << 16))) {

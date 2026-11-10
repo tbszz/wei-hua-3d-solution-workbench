@@ -143,7 +143,7 @@ function textPlane(text, heightMm) {
   const height = (heightMm / 1000) * 1.35;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry((height * canvas.width) / canvas.height, height),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }),
   );
   mesh.rotation.x = -Math.PI / 2;
   return mesh;
@@ -581,29 +581,39 @@ export function buildPlant(plant, textures) {
     group.add(placed(new THREE.BoxGeometry(length, 0.9, beam.width / 1000), beamMaterial, (a.x + b.x) / 2, 9.4, (a.y + b.y) / 2, Math.atan2(b.y - a.y, b.x - a.x)));
   }
 
-  const markGeometries = {};
   // Floor paint: lanes and walkways are full colour bands, thin marks sit on top of them.
-  plant.marks.forEach((mark, i) => {
-    (markGeometries[mark.color] ??= []).push(ribbon(mark, mark.width || 80, 0.004 + (mark.width > 1000 ? 0 : 0.002) + i * 1e-5));
-  });
-  for (const [color, list] of Object.entries(markGeometries)) {
+  // Overlapping coplanar paint z-fights (the yellow lane runs 0.3 m into the green walkways), so
+  // every layer gets a fixed rank: wide bands in drawing order, then thin lines by colour with
+  // white on top. Each rank is 1 mm higher and pulled a further 2 depth units forward, which keeps
+  // the order stable both up close and from across the hall.
+  const bands = plant.marks.filter((mark) => mark.width > 1000);
+  const lineRank = { green: 0, yellow: 1, white: 2 };
+  const layers = new Map();
+  for (const mark of plant.marks) {
+    const rank = mark.width > 1000 ? bands.indexOf(mark) : bands.length + (lineRank[mark.color] ?? 2);
+    const layer = layers.get(rank) ?? { color: mark.color, list: [] };
+    layer.list.push(ribbon(mark, mark.width || 80, 0.004 + rank * 0.001));
+    layers.set(rank, layer);
+  }
+  for (const [rank, { color, list }] of layers) {
     const material = new THREE.MeshStandardMaterial({
-      color: MARK_HEX[color], roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      color: MARK_HEX[color], roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 - rank * 2,
     });
     material.defines = { DETAIL_FLOOR: '' };
     const mesh = new THREE.Mesh(mergeGeometries(list), material);
     mesh.receiveShadow = true;
+    mesh.renderOrder = rank;
     group.add(mesh);
   }
   const route = new THREE.Mesh(
-    mergeGeometries(plant.paths.map((path) => ribbon(path, 50, 0.012))),
-    new THREE.MeshBasicMaterial({ color: SHOW_PATH_COLOR, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+    mergeGeometries(plant.paths.map((path) => ribbon(path, 50, 0.012 + layers.size * 0.001))),
+    new THREE.MeshBasicMaterial({ color: SHOW_PATH_COLOR, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 - layers.size * 2 }),
   );
   group.add(route);
 
   for (const label of plant.labels) {
     const mesh = textPlane(label.text, label.height);
-    mesh.position.set(worldX(label.x), 0.016, worldZ(label.y));
+    mesh.position.set(worldX(label.x), 0.02, worldZ(label.y));
     group.add(mesh);
   }
 

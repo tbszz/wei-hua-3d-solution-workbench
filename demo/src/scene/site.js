@@ -55,9 +55,9 @@ export class Site {
     this.scene.add(this.sun, this.sun.target);
     this.contact = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: softShadowTexture(), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }),
+      new THREE.MeshBasicMaterial({ map: softShadowTexture(), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -24 }),
     );
-    this.contact.position.y = 0.018;
+    this.contact.position.y = 0.022;
     this.scene.add(this.contact);
     this.carrier = new THREE.Group();
     this.scene.add(this.carrier);
