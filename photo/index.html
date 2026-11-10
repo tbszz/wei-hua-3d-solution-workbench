@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>照片现场</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="stage" class="stage">
+      <div id="frame" class="frame" hidden>
+        <img id="photo" alt="现场照片" draggable="false" />
+        <canvas id="gl" class="gl"></canvas>
+        <svg id="marks" class="marks" aria-hidden="true"><polygon id="quad" /></svg>
+        <div id="handles" class="handles"></div>
+      </div>
+      <canvas id="loupe" class="loupe" width="160" height="160" hidden></canvas>
+      <div id="empty" class="empty">
+        <p>上传一张现场照片，或者先用示例照片试一试。</p>
+      </div>
+    </main>
+
+    <aside class="panel">
+      <header>
+        <p class="eyebrow">卫华 · 3D 工业方案演示</p>
+        <h1>照片现场</h1>
+      </header>
+      <nav class="steps" aria-label="步骤">
+        <button type="button" data-step="photo" aria-current="step">1 照片</button>
+        <button type="button" data-step="points" disabled>2 标定</button>
+        <button type="button" data-step="place" disabled>3 放车</button>
+      </nav>
+
+      <section id="step-photo" class="step">
+        <div class="row">
+          <label class="action primary file">上传照片<input id="upload" type="file" accept="image/*" /></label>
+          <button id="sample" class="action" type="button">用示例照片</button>
+        </div>
+        <ul class="hint list">
+          <li>地面上要拍到一个矩形：地砖、划线区、四根柱脚都行，越大越好。</li>
+          <li>斜着拍，让平行线明显汇聚；不要正对地面俯拍。</li>
+          <li>用手机原图，不要裁剪，尽量用 1× 主摄。</li>
+        </ul>
+        <p id="photo-info" class="hint"></p>
+      </section>
+
+      <section id="step-points" class="step" hidden>
+        <p class="hint">按 <b>A → B → C → D</b> 顺着矩形的边点 4 个角，点错了可以拖动微调，拖动时左上角有放大镜。</p>
+        <p id="progress" class="progress"></p>
+        <div class="fields">
+          <label>AB 边长<span><input id="ab" type="number" min="0.1" step="0.01" inputmode="decimal" /> m</span></label>
+          <label>BC 边长<span><input id="bc" type="number" min="0.1" step="0.01" inputmode="decimal" /> m</span></label>
+        </div>
+        <p class="hint">两条边都要填。只给一条边时没有多余的条件，反算误差永远是 0，点歪了也发现不了。</p>
+        <div id="result" class="result" hidden>
+          <div class="verdict"><strong id="error"></strong><span id="badge" class="badge"></span></div>
+          <p id="message" class="message"></p>
+          <table id="checks" class="checks"></table>
+          <dl class="readout">
+            <div><dt>等效焦距</dt><dd id="r-focal"></dd></div>
+            <div><dt>相机高度</dt><dd id="r-height"></dd></div>
+            <div><dt>俯角</dt><dd id="r-pitch"></dd></div>
+            <div><dt>重投影</dt><dd id="r-reproj"></dd></div>
+          </dl>
+          <p id="warnings" class="hint warn"></p>
+        </div>
+        <p id="calib-error" class="hint error" hidden></p>
+        <div class="row">
+          <button id="clear" class="action" type="button">重新点</button>
+          <label class="toggle"><input id="grid" type="checkbox" checked /> 显示 1 m 地面网格</label>
+        </div>
+        <button id="to-place" class="action primary" type="button" disabled>下一步：放车</button>
+      </section>
+
+      <section id="step-place" class="step" hidden>
+        <ul id="catalog" class="catalog" aria-label="产品库"></ul>
+        <p class="hint">在照片上拖动车移动，点地面把车放过去，滚轮旋转。</p>
+        <label class="slider">朝向 <input id="heading" type="range" min="-180" max="180" step="1" value="0" /> <output id="heading-out">0°</output></label>
+        <label class="slider">亮度 <input id="exposure" type="range" min="0.3" max="1.6" step="0.05" value="0.8" /> <output id="exposure-out">0.80</output></label>
+        <div class="row">
+          <button id="center" class="action" type="button">放回矩形中心</button>
+          <button id="back" class="action" type="button">回去改标定</button>
+        </div>
+        <button id="export" class="action primary" type="button" disabled>导出 PNG</button>
+        <p id="export-info" class="hint"></p>
+      </section>
+      <footer id="status" class="status" role="status"></footer>
+    </aside>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
