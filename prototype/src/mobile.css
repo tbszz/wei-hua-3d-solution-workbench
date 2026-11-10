@@ -1,0 +1,106 @@
+/* Phone layout (mobile.js). Only applies while <html> has .m-phone, which mobile.js sets from the
+   same media query (≤ 760px wide, or a landscape phone ≤ 500px tall), so desktop is untouched.
+
+   What a phone shows: a compact title bar, the full-screen 3D view (touch rotate / pinch zoom),
+   and a bottom dock with 项目案例库 · 工序流程 · 可视化大屏. Cards open as bottom sheets above the
+   dock (side sheets in landscape) and minimise to one-line strips just above the dock.
+
+   The dock lives inside section.bottom and the title bar is header.top itself, so main.js keeps
+   measuring the free 3D area between them (measureFree) without knowing about phones. */
+
+.m-dock,.m-proc,.m-play{display:none}
+
+html.m-phone{
+  --gap:6px;--top:44px;--bottom:58px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  overscroll-behavior:none;
+}
+html.m-phone body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html.m-phone #canvas{touch-action:none}
+
+/* ---------------------------------------------------------------- what phones hide */
+html.m-phone aside.left,
+html.m-phone aside.right,
+html.m-phone .drawer,
+html.m-phone .restore,
+html.m-phone .keyhelp,
+html.m-phone .cmdline,
+html.m-phone .top .modnav,
+html.m-phone .top .steps,
+html.m-phone .top .kpibar,
+html.m-phone .top .clock,
+html.m-phone .top .acts-top,
+html.m-phone .bottom>.ctl,
+html.m-phone .bottom>.tl{display:none!important}
+/* the clean-screen mode has no way back on a phone: keep bars visible */
+html.m-phone body.clean .top,html.m-phone body.clean .bottom{display:flex}
+html.m-phone body.clean .pc-layer{display:block}
+
+/* ---------------------------------------------------------------- title bar */
+html.m-phone .top{left:var(--gap);right:var(--gap);top:calc(var(--gap) + env(safe-area-inset-top,0px));height:var(--top);gap:8px;padding:0 6px 0 6px}
+html.m-phone .top::after{width:40%}
+html.m-phone .brand{gap:8px}
+html.m-phone .mark{width:30px;height:30px;font-size:15px}
+html.m-phone .ttlrow>b{font-size:15px}
+html.m-phone .runst{padding:3px 8px;font-size:12px}
+html.m-phone .m-play{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:17px;background:var(--red,#D7000F);color:#fff;font-size:13px;line-height:1}
+html.m-phone .m-play.paused{background:var(--ink,#1F2329)}
+
+/* ---------------------------------------------------------------- dock */
+html.m-phone .bottom{left:var(--gap);right:var(--gap);bottom:calc(var(--gap) + var(--safe-b));height:var(--bottom);padding:0;gap:0;flex-direction:row}
+html.m-phone .m-dock{display:flex;flex:1;align-items:stretch;gap:4px;padding:4px}
+.m-dock button{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:var(--r,4px);
+  font-size:12px;color:var(--ink2,#646A73);white-space:nowrap;position:relative}
+.m-dock button svg{width:20px;height:20px;flex:none}
+.m-dock button:active{background:rgba(31,35,41,.06)}
+.m-dock button.on{color:var(--red,#D7000F);background:var(--red-light,#FCE8EA);font-weight:600}
+.m-dock button.m-dash{color:#fff;background:var(--ink,#1F2329)}
+.m-dock button.m-dash:active{background:var(--red,#D7000F)}
+
+html.m-phone .toast{bottom:calc(var(--bottom) + var(--gap) * 2 + var(--safe-b) + 6px);max-width:calc(100% - 24px);text-align:center}
+
+/* ---------------------------------------------------------------- sheets (portrait) */
+/* popcard.css already turns cards into bottom sheets at ≤ 760px; lift them above the dock. */
+html.m-phone .pc-card{left:var(--gap)!important;right:var(--gap);top:auto!important;bottom:calc(var(--bottom) + var(--gap) * 2 + var(--safe-b));
+  width:auto!important;height:auto!important;max-height:min(62vh,calc(100% - var(--top) - var(--bottom) - var(--gap) * 5 - var(--safe-b)))!important;
+  border-radius:12px;border:0;border-top:2px solid var(--red,#D7000F);box-shadow:0 -6px 28px rgba(31,35,41,.22)}
+html.m-phone .pc-card .pc-btn[data-pc="pop"],html.m-phone .pc-card .pc-rs{display:none}
+html.m-phone .pc-card .pc-bar{cursor:default}
+html.m-phone .pc-card .pc-meta{font-size:11.5px}
+
+/* the process sheet: transport row on top, roomy rows, no 小华 hint */
+html.m-phone .m-proc{display:flex;align-items:center;gap:6px;padding:8px 8px 2px;flex:none}
+.m-proc button{height:34px;padding:0 12px;border-radius:17px;font-size:13px;border:1px solid rgba(31,35,41,.14);background:#fff;color:var(--ink,#1F2329);white-space:nowrap}
+.m-proc button.m-pp{background:var(--red,#D7000F);border-color:var(--red,#D7000F);color:#fff;min-width:86px;font-weight:600}
+.m-proc button.m-pp.paused{background:var(--ink,#1F2329);border-color:var(--ink,#1F2329)}
+.m-proc .m-hint{margin-left:auto;font-size:11.5px;color:var(--ink3,#8F959E);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+html.m-phone .pc-card #flowBox,html.m-phone .pc-card .secbody>.libhint{display:none!important}
+html.m-phone .pc-card .proclist li{padding:10px 10px 10px 8px}
+html.m-phone .pc-card .proclist li b{font-size:14px}
+/* case library rows: the hover-only actions are always visible on touch */
+html.m-phone .pc-card .tree .racts{opacity:1}
+
+/* ---------------------------------------------------------------- minimised strips */
+html.m-phone .pc-dock{left:var(--gap);right:var(--gap);bottom:calc(var(--bottom) + var(--gap) * 2 + var(--safe-b));max-width:none;align-items:stretch;gap:4px}
+html.m-phone .pc-strip{width:100%;max-width:none;min-width:0;height:36px;border-radius:18px;padding:0 4px 0 12px;font-size:12.5px;
+  background:rgba(255,255,255,.97);box-shadow:0 3px 12px rgba(31,35,41,.16)}
+html.m-phone .pc-strip .pc-st{max-width:45%}
+html.m-phone .pc-strip .pc-sv{font-size:12.5px}
+html.m-phone .pc-strip .pc-sx{width:30px;height:30px;border-radius:15px}
+
+/* ---------------------------------------------------------------- landscape phones */
+/* Short screens: a slim bar and dock, and cards become a side sheet on the left so the model
+   stays visible on the right. */
+html.m-phone.m-land{--top:38px;--bottom:44px}
+html.m-phone.m-land .mark{width:26px;height:26px;font-size:13px}
+html.m-phone.m-land .m-play{width:30px;height:30px}
+html.m-phone.m-land .m-dock button{flex-direction:row;gap:6px;font-size:12.5px}
+html.m-phone.m-land .m-dock button svg{width:18px;height:18px}
+html.m-phone.m-land .pc-card{left:calc(var(--gap) + env(safe-area-inset-left,0px))!important;right:auto;
+  top:calc(var(--top) + var(--gap) * 2)!important;bottom:calc(var(--bottom) + var(--gap) * 2 + var(--safe-b));
+  width:min(360px,46vw)!important;max-height:none!important;border-radius:8px;box-shadow:6px 0 24px rgba(31,35,41,.2)}
+html.m-phone.m-land .pc-card .pc-grip{display:none}
+html.m-phone.m-land .pc-card .pc-bar{height:36px}
+/* strips go bottom-right, clear of the side sheet on the left */
+html.m-phone.m-land .pc-dock{left:auto;right:calc(var(--gap) + env(safe-area-inset-right,0px));width:min(380px,calc(100% - min(360px,46vw) - var(--gap) * 4));z-index:0}
+html.m-phone.m-land .pc-strip{height:32px}
