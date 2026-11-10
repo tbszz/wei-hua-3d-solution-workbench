@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { loadPlan, runOffline, runOnline, runTool, sse, listPlanVersions } from './runtime.js';
 import { libraryRouter } from './library/routes.js';
+import { createCadRouter } from './cad/routes.js';
 import { TOOL_NAMES } from './domain/plan.js';
 
 export const app = express();
@@ -125,6 +126,7 @@ async function handleChat(req, res, projectId = 'default') {
 app.use(cors());
 app.use(libraryRouter); // product/scene library, uploads, project state + chat history (before the 8 MB JSON parser)
 app.use(express.json({ limit: '8mb' }));
+app.use(createCadRouter()); // text-to-cad parametric parts -> scene library / product library
 
 // The page's agent runs its tool loop in the browser (so every tool call lands in the 3D view)
 // and reaches the OpenAI-compatible model through here; key and CORS stay on the server.

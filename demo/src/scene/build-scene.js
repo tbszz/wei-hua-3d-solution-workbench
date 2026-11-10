@@ -143,7 +143,7 @@ function textPlane(text, heightMm) {
   const height = (heightMm / 1000) * 1.35;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry((height * canvas.width) / canvas.height, height),
-    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -24 }),
   );
   mesh.rotation.x = -Math.PI / 2;
   return mesh;
@@ -390,7 +390,7 @@ function neutralised(texture) {
 
 let sharedTextures = null;
 
-// Floor: scanned painted concrete. Walls, roof, doors, crates: baked by src/scene/make_factory_textures.py.
+// Floor, walls, roof, doors and crates use CC0 1K PBR assets documented in data/scene/SOURCES.md.
 export async function loadPlantTextures(maxAnisotropy = 8) {
   const loader = new THREE.TextureLoader();
   const root = '/scene/textures';
@@ -606,11 +606,11 @@ export function buildPlant(plant, textures) {
 
   const wallMaterial = new THREE.MeshStandardMaterial({
     map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough,
-    color: 0xb8babd, metalness: 0.08, roughness: 0.68,
+    color: new THREE.Color(1.32, 1.25, 1.12), metalness: 0.08, roughness: 0.68,
   });
   const dadoMaterial = new THREE.MeshStandardMaterial({
     map: textures.blockColor, normalMap: textures.blockNormal, roughnessMap: textures.blockRough,
-    color: 0xb6aa94, metalness: 0, roughness: 0.82,
+    color: new THREE.Color(1.35, 1.16, 0.92), metalness: 0, roughness: 0.82,
   });
   const sides = [];
   for (const wall of plant.walls) {
@@ -659,33 +659,43 @@ export function buildPlant(plant, textures) {
     inner.beam.add(placed(new THREE.BoxGeometry(length, 0.9, beam.width / 1000), beamMaterial, (a.x + b.x) / 2, 9.4, (a.y + b.y) / 2, Math.atan2(b.y - a.y, b.x - a.x)));
   }
 
-  const markGeometries = {};
   // Floor paint: lanes and walkways are full colour bands, thin marks sit on top of them.
-  plant.marks.forEach((mark, i) => {
-    (markGeometries[mark.color] ??= []).push(ribbon(mark, mark.width || 80, 0.004 + (mark.width > 1000 ? 0 : 0.002) + i * 1e-6));
-  });
-  for (const [color, list] of Object.entries(markGeometries)) {
+  // Overlapping coplanar paint z-fights (the yellow lane runs 0.3 m into the green walkways), so
+  // every layer gets a fixed rank: wide bands in drawing order, then thin lines by colour with
+  // white on top. Each rank is 1 mm higher and pulled a further 2 depth units forward, which keeps
+  // the order stable both up close and from across the hall.
+  const bands = plant.marks.filter((mark) => mark.width > 1000);
+  const lineRank = { green: 0, yellow: 1, white: 2 };
+  const layers = new Map();
+  for (const mark of plant.marks) {
+    const rank = mark.width > 1000 ? bands.indexOf(mark) : bands.length + (lineRank[mark.color] ?? 2);
+    const layer = layers.get(rank) ?? { color: mark.color, list: [] };
+    layer.list.push(ribbon(mark, mark.width || 80, 0.004 + rank * 0.001));
+    layers.set(rank, layer);
+  }
+  for (const [rank, { color, list }] of layers) {
     const material = new THREE.MeshStandardMaterial({
-      color: MARK_HEX[color], roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+      color: MARK_HEX[color], roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 - rank * 2,
     });
     material.defines = { DETAIL_FLOOR: '' };
     const merged = mergeGeometries(list);
     if (!merged) continue;
     const mesh = new THREE.Mesh(merged, material);
     mesh.receiveShadow = true;
+    mesh.renderOrder = rank;
     ground.add(mesh);
   }
   if (plant.paths.length) {
-    const route = new THREE.Mesh(
-      mergeGeometries(plant.paths.map((path) => ribbon(path, 50, 0.012))),
-      new THREE.MeshBasicMaterial({ color: SHOW_PATH_COLOR, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+      const route = new THREE.Mesh(
+      mergeGeometries(plant.paths.map((path) => ribbon(path, 50, 0.012 + layers.size * 0.001))),
+      new THREE.MeshBasicMaterial({ color: SHOW_PATH_COLOR, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 - layers.size * 2 }),
     );
     ground.add(route);
   }
 
   for (const label of plant.labels) {
     const mesh = textPlane(label.text, label.height);
-    mesh.position.set(worldX(label.x), 0.016, worldZ(label.y));
+    mesh.position.set(worldX(label.x), 0.02, worldZ(label.y));
     ground.add(mesh);
   }
   if (plant.rails?.length) buildRails(plant.rails, ground);
@@ -712,7 +722,7 @@ export function buildPlant(plant, textures) {
 
   // Daylight windows are unlit: they read as bright as in the photos and cost nothing to shade.
   const glassMaterial = new THREE.MeshBasicMaterial({ map: textures.window, color: 0xc0c4c7 });
-  const panelMaterial = new THREE.MeshStandardMaterial({ map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough, color: 0xb8babd, metalness: 0.08, roughness: 0.68 });
+  const panelMaterial = new THREE.MeshStandardMaterial({ map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough, color: new THREE.Color(1.32, 1.25, 1.12), metalness: 0.08, roughness: 0.68 });
   for (const pane of plant.glazing) {
     const rect = pane.rects[0];
     const sill = Number(pane.attrs.SILL ?? 1500) / 1000;

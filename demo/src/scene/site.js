@@ -9,7 +9,7 @@ import { buildTimeline, cargoStateAt, poseAt } from './route.js';
 
 export const SAMPLE_PLAN = '/cad/sample-plant.dxf';
 
-// Depth precision follows the orbit distance. A fixed 0.1 m near plane leaves centimetres of depth
+// Depth precision follows the orbit distance. A fixed 0.1 m near plane leaves about 1 cm of depth
 // resolution on the floor at the 300-500 m overview, so the floor paint (4 mm up), the route and the
 // contact shadow z-fight with the floor and the whole hall flickers as soon as the camera moves.
 // Keeping near at 1 % of the distance to the orbit centre stays well clear of anything in view.
@@ -55,9 +55,9 @@ export class Site {
     this.scene.add(this.sun, this.sun.target);
     this.contact = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ map: softShadowTexture(), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }),
+      new THREE.MeshBasicMaterial({ map: softShadowTexture(), transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -24 }),
     );
-    this.contact.position.y = 0.018;
+    this.contact.position.y = 0.022;
     this.scene.add(this.contact);
     this.carrier = new THREE.Group();
     this.scene.add(this.carrier);

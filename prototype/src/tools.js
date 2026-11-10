@@ -3,6 +3,7 @@
 import { CATALOG } from '../../demo/src/catalog.js';
 import { effHtml } from './main.js';
 import { fmtTime, simulateShift } from './process.js';
+import { createExtTools } from './tools-ext.js';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -10,17 +11,20 @@ const fn = (name, description, properties = {}, required = []) => ({
 });
 
 export const SCHEMAS = [
-  fn('list_library', '列出资源库：产品库（车型和已登记的产品模型）、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型实例。'),
-  fn('place_asset', '把产品库或场景库里的三维模型（起重机、大车、铝卷、设备等）放进当前厂房，可一次放多个。图纸生成的厂房里可按跨定位（bay + along_m），起重机类模型用 mount=runway 装到该跨行车轨道上（自动横跨该跨、替换该跨的示意行车；按模型原尺寸，不缩放，跨度对不上会提示）。不给位置就放在中间跨的中部。', {
+  fn('list_library', '列出资源库：标准产品库车型，当前项目的产品库、场景和文件（用户上传并已转换的模型/图纸/图片），以及已放进场景的模型。'),
+  fn('place_asset', '把产品库或场景库里的三维模型（起重机、大车、铝卷、设备等）放进当前厂房，可一次放多个。图纸生成的厂房里可按跨定位（bay + along_m），起重机类模型用 mount=runway 装到该跨行车轨道上（自动横跨该跨、替换该跨的示意行车；按模型原尺寸，不缩放，跨度对不上会提示）。不给位置就放在中间跨的中部。AGV + 行车工序方案里位置按用户原话给：绝对坐标 x_mm/y_mm，或参考点位 ref 加偏移 east_m/north_m（X 向东、Y 向北），已放过的会挪到新位置；用户没说位置时先问，不要自己定。', {
     asset: { type: 'string', description: '模型 id 或名称，如 “起重机”“铝卷”' },
     bay: { type: 'string', description: '跨名，如 A、B（图纸生成的厂房）' },
     along_m: { type: 'number', description: '沿跨长方向距厂房起点的米数' },
+    ref: { type: 'string', description: '参考点位编号，如 RM-01、H-01（工序方案）' },
+    east_m: { type: 'number', description: '相对参考点向东米数，向西为负' },
+    north_m: { type: 'number', description: '相对参考点向北米数，向南为负' },
     x_mm: { type: 'number' },
     y_mm: { type: 'number' },
     mount: { type: 'string', enum: ['floor', 'runway'], description: 'floor 放地面（默认）；runway 装到行车轨道上' },
     count: { type: 'integer', description: '放几个，沿跨长方向排成一排，1–20' },
     size_m: { type: 'number', description: '把最长边缩放到这个米数（可选；默认按模型原尺寸，毫米模型自动换算）' },
-    heading_deg: { type: 'number', description: '绕竖轴转角（度）' },
+    heading_deg: { type: 'number', description: '绕竖轴转角（度，俯视逆时针）' },
     elevation_m: { type: 'number', description: '底面离地高度（米），如放在货架上' },
   }, ['asset']),
   fn('move_asset', '移动 / 旋转 / 缩放已放入场景的模型实例。可给绝对位置（x_mm/y_mm 或 bay/along_m）、相对平移（east_m/north_m）、绝对朝向 heading_deg 或相对转角 rotate_deg、新的最长边 size_m。', {
@@ -43,7 +47,7 @@ export const SCHEMAS = [
     name: { type: 'string', description: '中文名称，如 “双梁桥式起重机”' },
     category: { type: 'string', description: '分类（英文小写），如 overhead_crane、coil、vehicle；不填按名称推断' },
   }, ['asset']),
-  fn('load_site_asset', '载入场景库里的 DXF/DWG 图纸。普通厂房图纸：识别柱网、跨、吊车梁、墙、门窗和设备，生成新的三维厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。带卫华约定图层（A-WALL/AGV-PATH/AGV-STAT）的图纸：替换 AGV + 行车工序方案的厂房。', { asset: { type: 'string' } }, ['asset']),
+  fn('load_site_asset', '载入场景库里的 DXF/DWG 图纸。普通厂房图纸：识别柱网、跨、吊车梁、墙、门窗和设备，生成新的三维厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。带卫华约定图层（A-WALL/AGV-PATH/AGV-STAT）的图纸：替换 AGV + 行车工序方案的厂房。用户明确只要"叠底图""只做参考"时传 overlay=true，只把线条铺在地面上，不建厂房。', { asset: { type: 'string' }, overlay: { type: 'boolean', description: '只叠为底图参考，不生成厂房' } }, ['asset']),
   fn('exit_scene', '离开图纸生成的厂房，回到原来的 AGV + 行车工序方案。'),
   fn('read_equipment_drawing', '读取场景库里的二维设备图（起重机、大车、小车、铝卷等设备的 DWG/DXF，不是厂房图）：返回各视图（标题、图面尺寸）、所有尺寸标注值、参数表与标题栏文字、各视图主要闭合轮廓（id 如 V1-P3，可用于 extrude 零件）。图面比例会按标注自动换算成实际 mm。', {
     asset: { type: 'string', description: '图纸 id 或名称' },
@@ -245,6 +249,8 @@ export function createTools(app) {
       效率: { 节拍_s: +eff.takt.toFixed(1), 每小时: +eff.perHour.toFixed(1), 瓶颈: eff.bottleneck, 目标节拍_s: eff.target, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1) },
       播放: { 时间_s: +site.time.toFixed(1), 总长_s: +site.duration.toFixed(1), 播放中: site.playing, 分步: site.window?.step ?? null, 倍速: site.speed },
       待确认工序: app.pendingProcess ?? null,
+      项目库: app.library?.ws ? app.library.summary() : null,
+      已放入模型: app.library?.placedList() ?? [],
     };
   };
 
@@ -466,16 +472,27 @@ export function createTools(app) {
       return {
         result: {
           当前厂房: site.isScene ? `图纸生成：${site.sourceName}` : 'AGV + 行车工序方案',
-          产品库: lib.products.map((p) => ({ id: p.id, 型号: p.model ?? p.name, 名称: p.name, 分类: p.category, 有三维模型: Boolean(p.modelUrl) || CATALOG.some((c) => c.id === p.id) })),
-          场景库: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 图纸类型: a.kind === 'site' ? (a.meta?.convention === 'generic' ? '普通厂房图（生成厂房）' : '工序图纸') : undefined, 说明: a.message || undefined })),
+          ...lib.summary(),
+          全部上传文件: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 说明: a.message || undefined })),
           已放入场景: lib.placedList(),
         },
-        chip: `产品 ${lib.products.length} · 场景 ${lib.assets.length}`,
+        chip: `标准产品 ${lib.std.length} · ${lib.ws.active.name}`,
       };
     },
 
-    place_asset: async ({ asset, bay, along_m, x_mm, y_mm, mount, count, size_m, heading_deg, elevation_m }) => {
-      const r = await app.library.place(asset, { bay, along: along_m, x: x_mm, y: y_mm, mount, count, size: size_m, heading: heading_deg, elevation: elevation_m });
+    place_asset: async ({ asset, bay, along_m, ref, east_m = 0, north_m = 0, x_mm, y_mm, mount, count, size_m, heading_deg, elevation_m }) => {
+      let x = x_mm;
+      let y = y_mm;
+      if (ref) {
+        const base = site.findPoint?.(ref);
+        if (!base) throw new Error(`参考点位 ${ref} 不存在${site.points ? `，现有：${site.points().map((p) => p.id).join('、')}` : ''}`);
+        x = base.x + east_m * 1000;
+        y = base.y + north_m * 1000;
+      }
+      if ((x === undefined) !== (y === undefined)) throw new Error('坐标要成对给：x_mm 和 y_mm，或 ref 加 east_m/north_m');
+      const b = site.built?.bounds;
+      if (b && x !== undefined && (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY)) throw new Error(`位置 (${Math.round(x)}, ${Math.round(y)}) 在厂房外，厂房范围 X ${Math.round(b.minX)}–${Math.round(b.maxX)}、Y ${Math.round(b.minY)}–${Math.round(b.maxY)} mm`);
+      const r = await app.library.place(asset, { bay, along: along_m, x, y, mount, count, size: size_m, heading: heading_deg, elevation: elevation_m });
       if (site.isScene) look(r.实例.map((e) => app.library.findPlaced(e.id)));
       else app.setView('overview');
       return { result: r, chip: `放入 ${r.名称}${r.实例.length > 1 ? ` × ${r.实例.length}` : ''}` };
@@ -502,13 +519,13 @@ export function createTools(app) {
     },
 
     add_to_product_library: async ({ asset, model, name, category }) => {
-      const p = await app.library.addProduct(asset, { model, name, category });
+      const p = await app.library.registerProduct(asset, { model, name, category });
       return { result: { 已登记: { id: p.id, 型号: p.model, 名称: p.name, 分类: p.category }, 说明: '已出现在左侧产品库，可用 place_asset 放入场景' }, chip: `入产品库 ${p.model}` };
     },
 
-    load_site_asset: async ({ asset }) => {
-      const r = await app.library.loadSite(asset);
-      return { result: r, chip: r.模式?.startsWith('图纸生成') ? `生成厂房 · ${r.图纸}` : `图纸 ${r.图纸}` };
+    load_site_asset: async ({ asset, overlay }) => {
+      const r = await app.library.loadSite(asset, { overlay: overlay === true });
+      return { result: r, chip: r.底图 ? `底图 ${r.底图}` : r.模式?.startsWith('图纸生成') ? `生成厂房 · ${r.图纸}` : `图纸 ${r.图纸}` };
     },
 
     read_equipment_drawing: async ({ asset }) => {
@@ -540,7 +557,6 @@ export function createTools(app) {
     exit_scene: () => {
       if (!site.isScene) throw new Error('当前已经是 AGV + 行车工序方案');
       app.exitScene();
-      app.library.render();
       return { result: { 已返回: 'AGV + 行车工序方案', 说明: '图纸生成的厂房和其中放入的模型已移除，需要时可以重新 load_site_asset' }, chip: '返回工序方案' };
     },
 
@@ -566,11 +582,13 @@ export function createTools(app) {
     },
   };
 
+  const extApp = new Proxy(app, { get: (target, key) => (key === 'site' ? site : Reflect.get(target, key)) });
+  const ext = createExtTools(extApp, { runCore: (name, args) => H[name](args ?? {}) });
   return {
-    schemas: SCHEMAS,
-    stateSummary,
+    schemas: [...SCHEMAS, ...ext.schemas],
+    stateSummary: () => ({ ...stateSummary(), ...ext.state() }),
     async run(name, args) {
-      const handler = H[name];
+      const handler = H[name] ?? ext.handlers[name];
       if (!handler) throw new Error(`没有工具 ${name}`);
       return handler(args ?? {});
     },

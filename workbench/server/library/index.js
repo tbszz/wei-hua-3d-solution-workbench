@@ -3,7 +3,7 @@ import * as products from './products.js';
 import { getSceneAsset } from './scene.js';
 
 export { listProducts, getProduct, deleteProduct, builtinProducts, validateProduct } from './products.js';
-export { listSceneAssets, getSceneAsset, importUpload, deleteSceneAsset, MAX_UPLOAD_BYTES } from './scene.js';
+export { listSceneAssets, getSceneAsset, importUpload, deleteSceneAsset, readSceneText, MAX_UPLOAD_BYTES } from './scene.js';
 export { getProjectState, saveProjectState, listProjectStateVersions, getProjectStateVersion, getChatHistory, appendChatHistory, KEEP_VERSIONS, KEEP_MESSAGES } from './projects.js';
 export { detectFormat } from './detect.js';
 export { LibraryError, dataRoot } from './store.js';

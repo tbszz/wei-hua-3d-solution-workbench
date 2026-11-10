@@ -49,7 +49,7 @@
 
 | 位置 | 放什么 | 状态 |
 |---|---|---|
-| `docs/` | [实景方案 Agent 可行性分析与 PRD](docs/PRD.md)、[CAD 平面图约定](docs/cad-convention.md) | PRD 是草案 |
+| `docs/` | [卫华 3D 方案工作台 PRD](docs/PRD.md)、[CAD 平面图约定](docs/cad-convention.md) | v1.0，和当前第一版实现对齐 |
 | `data/product-models/raw/` | 需求方提供的产品三维模型原件，不入库 | 空 |
 | `data/product-models/simplified/` | 转码简化后的模型和缩略图 | AGV1、Z1-1000-BZ |
 | `data/cad/` | 模拟的客户现场 CAD 平面图 | 示例图，布局照 Rhino 厂房截图目测 |

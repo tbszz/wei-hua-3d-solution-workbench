@@ -104,6 +104,8 @@ export function createLibraryRouter() {
     if (!asset) return res.status(404).json({ ok: false, error: `素材不存在：${req.params.id}` });
     return res.json({ ok: true, asset });
   }));
+  // Names written on a drawing (TEXT entities, plus exploded-curve text read by OCR unless ?read=0).
+  router.get('/api/library/scene/:id/text', handle(async (req, res) => res.json({ ok: true, ...await library.readSceneText(req.params.id, { read: req.query.read !== '0' }) })));
   router.delete('/api/library/scene/:id', handle(async (req, res) => res.json({ ok: true, asset: await library.deleteSceneAsset(req.params.id) })));
 
   // Project state for the browser engine

@@ -4,7 +4,8 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { LibraryError, clone, filesDir, libraryDir, readJson, serialize, writeFileAtomic, writeJsonAtomic } from './store.js';
 import { detectFormat, extOf, imageInfo, kindOf } from './detect.js';
-import { ConversionError, DWG_UNSUPPORTED, convertModel, convertSite, isModel, isSite, pickMainEntry, unzipSafely, VirtualFiles } from './convert.js';
+import { ConversionError, DWG_UNSUPPORTED, convertModel, convertSite, decodeDxf, isModel, isSite, pickMainEntry, unzipSafely, VirtualFiles } from './convert.js';
+import { readDrawnText, strokesFromDxf } from './drawn-text.js';
 
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
 const sceneFile = () => path.join(libraryDir(), 'scene.json');
@@ -69,8 +70,8 @@ async function convertInto(asset, { format, buffer, vfs = null, mainDir = '' }) 
 
 function unknownMessage(format) {
   return format && format !== 'unknown'
-    ? `暂不支持 .${format} 文件。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF，底图请用 PNG/JPG/WebP`
-    : '无法识别文件格式。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF，底图请用 PNG/JPG/WebP';
+    ? `暂不支持 .${format} 文件。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF/DWG，底图请用 PNG/JPG/WebP`
+    : '无法识别文件格式。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF/DWG，底图请用 PNG/JPG/WebP';
 }
 
 async function convertZip(asset, buffer) {
@@ -149,6 +150,40 @@ export async function importUpload({ filename, buffer, mimeType, truncated = fal
     await writeJsonAtomic(sceneFile(), { version: 1, assets });
   });
   return clone(asset);
+}
+
+const diskPath = (id, url) => {
+  const name = String(url ?? '').split('/').pop();
+  return name && /^[\w.-]+$/.test(name) ? path.join(filesDir(), id, name) : null;
+};
+
+// Names written on a drawing, in drawing mm: TEXT/MTEXT entities, plus (when `read` is set) the
+// text the drafter exploded into curves, read once by OCR and cached in site.json.
+export async function readSceneText(id, { read = true } = {}) {
+  const asset = await getSceneAsset(id);
+  if (!asset) throw new LibraryError(404, `素材不存在：${id}`);
+  if (asset.kind !== 'site' || asset.status !== 'ready') throw new LibraryError(400, `${asset.name} 不是可用的厂房图纸`);
+  const siteFile = diskPath(asset.id, asset.url);
+  const site = siteFile ? await readJson(siteFile, {}) : {};
+  const plain = (site.texts ?? []).map((t) => ({ text: t.text, x: t.x, y: t.y, height: t.height ?? null, source: 'text' }));
+  let drawn = site.drawnText ?? null;
+  if (!drawn && read) {
+    const dxfFile = diskPath(asset.id, asset.meta?.dxfUrl ?? asset.meta?.originalDxfUrl ?? asset.meta?.originalUrl);
+    let found = null;
+    try {
+      found = strokesFromDxf(decodeDxf(await fs.readFile(dxfFile)));
+    } catch (error) {
+      drawn = { labels: [], error: `图纸读取失败：${error.message}` };
+    }
+    if (!drawn) {
+      const result = found ? await readDrawnText(found) : { labels: [] };
+      drawn = { labels: result.labels, error: result.error, readAt: new Date().toISOString() };
+    }
+    // A missing OCR runtime is not cached, so installing it and asking again works.
+    if (siteFile && !drawn.error) await serialize(`site:${asset.id}`, async () => writeJsonAtomic(siteFile, { ...await readJson(siteFile, {}), drawnText: drawn }));
+  }
+  const ocr = (drawn?.labels ?? []).map((t) => ({ text: t.text, x: t.x, y: t.y, height: t.height ?? null, score: t.score, source: 'ocr' }));
+  return { asset: { id: asset.id, name: asset.name, convention: asset.meta?.convention ?? null }, bbox: site.bbox ?? null, texts: [...plain, ...ocr], ocrError: drawn?.error ?? null };
 }
 
 export async function deleteSceneAsset(id) {
