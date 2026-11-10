@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { loadPlan, runOffline, runOnline, runTool, sse, listPlanVersions } from './runtime.js';
-import { CATALOG } from './domain/catalog.js';
+import { libraryRouter } from './library/routes.js';
 import { TOOL_NAMES } from './domain/plan.js';
 
 export const app = express();
@@ -123,6 +123,7 @@ async function handleChat(req, res, projectId = 'default') {
 }
 
 app.use(cors());
+app.use(libraryRouter); // product/scene library, uploads, project state + chat history (before the 8 MB JSON parser)
 app.use(express.json({ limit: '8mb' }));
 
 // The page's agent runs its tool loop in the browser (so every tool call lands in the 3D view)
@@ -154,7 +155,6 @@ app.all('/api/llm/*path', async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, mode: hasOnlineKey() ? 'online' : 'offline', provider: String(process.env.MAGPIE_ENABLED || '').toLowerCase() === 'true' ? 'magpie-doubao' : 'default', tools: TOOL_NAMES.length, projects: projects.size, jobs: jobs.size }));
-app.get('/api/products', (_req, res) => res.json({ products: clone(CATALOG) }));
 app.get('/api/fixtures', (req, res) => {
   const productId = String(req.query.productId || '').trim();
   const fixtures = productId ? FIXTURES.filter((fixture) => fixture.compatibleProducts.includes(productId)) : FIXTURES;

@@ -45,3 +45,36 @@ npm run preview
 - test-results/：离线验收截图。
 
 起重机和 C 形钩是程序生成的示意模型；如果后续放入同名 GLB，可在视口层替换“大车”“小车”“吊具”“钢丝绳”子对象。速度、加速度、取放时间和 8 小时班统计使用确定性的演示值。
+
+## 产品库 / 场景库 / 项目存档（server/library）
+
+数据存放在 `workbench/data/`（已加入 .gitignore，可用环境变量 `WORKBENCH_DATA_DIR` 改位置）：`library/products.json`、`library/scene.json`、`library/files/<素材id>/`（原件 + 转换结果）、`projects/<项目id>/`。内置产品每次从代码读取（`demo/src/catalog.js` 引用的配置 + `server/domain/catalog.js` 的起重机），不提交 JSON。
+
+接口：
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET / POST | `/api/library/products` | 列出 / 新建产品（POST 的 id 已存在时返回 409；可传 `modelAssetId` 引用已上传的模型） |
+| GET / PUT / DELETE | `/api/library/products/:id` | 查看 / 修改（局部合并，参数校验 最小值 ≤ 标称值 ≤ 最大值）/ 删除；内置产品修改会保存为覆盖，删除只恢复默认 |
+| GET | `/api/products` | 兼容旧接口，返回产品库 |
+| POST | `/api/library/scene` | multipart 上传，字段 `files`（可多个，单个 ≤ 200 MB），返回 `{ ok, assets }`，单个文件失败不影响其他文件 |
+| GET | `/api/library/scene`（可选 `?kind=model`）、`/api/library/scene/:id` | 素材列表 / 单个素材 |
+| DELETE | `/api/library/scene/:id` | 删除素材及文件 |
+| GET | `/library/files/...`、`/library/product-models/...` | 转换结果和内置产品模型的静态文件 |
+| GET / PUT | `/api/projects/:id/state` | 浏览器引擎的状态快照 `{ version, state, updatedAt }`；PUT `{ state }` 版本号加 1，保留最近 50 个版本 |
+| GET | `/api/projects/:id/state/versions`、`/api/projects/:id/state/versions/:version` | 版本列表 / 取某个版本 |
+| GET / POST | `/api/projects/:id/chat-history` | 对话记录；POST 一条 `{ role, text, tools? }` 或 `{ messages: [...] }`，保留最近 200 条 |
+
+素材记录：`{ id, name, originalName, originalFormat, kind, status, size, createdAt, url, thumbUrl?, meta, message }`，`kind` 为 `model` / `site` / `image` / `document`，`status` 为 `ready` / `failed` / `unsupported`。格式按扩展名和文件头共同识别，文件头优先。
+
+| 上传格式 | 结果 |
+| --- | --- |
+| GLB、glTF（外部 .bin/贴图需和 .gltf 一起打 zip）、OBJ(+MTL/贴图)、STL（ASCII/二进制）、PLY、FBX、DAE、3MF | `model`：GLB，单位米、Y 向上，底面落在 y=0、水平居中；`meta.bboxM / triangles / meshes / sourceUnits / scaleApplied` |
+| STEP/STP、IGES/IGS、BREP | 经 occt-import-js 网格化后转 GLB（STEP/IGES 按文件单位换算） |
+| DXF | `site`：符合卫华图层约定的输出 parse-cad 结果（stations、paths、walls、beams……）；不符合约定的退回通用线条（`meta.convention: 'generic'`） |
+| DWG | 尽力用 libredwg（wasm）转成 DXF 后同上；转不了返回 `unsupported`，提示另存为 DXF |
+| PNG、JPG、WebP | `image`：原图，可作平面底图，`meta.width/height` |
+| PDF、Office、TXT、CSV 等 | `document`：只保存，供参考 |
+| ZIP | 安全解压（防路径穿越、防压缩炸弹），按 GLB > glTF > FBX > OBJ > DAE > 3MF > STEP > IGES > BREP > STL > PLY > DXF > DWG 选主文件转换 |
+
+单位推断：没有声明单位的格式（STL、OBJ、PLY、BREP、未声明的 GLB）如果最大边长 > 500，按毫米处理（缩放 0.001）；STL、3MF、STEP/IGES/BREP 视为 Z 向上并转成 Y 向上；FBX 使用文件里的 UnitScaleFactor，DAE 使用 `<unit>` 和 `<up_axis>`。贴图尽力保留：PNG/JPEG 原样嵌入 GLB，其他贴图格式会被去掉。
