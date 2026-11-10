@@ -147,7 +147,15 @@ function fitDistance(w, h) {
   const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const tanV = tv * (free.h / free.H);
   const tanH = tv * camera.aspect * (free.w / free.W);
-  return Math.max(w / 2 / tanH, h / 2 / tanV);
+  const d = Math.max(w / 2 / tanH, h / 2 / tanV);
+  // A narrow (portrait phone) view needs to stand further back than the orbit limit allows;
+  // raise the limit and far plane so the fit isn't clamped and the plant isn't cut off.
+  if (d * 1.15 > controls.maxDistance) controls.maxDistance = d * 1.15;
+  if (d * 4 > camera.far) {
+    camera.far = d * 4;
+    camera.updateProjectionMatrix();
+  }
+  return d;
 }
 
 const hookWorld = () => new THREE.Vector3(site.cranePose.x / 1000, site.cranePose.z / 1000, -site.cranePose.y / 1000);

@@ -1273,7 +1273,9 @@ export class Library {
   // Which scene object (if any) this product is in use as, and where clicking it jumps to.
   inUse(p) {
     const app = this.app;
-    if (p.id === app.product?.id) return { label: `${app.site.agvCount} 台在场景中`, focus: 'agv', count: app.site.agvCount };
+    // A drawing-built plant has no AGV fleet (agvCount undefined): show nothing rather than "undefined 台".
+    const agvs = app.site?.agvCount;
+    if (p.id === app.product?.id && agvs > 0) return { label: `${agvs} 台在场景中`, focus: 'agv', count: agvs };
     if (p.id === SCENE_CRANE.id && app.site.crane) return { label: '行车 #1 在场景中', focus: 'crane', count: 1 };
     return null;
   }
