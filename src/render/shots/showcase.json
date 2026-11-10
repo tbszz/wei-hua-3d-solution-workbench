@@ -1,0 +1,67 @@
+{
+  "title": "AGV1 钢卷搬运方案",
+  "subtitle": "模拟厂房 sample-plant.dxf · 演示数据",
+  "titleSeconds": 3.5,
+  "badge": "演示",
+  "product": "agv1",
+  "ending": { "title": "AGV1 钢卷搬运方案", "subtitle": "演示数据，仅供方案沟通 · 尺寸和路线以正式方案为准", "seconds": 3 },
+  "segments": [
+    {
+      "start": 0, "end": 5,
+      "scene": ["leg:RM-01+68s", "arrive:RM-01-8s"],
+      "camera": { "target": "厂房", "angle": [-40, -18], "distance": [112, 92], "height": [74, 58], "lookHeight": 0 },
+      "caption": [{ "at": 3.4, "text": "演示：AGV1 按 CAD 平面图的路线，在模拟厂房里搬运钢卷" }]
+    },
+    {
+      "start": 5, "end": 10, "blend": 2.2,
+      "scene": ["arrive:RM-01-8s", "arrive:RM-01.end"],
+      "camera": { "target": "RM-01", "angle": [20, 38], "distance": [17, 11], "height": [7.5, 4.8], "fov": [34, 30] },
+      "caption": "演示：驶入取料工位 RM-01，到位后定位校准",
+      "labels": [
+        { "at": "RM-01", "text": "取料工位 RM-01", "lift": 1.6, "from": 1.5 }
+      ]
+    },
+    {
+      "start": 10, "end": 16,
+      "scene": ["load:RM-01", "load:RM-01.end"],
+      "camera": { "target": "AGV", "angle": [38, 135], "distance": [7.2, 6], "height": [3.4, 2.4], "fov": 30, "ease": "linear" },
+      "caption": [
+        { "at": 0, "text": "演示：支架下降，钢卷落到车上" },
+        { "at": 3.2, "text": "演示：整个取货动作 6 秒，车不用举升" }
+      ],
+      "labels": [{ "at": "钢卷", "text": "钢卷（演示货物）", "lift": 0.1, "from": 0.6 }]
+    },
+    {
+      "start": 16, "end": 21,
+      "scene": ["leg:CELL-01+24s", "leg:CELL-01+50s"],
+      "camera": { "target": "AGV", "relative": true, "angle": [200, 160], "distance": 10, "height": [4.5, 3.8], "fov": 34 },
+      "caption": "演示：载着钢卷沿主通道驶向加工区（快放）"
+    },
+    {
+      "start": 21, "end": 25, "blend": 1.5,
+      "scene": ["leg:CELL-01+50s", "arrive:CELL-01"],
+      "camera": { "target": "AGV", "angle": 0, "distance": [8, 1], "height": [30, 52], "fov": 32 },
+      "caption": "演示：俯瞰机加工区，AGV 从设备之间穿过",
+      "labels": [
+        { "at": "数控加工中心 A", "text": "数控加工中心 A", "lift": 2, "from": 0.8 },
+        { "at": "液压机", "text": "液压机", "lift": 2, "from": 1.1 },
+        { "at": "CELL-01", "text": "卸货工位 CELL-01", "lift": 1, "from": 1.4 }
+      ]
+    },
+    {
+      "start": 25, "end": 31, "blend": 1.6,
+      "scene": ["arrive:CELL-01", "unload:CELL-01.end"],
+      "camera": { "target": "CELL-01", "angle": [-65, -25], "distance": [12, 8.5], "height": [5, 3.6], "fov": 30 },
+      "caption": [
+        { "at": 0, "text": "演示：到达 CELL-01，定位校准" },
+        { "at": 1.6, "text": "演示：支架上升，钢卷离车，AGV 去下一站" }
+      ]
+    },
+    {
+      "start": 31, "end": 34,
+      "scene": ["unload:CELL-01.end", "unload:CELL-01.end+6s"],
+      "camera": { "target": "CELL-01", "angle": [-25, 5], "distance": [8.5, 36], "height": [3.6, 22], "fov": 30 },
+      "fadeOut": 0.6
+    }
+  ]
+}

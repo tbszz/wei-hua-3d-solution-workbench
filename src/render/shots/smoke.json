@@ -1,11 +1,26 @@
 {
   "title": "冒烟测试",
-  "subtitle": "三个镜头预设各录一小段 · 演示数据",
+  "subtitle": "预设镜头、环绕、跟车、平移、标注、过渡各录一小段 · 演示数据",
   "titleSeconds": 0.3,
   "product": "agv1",
+  "ending": { "title": "冒烟测试", "subtitle": "演示数据", "seconds": 0.25 },
   "segments": [
-    { "start": 0, "end": 0.4, "camera": "overview", "scene": [60, 62], "caption": "演示：总览" },
-    { "start": 0.4, "end": 0.7, "camera": "follow", "scene": [108, 111], "caption": "演示：跟随，支架下降" },
-    { "start": 0.7, "end": 1, "camera": "top", "scene": [120, 130], "caption": "演示：俯视" }
+    { "start": 0, "end": 0.3, "camera": "overview", "scene": [60, 62], "caption": "演示：总览预设" },
+    {
+      "start": 0.3, "end": 0.55,
+      "camera": { "target": "AGV", "relative": true, "angle": [200, 160], "distance": [10, 8], "height": [4, 3], "fov": [40, 32] },
+      "scene": ["load:RM-01", "load:RM-01+3s"],
+      "blend": 0.15,
+      "caption": [{ "at": 0, "text": "演示：跟车" }, { "at": 0.1, "text": "演示：支架下降" }],
+      "labels": [{ "at": "钢卷", "text": "钢卷（演示）", "lift": 0.1, "from": 0 }]
+    },
+    {
+      "start": 0.55, "end": 0.8,
+      "camera": { "target": ["RM-01", "CELL-01"], "angle": 0, "distance": [8, 1], "height": [30, 52], "ease": "linear" },
+      "scene": ["leg:CELL-01+24s", "leg:CELL-01+30s"],
+      "caption": "演示：俯视平移",
+      "labels": [{ "at": "CELL-01", "text": "CELL-01", "from": 0 }]
+    },
+    { "start": 0.8, "end": 1, "camera": "top", "scene": [120, 130], "caption": "演示：俯视预设", "fadeIn": 0.1, "fadeOut": 0.1 }
   ]
 }

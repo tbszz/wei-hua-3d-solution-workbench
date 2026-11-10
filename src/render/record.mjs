@@ -8,11 +8,12 @@
 // 用法、耗时和限制见同目录 README.md。
 import { spawn, execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { loadWorld } from './plant.mjs';
 import { frameAt, loadShots } from './shots.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,19 @@ const OVERLAY_CSS = `
   padding: 16px 36px; background: rgba(31, 35, 41, .88); border-left: 8px solid #D7000F;
   font-size: 40px; line-height: 1.4; white-space: nowrap; }
 #rec-caption:empty { display: none; }
+#rec-labels { position: absolute; inset: 0; }
+.rec-label { position: absolute; width: 0; height: 0; }
+.rec-label i { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%;
+  background: #D7000F; box-shadow: 0 0 0 4px rgba(255, 255, 255, .9); }
+.rec-label b { position: absolute; left: -1.5px; bottom: 9px; width: 3px; height: 54px; background: #fff; }
+.rec-label span { position: absolute; left: -6px; bottom: 63px; padding: 8px 18px; white-space: nowrap;
+  background: rgba(31, 35, 41, .92); border-left: 6px solid #D7000F; font-size: 28px; font-weight: 600; }
+#rec-end { position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+  background: rgba(31, 35, 41, .86); }
+#rec-end h1 { margin: 0; font-size: 76px; font-weight: 700; }
+#rec-end h1::after { content: ""; display: block; width: 120px; height: 8px; margin: 28px auto 0; background: #D7000F; }
+#rec-end p { margin: 28px 0 0; font-size: 32px; color: rgba(255, 255, 255, .82); }
+#rec-fade { position: absolute; inset: 0; background: #1F2329; }
 `;
 
 async function loadPlaywright() {
@@ -137,28 +151,52 @@ function startEncoder(file, shots) {
   };
 }
 
-// 在页面里摆好第 N 帧：镜头、现场时间、字幕、片头。整段在一次 evaluate 里做完，少来回。
-function applyFrame({ camera, sceneTime, caption, titleOpacity }) {
+// 在页面里摆好第 N 帧：镜头、现场时间、字幕、标注、片头片尾、压黑。整段在一次 evaluate 里做完，少来回。
+function applyFrame({ pose, sceneTime, caption, captionOpacity, titleOpacity, endOpacity, fade, labels }) {
   const recorder = window.__recorder;
-  if (recorder.currentCamera !== camera) {
-    recorder.setCamera(camera);
-    recorder.currentCamera = camera;
-  }
+  recorder.setCameraPose(pose);
   recorder.seek(sceneTime);
   recorder.renderFrame();
   const state = recorder.state();
   const clock = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   document.getElementById('rec-hud').textContent = `现场 ${clock(state.time)}　${state.status}`;
   document.getElementById('rec-title').style.opacity = String(titleOpacity);
+  document.getElementById('rec-end').style.opacity = String(endOpacity);
+  document.getElementById('rec-fade').style.opacity = String(fade);
   const captionEl = document.getElementById('rec-caption');
   captionEl.textContent = caption;
-  captionEl.style.opacity = String(1 - titleOpacity);
+  captionEl.style.opacity = String(captionOpacity);
+  const layer = document.getElementById('rec-labels');
+  while (layer.children.length < labels.length) {
+    const el = document.createElement('div');
+    el.className = 'rec-label';
+    el.innerHTML = '<b></b><i></i><span></span>';
+    layer.append(el);
+  }
+  const screen = recorder.project(labels.map((label) => label.point));
+  [...layer.children].forEach((el, i) => {
+    const label = labels[i];
+    const at = screen[i];
+    el.hidden = !label || !at.visible || label.opacity <= 0;
+    if (el.hidden) return;
+    el.style.left = `${at.x.toFixed(1)}px`;
+    el.style.top = `${at.y.toFixed(1)}px`;
+    el.style.opacity = String(label.opacity * captionOpacity);
+    el.lastElementChild.textContent = label.text;
+    // 标签或圆点有一部分出了画面就整个不显示，免得只剩半截。
+    const tag = el.lastElementChild.getBoundingClientRect();
+    const inside = tag.top >= 0 && tag.left >= 0 && tag.right <= innerWidth && at.y + 9 <= innerHeight;
+    if (!inside) el.hidden = true;
+  });
 }
 
-function installOverlay({ title, subtitle, badge }) {
+function installOverlay({ title, subtitle, badge, ending }) {
   const root = document.createElement('div');
   root.id = 'rec-overlay';
-  root.innerHTML = '<div id="rec-hud"></div><div id="rec-badge"></div><div id="rec-title"><h1></h1><p></p></div><div id="rec-caption"></div>';
+  root.innerHTML = '<div id="rec-labels"></div><div id="rec-hud"></div><div id="rec-badge"></div><div id="rec-title"><h1></h1><p></p></div>'
+    + '<div id="rec-caption"></div><div id="rec-end"><h1></h1><p></p></div><div id="rec-fade"></div>';
+  root.querySelector('#rec-end h1').textContent = ending?.title ?? '';
+  root.querySelector('#rec-end p').textContent = ending?.subtitle ?? '';
   root.querySelector('#rec-badge').textContent = badge;
   root.querySelector('#rec-badge').hidden = !badge;
   root.querySelector('#rec-title h1').textContent = title;
@@ -182,7 +220,9 @@ function installOverlay({ title, subtitle, badge }) {
  */
 export async function recordShots(options) {
   const started = Date.now();
-  const shots = loadShots(options.shotsFile);
+  const raw = JSON.parse(readFileSync(options.shotsFile, 'utf8'));
+  const world = loadWorld({ product: raw.product, size: raw.size });
+  const shots = loadShots(options.shotsFile, world);
   const frameCount = options.seconds ? Math.min(shots.frameCount, Math.round(options.seconds * shots.fps)) : shots.frameCount;
   const server = options.url ? null : await startDemoServer();
   const base = options.url ?? server.url;
@@ -190,6 +230,7 @@ export async function recordShots(options) {
   // 用 GPU（ANGLE/D3D11）渲染；没有 GPU 的机器会退到 SwiftShader，慢但结果同样确定。
   const browser = await chromium.launch({ headless: true, args: ['--enable-gpu', '--ignore-gpu-blocklist'] });
   if (options.reverse && (options.out || options.framesDir)) throw new Error('倒序录制只用来算哈希，不能同时出视频');
+  if ((options.every ?? 1) > 1 && options.out) throw new Error('隔帧预览不出视频，请加 --no-video');
   const encoder = options.out ? startEncoder(options.out, shots) : null;
   if (options.framesDir) mkdirSync(options.framesDir, { recursive: true });
   const result = { hashes: [], frames: frameCount, seconds: 0, renderer: '' };
@@ -201,6 +242,7 @@ export async function recordShots(options) {
     const url = new URL(base);
     url.searchParams.set('record', '1');
     url.searchParams.set('product', shots.product);
+    for (const [key, value] of Object.entries(world.product.size)) url.searchParams.set(key, String(value));
     await page.goto(url.href);
     await page.waitForFunction(() => window.__recorder || window.__recorderError, null, { timeout: 120000 });
     const failure = await page.evaluate(() => window.__recorderError);
@@ -211,29 +253,43 @@ export async function recordShots(options) {
       return info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown';
     });
     await page.addStyleTag({ content: OVERLAY_CSS });
-    await page.evaluate(installOverlay, { title: shots.title, subtitle: shots.subtitle, badge: shots.badge });
+    await page.evaluate(installOverlay, { title: shots.title, subtitle: shots.subtitle, badge: shots.badge, ending: shots.ending });
+    // 总览、俯视的位姿由网页按厂房大小算，取一次；之后每帧的镜头都在 Node 里算好再发过去。
+    const presets = await page.evaluate(() => ({
+      overview: window.__recorder.presetPose('overview'),
+      top: window.__recorder.presetPose('top'),
+    }));
+    const pageDuration = await page.evaluate(() => window.__recorder.duration);
+    if (Math.abs(pageDuration - world.duration) > 1e-6) throw new Error(`网页和录制脚本算出的流程时长不一样（${pageDuration} / ${world.duration}）`);
 
     // 直接用 CDP 截图：optimizeForSpeed 换更快的 PNG 压缩，像素不变，比 page.screenshot 快约 3 倍。
     const cdp = await page.context().newCDPSession(page);
-    const order = [...Array(frameCount).keys()];
+    // every > 1 时隔帧抽样（预览用，不出视频）。
+    const every = options.every ?? 1;
+    const order = [...Array(frameCount).keys()].filter((index) => index % every === 0);
     if (options.reverse) order.reverse();
     const hashes = new Array(frameCount);
     for (const [done, index] of order.entries()) {
-      const frame = frameAt(shots, index);
+      const frame = frameAt(shots, index, world, presets);
       await page.evaluate(applyFrame, {
-        camera: frame.camera,
+        pose: frame.pose,
         sceneTime: frame.sceneTime,
         caption: frame.caption,
+        captionOpacity: frame.captionOpacity,
         titleOpacity: frame.titleOpacity,
+        endOpacity: frame.endOpacity,
+        fade: frame.fade,
+        labels: frame.labels,
       });
       const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true });
       const png = Buffer.from(data, 'base64');
       hashes[index] = createHash('sha256').update(png).digest('hex');
       if (options.framesDir) writeFileSync(path.join(options.framesDir, `frame-${String(index).padStart(5, '0')}.png`), png);
       if (encoder) await encoder.write(png);
-      options.onProgress?.({ index: done, frameCount, elapsed: (Date.now() - started) / 1000 });
+      options.onProgress?.({ index: done, frameCount: order.length, elapsed: (Date.now() - started) / 1000 });
     }
-    result.hashes = hashes;
+    result.hashes = hashes.filter((hash) => hash !== undefined);
+    result.frames = order.length;
     if (pageErrors.length) throw new Error(`现场页报错：${pageErrors.join('; ')}`);
     if (encoder) await encoder.finish();
     encoded = true;
@@ -248,7 +304,7 @@ export async function recordShots(options) {
 
 function parseArgs(argv) {
   const options = { shotsFile: null };
-  const names = { '--out': 'out', '--seconds': 'seconds', '--frames-dir': 'framesDir', '--url': 'url' };
+  const names = { '--out': 'out', '--seconds': 'seconds', '--frames-dir': 'framesDir', '--url': 'url', '--every': 'every' };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--no-video') options.noVideo = true;
@@ -256,8 +312,12 @@ function parseArgs(argv) {
     else if (arg.startsWith('--')) throw new Error(`不认识的参数：${arg}`);
     else options.shotsFile = arg;
   }
-  if (!options.shotsFile) throw new Error('用法：node src/render/record.mjs <镜头脚本.json> [--out x.mp4] [--seconds N] [--frames-dir 目录] [--url http://…] [--no-video]');
+  if (!options.shotsFile) throw new Error('用法：node src/render/record.mjs <镜头脚本.json> [--out x.mp4] [--seconds N] [--frames-dir 目录] [--url http://…] [--no-video] [--every N]');
   if (options.seconds !== undefined) options.seconds = Number(options.seconds);
+  if (options.every !== undefined) {
+    options.every = Number(options.every);
+    options.noVideo = true;
+  }
   const name = path.basename(options.shotsFile, '.json');
   if (options.noVideo) delete options.out;
   else options.out = path.resolve(options.out ?? path.join(OUT_DIR, `${name}.mp4`));

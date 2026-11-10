@@ -515,6 +515,10 @@ let recording = false;
 async function startRecorder() {
   const product = CATALOG.find((item) => item.id === RECORD.get('product')) ?? CATALOG[0];
   await chooseProduct(product, false);
+  // Optional size, e.g. &length=3200&width=1600 (mm), clamped to the product's range like the sliders.
+  for (const key of Object.keys(product.params)) {
+    if (RECORD.has(key)) setParam(key, Number(RECORD.get(key)));
+  }
   await goTo('site');
   if (app.step !== 'site') throw new Error('现场没有加载成功');
   document.body.classList.add('recording');
@@ -522,6 +526,7 @@ async function startRecorder() {
   site.playing = false;
   controls.enabled = false;
   recording = true;
+  const baseFov = camera.fov;
   window.__recorder = {
     duration: site.timeline.duration,
     seek(time) {
@@ -530,7 +535,34 @@ async function startRecorder() {
     },
     setCamera(preset) {
       if (!['overview', 'follow', 'top'].includes(preset)) throw new Error(`没有这个镜头预设：${preset}`);
+      if (camera.fov !== baseFov) {
+        camera.fov = baseFov;
+        camera.updateProjectionMatrix();
+      }
       setView(preset);
+    },
+    // The camera pose a preset puts the view in now: { position, target, fov } in scene metres.
+    presetPose(preset) {
+      this.setCamera(preset);
+      return { position: camera.position.toArray(), target: controls.target.toArray(), fov: camera.fov };
+    },
+    // A free camera for scripted moves (orbit, push-in, zoom). Stays until the next setCamera.
+    setCameraPose({ position, target, fov }) {
+      viewMode = 'scripted';
+      camera.position.fromArray(position);
+      controls.target.fromArray(target);
+      if (fov !== undefined && fov !== camera.fov) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+    },
+    // Screen pixels of scene points (metres) for the current camera; visible is false behind the camera.
+    project(points) {
+      camera.updateMatrixWorld();
+      return points.map((point) => {
+        projected.fromArray(point).project(camera);
+        return { x: (projected.x * 0.5 + 0.5) * stage.clientWidth, y: (-projected.y * 0.5 + 0.5) * stage.clientHeight, visible: projected.z < 1 };
+      });
     },
     renderFrame() {
       // Follow is placed from the carrier directly instead of accumulating its movement.
@@ -542,7 +574,7 @@ async function startRecorder() {
     },
     state() {
       const { x, y, heading, speed } = site.pose;
-      return { time: site.time, x, y, heading, speed, status: site.status().text };
+      return { time: site.time, x, y, heading, speed, status: site.status().text, product: app.product.model, size: { ...stateOf() } };
     },
   };
 }
