@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CATALOG, THUMBNAIL_ROOT } from './catalog.js';
-import { SAMPLE_PLAN, Site } from './scene/site.js';
+import { SAMPLE_PLAN, Site, fitDepthRange } from './scene/site.js';
 import { clampParam, mapAxis } from './stretch.js';
 import { STANDARDS, applyBands, highlight, loadVehicle } from './vehicle.js';
 
@@ -521,10 +521,12 @@ function animate() {
     }
     updateSitePanel();
     controls.update();
+    fitDepthRange(camera, controls.target);
     renderer.render(site.scene, camera);
   } else {
     frameVehicle();
     controls.update();
+    fitDepthRange(camera, controls.target);
     renderer.render(studio, camera);
     placeLabels();
   }

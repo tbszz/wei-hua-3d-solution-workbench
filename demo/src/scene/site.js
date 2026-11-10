@@ -4,9 +4,21 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { PALLET, RAIL, buildCargoObject, buildPlant, loadPlantTextures, setStationLift, updateCutaway } from './build-scene.js';
 import { obstaclesOf, sweptClearance } from './clearance.js';
 import { parseCad } from './parse-cad.js';
+import { installSurfaceDetail } from './surface-detail.js';
 import { buildTimeline, cargoStateAt, poseAt } from './route.js';
 
 export const SAMPLE_PLAN = '/cad/sample-plant.dxf';
+
+// Depth precision follows the orbit distance. A fixed 0.1 m near plane leaves about 1 cm of depth
+// resolution on the floor at the 300-500 m overview, so the floor paint (4 mm up), the route and the
+// contact shadow z-fight with the floor and the whole hall flickers as soon as the camera moves.
+// Keeping near at 1 % of the distance to the orbit centre stays well clear of anything in view.
+export function fitDepthRange(camera, target) {
+  const near = THREE.MathUtils.clamp(camera.position.distanceTo(target) * 0.01, 0.1, 20);
+  if (Math.abs(near - camera.near) < camera.near * 0.02) return;
+  camera.near = near;
+  camera.updateProjectionMatrix();
+}
 
 function softShadowTexture() {
   const size = 128;
@@ -34,7 +46,7 @@ export class Site {
     this.renderer = renderer;
     this.quality = quality;
     this.scene.background = new THREE.Color(0xdfe2e5);
-    this.sun = new THREE.DirectionalLight(0xfff3e2, 2.1);
+    this.sun = new THREE.DirectionalLight(0xfffaf2, 1.7);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.setScalar(quality.shadowSize);
     this.sun.shadow.bias = -0.00025;
@@ -63,10 +75,12 @@ export class Site {
     hdr.mapping = THREE.EquirectangularReflectionMapping;
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromEquirectangular(hdr).texture;
-    this.scene.environmentIntensity = 0.8;
+    this.scene.environmentIntensity = 0.85;
     hdr.dispose();
     pmrem.dispose();
-    this.textures = await loadPlantTextures();
+    this.textures = await loadPlantTextures(this.renderer.capabilities.getMaxAnisotropy());
+    // Factory wear on every lit material, including product GLBs and models uploaded later.
+    installSurfaceDetail(this.textures.detail);
   }
 
   async loadPlanText(text, sourceName) {
@@ -149,7 +163,7 @@ export class Site {
 
   update(delta, camera) {
     if (!this.timeline) return;
-    updateCutaway(this.built.sides, camera);
+    updateCutaway(this.built.sides, camera, this.built.roof);
     if (this.playing) {
       this.time += delta * this.speed;
       if (this.time >= this.timeline.duration) this.time %= this.timeline.duration;

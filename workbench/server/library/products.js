@@ -41,6 +41,8 @@ export function builtinProducts() {
       category: base.category ?? 'agv',
       capacityT: base.capacityT ?? null,
       fixture: base.fixture ?? [],
+      industries: config.industries ?? base.industries ?? [],
+      applications: config.applications ?? base.applications ?? [],
       summary: config.summary ?? base.summary ?? '',
       plate: config.plate ?? base.plate ?? '',
       params: clone(config.params ?? base.params ?? {}),

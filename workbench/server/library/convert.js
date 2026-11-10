@@ -169,6 +169,9 @@ async function loadObj(buffer, vfs, mainDir) {
 }
 
 function loadStl(buffer) {
+  const binary = buffer.length >= 84 && 84 + 50 * buffer.readUInt32LE(80) === buffer.length;
+  const head = buffer.subarray(0, Math.min(buffer.length, 4096)).toString('latin1');
+  if (!binary && !(/^\s*solid/i.test(head) && /facet/i.test(head))) throw new ConversionError('STL 文件不完整或已损坏：既不是有效的二进制 STL（大小和三角形数对不上），也不是 ASCII STL，请重新导出');
   const geometry = new STLLoader().parse(toArrayBuffer(buffer));
   const root = new THREE.Group();
   root.add(meshFromGeometry(geometry, 'stl'));

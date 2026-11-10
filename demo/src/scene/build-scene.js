@@ -6,6 +6,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const WALL_HEIGHT = 12;
 const SHOW_PATH_COLOR = 0xff6a1a;
 const MARK_HEX = { yellow: 0xb8921c, green: 0x1d6a2d, white: 0xd8d8d2 };
+const ROOF_HEIGHT = WALL_HEIGHT;
+const FLOOR_TILE = 6; // metres per floor texture tile (joint grid)
 
 export const PALLET = { length: 2200, width: 3300, thickness: 0.14 };
 export const RAIL = { lowered: -0.06, raised: 0.12, height: 0.14 };
@@ -138,7 +140,6 @@ function textPlane(text, heightMm) {
   paint.fillText(text, canvas.width / 2, canvas.height / 2);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
   const height = (heightMm / 1000) * 1.35;
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry((height * canvas.width) / canvas.height, height),
@@ -148,14 +149,15 @@ function textPlane(text, heightMm) {
   return mesh;
 }
 
-function buildRacks(plant, group) {
+function buildRacks(plant, group, textures) {
   const upright = new THREE.BoxGeometry(0.09, 1, 0.09);
   const beam = new THREE.BoxGeometry(1, 0.12, 0.05);
   const pallet = new THREE.BoxGeometry(1.1, 0.14, 0.95);
   const carton = new THREE.BoxGeometry(1, 1, 1);
   const lists = { upright: [], beam: [], pallet: [], carton: [] };
   const cartonColors = [];
-  const palette = [0xb48a5a, 0xa67c50, 0xc29a68, 0x8f9aa3, 0x7b8a6c];
+  // Tints over the plywood map: kraft cartons, a few grey-blue and olive ones.
+  const palette = [0xc8bcae, 0xbcb0a2, 0xd0c4b4, 0x9aa4ad, 0x98a28a];
   let seed = 7;
   const random = () => {
     seed = (seed * 16807) % 2147483647;
@@ -188,10 +190,10 @@ function buildRacks(plant, group) {
       }
     }
   }
-  group.add(instanced(upright, standard(0x24508a, 0.25, 0.5), lists.upright));
-  group.add(instanced(beam, standard(0xd9681e, 0.2, 0.5), lists.beam));
-  group.add(instanced(pallet, standard(0x8b6a43, 0, 0.85), lists.pallet));
-  const cartons = instanced(carton, standard(0xffffff, 0, 0.85), lists.carton);
+  group.add(instanced(upright, standard(0x1f4f9a, 0.3, 0.45), lists.upright));
+  group.add(instanced(beam, standard(0xe0661a, 0.25, 0.45), lists.beam));
+  group.add(instanced(pallet, standard(0x8b6a43, 0, 0.85, { map: textures.plywoodColor, normalMap: textures.plywoodNormal, roughnessMap: textures.plywoodRough }), lists.pallet));
+  const cartons = instanced(carton, standard(0x9f7654, 0, 0.82, { map: textures.plywoodColor, normalMap: textures.plywoodNormal, roughnessMap: textures.plywoodRough }), lists.carton);
   cartonColors.forEach((color, i) => cartons.setColorAt(i, new THREE.Color(color)));
   group.add(cartons);
 }
@@ -260,20 +262,20 @@ function buildCrane(crane, group) {
   group.add(placed(new THREE.BoxGeometry(0.5, 0.5, 0.26), yellow, crane.x, height - 4.1, crane.y));
 }
 
-function buildDoor(door, centre) {
+function buildDoor(door, centre, textures) {
   const rect = door.rects[0];
   const height = Number(door.attrs.HEIGHT ?? 4500) / 1000;
   const w = rect.w / 1000;
   const normalX = -Math.sin(rect.heading);
   const normalY = Math.cos(rect.heading);
   const outward = (rect.x - centre.x) * normalX + (rect.y - centre.y) * normalY > 0 ? 1 : -1;
-  const panel = standard(0x6b6e72, 0.5, 0.42);
+  const panel = standard(0x5d6267, 0.45, 0.45, { map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough });
   const at = offsetFrom(rect, 0, outward * 800);
   const ramp = offsetFrom(rect, 0, outward * 2400);
   return [
-    placed(new THREE.BoxGeometry(w, height, 0.27), panel, rect.x, height / 2, rect.y, rect.heading),
+    placed(scaleUv(new THREE.BoxGeometry(w, height, 0.27), w / 1.5, height / 1.5), panel, rect.x, height / 2, rect.y, rect.heading),
     placed(new THREE.BoxGeometry(w + 0.5, 0.14, 1.6), standard(0x4a4d51, 0.3, 0.55), at.x, height + 0.3, at.y, rect.heading),
-    placed(new THREE.BoxGeometry(w + 1.2, 0.06, 4.8), standard(0x6c5a57, 0.1, 0.85), ramp.x, 0.03, ramp.y, rect.heading),
+    placed(new THREE.BoxGeometry(w + 1.2, 0.06, 4.8), standard(0x8e9296, 0.05, 0.8), ramp.x, 0.03, ramp.y, rect.heading),
   ];
 }
 
@@ -313,7 +315,7 @@ export function setStationLift(dynamic, railTop) {
   }
 }
 
-export function buildCargoObject(kind) {
+export function buildCargoObject(kind, textures = sharedTextures) {
   const group = new THREE.Group();
   const frame = standard(0x4b4f55, 0.45, 0.5);
   const width = PALLET.width / 1000;
@@ -345,7 +347,7 @@ export function buildCargoObject(kind) {
     coil.castShadow = true;
     group.add(coil);
   } else {
-    const wood = standard(0xb48a58, 0, 0.82);
+    const wood = standard(textures?.plywoodColor ? 0x9f7654 : 0xb48a58, 0, 0.82, { map: textures?.plywoodColor ?? null, normalMap: textures?.plywoodNormal ?? null, roughnessMap: textures?.plywoodRough ?? null });
     add(new THREE.BoxGeometry(1.9, 1.3, 1.7), wood, base + 0.65);
     const strap = standard(0x2b2d31, 0.4, 0.5);
     for (const x of [-0.6, 0.6]) add(new THREE.BoxGeometry(0.06, 1.33, 1.73), strap, base + 0.65, x);
@@ -355,7 +357,6 @@ export function buildCargoObject(kind) {
 
 function repeatTexture(texture, colorSpace) {
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.anisotropy = 8;
   if (colorSpace) texture.colorSpace = colorSpace;
   return texture;
 }
@@ -387,18 +388,123 @@ function neutralised(texture) {
   return texture;
 }
 
-export async function loadPlantTextures() {
+let sharedTextures = null;
+
+// Floor, walls, roof, doors and crates use CC0 1K PBR assets documented in data/scene/SOURCES.md.
+export async function loadPlantTextures(maxAnisotropy = 8) {
   const loader = new THREE.TextureLoader();
   const root = '/scene/textures';
-  const load = (name, colorSpace) => loader.loadAsync(`${root}/${name}`).then((t) => repeatTexture(t, colorSpace));
-  const [floorColor, floorRough, floorNormal, wallRough, wallNormal] = await Promise.all([
-    load('painted_concrete_diff_1k.jpg', THREE.SRGBColorSpace),
-    load('painted_concrete_rough_1k.jpg'),
-    load('painted_concrete_nor_gl_1k.jpg'),
-    load('factory_wall_rough_1k.jpg'),
-    load('factory_wall_nor_gl_1k.jpg'),
+  const load = (name, colorSpace, anisotropy = 2) => loader.loadAsync(`${root}/${name}`).then((t) => {
+    repeatTexture(t, colorSpace);
+    t.anisotropy = Math.min(anisotropy, maxAnisotropy);
+    return t;
+  });
+  const sRGB = THREE.SRGBColorSpace;
+  const [floorColor, floorRough, floorNormal, corrugatedColor, corrugatedNormal, corrugatedRough, blockColor, blockNormal, blockRough, window, plywoodColor, plywoodNormal, plywoodRough] = await Promise.all([
+    load('painted_concrete_diff_1k.jpg', sRGB, 8).then(neutralised),
+    load('painted_concrete_rough_1k.jpg', null, 8),
+    load('painted_concrete_nor_gl_1k.jpg', null, 8),
+    load('corrugated_iron_diff_1k.jpg', sRGB, 4),
+    load('corrugated_iron_nor_1k.jpg', null, 4),
+    load('corrugated_iron_rough_1k.jpg', null, 4),
+    load('concrete_block_diff_1k.jpg', sRGB, 4),
+    load('concrete_block_nor_1k.jpg', null, 4),
+    load('concrete_block_rough_1k.jpg', null, 4),
+    load('factory_window.jpg', sRGB),
+    load('plywood_diff_1k.jpg', sRGB, 4),
+    load('plywood_nor_1k.jpg', null, 4),
+    load('plywood_rough_1k.jpg', null, 4),
   ]);
-  return { floorColor: neutralised(floorColor), floorRough, floorNormal, wallRough, wallNormal };
+  sharedTextures = { floorColor, floorRough, floorNormal, corrugatedColor, corrugatedNormal, corrugatedRough, blockColor, blockNormal, blockRough, window, plywoodColor, plywoodNormal, plywoodRough, detail: floorColor };
+  return sharedTextures;
+}
+
+// Roof trusses on every column line, purlins, high-bay lamps and a roof deck that is only
+// visible from inside (it faces down, so from above it is back-face culled).
+function buildRoof(plant, bounds, centre, sizeX, sizeY, textures) {
+  const group = new THREE.Group();
+  group.name = '屋面';
+  const lines = [...new Set(plant.columns.map((c) => c.x))].sort((a, b) => a - b);
+  const [z0, z1] = [worldZ(bounds.minY), worldZ(bounds.maxY)];
+  const bottom = ROOF_HEIGHT - 1.4;
+  const top = ROOF_HEIGHT - 0.12;
+  const bars = [];
+  const along = new THREE.Vector3(0, 0, 1);
+  const bar = (a, b, thick) => {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const length = dir.length();
+    bars.push(new THREE.Matrix4().compose(
+      a.clone().add(b).multiplyScalar(0.5),
+      new THREE.Quaternion().setFromUnitVectors(along, dir.normalize()),
+      new THREE.Vector3(thick, thick, length),
+    ));
+  };
+  const panels = Math.max(2, Math.round(sizeY / 2));
+  for (const lineX of lines) {
+    const x = worldX(lineX);
+    bar(new THREE.Vector3(x, bottom, z0), new THREE.Vector3(x, bottom, z1), 0.2);
+    bar(new THREE.Vector3(x, top, z0), new THREE.Vector3(x, top, z1), 0.2);
+    for (let i = 0; i < panels; i++) {
+      const za = z0 + ((z1 - z0) * i) / panels;
+      const zb = z0 + ((z1 - z0) * (i + 1)) / panels;
+      bar(new THREE.Vector3(x, bottom, za), new THREE.Vector3(x, top, za), 0.09);
+      const low = i % 2 === 0;
+      bar(new THREE.Vector3(x, low ? bottom : top, za), new THREE.Vector3(x, low ? top : bottom, zb), 0.08);
+    }
+  }
+  const [x0, x1] = [worldX(bounds.minX), worldX(bounds.maxX)];
+  for (let z = z1 + 1.5; z < z0 - 1; z += 3) bar(new THREE.Vector3(x0, top + 0.06, z), new THREE.Vector3(x1, top + 0.06, z), 0.14);
+  const steel = instanced(new THREE.BoxGeometry(1, 1, 1), standard(0xa4a8ac, 0.35, 0.5), bars);
+  steel.castShadow = false;
+  steel.receiveShadow = false;
+  group.add(steel);
+
+  const lamps = [];
+  for (let i = 0; i < lines.length - 1; i++) {
+    for (let z = z1 + 4; z < z0 - 2; z += 7) lamps.push(new THREE.Matrix4().makeTranslation((worldX(lines[i]) + worldX(lines[i + 1])) / 2, bottom - 0.5, z));
+  }
+  const lampMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.28, 0.2, 0.32, 12), new THREE.MeshBasicMaterial({ color: 0xf4f7ff }), lamps.length);
+  lamps.forEach((m, i) => lampMesh.setMatrixAt(i, m));
+  group.add(lampMesh);
+
+  const deck = new THREE.Mesh(
+    scaleUv(new THREE.PlaneGeometry(sizeX, sizeY).rotateX(Math.PI / 2), sizeX / 8, sizeY / 8),
+    // Lit, so the deck sits in shade under the trusses instead of glowing.
+    new THREE.MeshStandardMaterial({ map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough, color: 0xa9adb0, metalness: 0.08, roughness: 0.72, side: THREE.DoubleSide }),
+  );
+  deck.receiveShadow = false;
+  deck.position.set(worldX(centre.x), ROOF_HEIGHT, worldZ(centre.y));
+  group.add(deck);
+  return group;
+}
+
+// Plain static meshes that share a material become one draw call (and one shadow call).
+function mergeStatic(group, keep) {
+  const buckets = new Map();
+  for (const mesh of [...group.children]) {
+    if (!mesh.isMesh || mesh.isInstancedMesh || keep.has(mesh) || mesh.material.transparent) continue;
+    const g = mesh.geometry;
+    if (!g.index || !g.attributes.uv || !g.attributes.normal || Object.keys(g.attributes).length !== 3) continue;
+    const key = `${mesh.material.uuid}|${mesh.castShadow}|${mesh.receiveShadow}`;
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(mesh);
+  }
+  for (const meshes of buckets.values()) {
+    if (meshes.length < 2) continue;
+    const merged = mergeGeometries(meshes.map((m) => {
+      m.updateMatrix();
+      return m.geometry.clone().applyMatrix4(m.matrix);
+    }));
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, meshes[0].material);
+    mesh.castShadow = meshes[0].castShadow;
+    mesh.receiveShadow = meshes[0].receiveShadow;
+    for (const m of meshes) {
+      group.remove(m);
+      m.geometry.dispose();
+    }
+    group.add(mesh);
+  }
 }
 
 export function buildPlant(plant, textures) {
@@ -415,19 +521,25 @@ export function buildPlant(plant, textures) {
   apron.receiveShadow = true;
   group.add(apron);
 
-  const tile = 8;
-  const floorGeometry = scaleUv(new THREE.PlaneGeometry(sizeX, sizeY).rotateX(-Math.PI / 2), sizeX / tile, sizeY / tile);
-  const floor = new THREE.Mesh(floorGeometry, new THREE.MeshStandardMaterial({
+  const floorGeometry = scaleUv(new THREE.PlaneGeometry(sizeX, sizeY).rotateX(-Math.PI / 2), sizeX / FLOOR_TILE, sizeY / FLOOR_TILE);
+  // Scanned painted concrete (albedo ~120 sRGB). The 6 m saw-cut joints are drawn by surface-detail.js.
+  const floorMaterial = new THREE.MeshStandardMaterial({
     map: textures.floorColor, roughnessMap: textures.floorRough, normalMap: textures.floorNormal,
     normalScale: new THREE.Vector2(0.35, 0.35), color: 0xb4b6b8, metalness: 0, roughness: 0.8,
-  }));
+  });
+  floorMaterial.defines = { DETAIL_FLOOR: '' };
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.position.set(worldX(centre.x), 0, worldZ(centre.y));
   floor.receiveShadow = true;
   group.add(floor);
 
   const wallMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6d5a58, roughnessMap: textures.wallRough, normalMap: textures.wallNormal,
-    normalScale: new THREE.Vector2(0.5, 0.5), metalness: 0.2, roughness: 0.85,
+    map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough,
+    color: new THREE.Color(1.32, 1.25, 1.12), metalness: 0.08, roughness: 0.68,
+  });
+  const dadoMaterial = new THREE.MeshStandardMaterial({
+    map: textures.blockColor, normalMap: textures.blockNormal, roughnessMap: textures.blockRough,
+    color: new THREE.Color(1.35, 1.16, 0.92), metalness: 0, roughness: 0.82,
   });
   const sides = [];
   for (const wall of plant.walls) {
@@ -437,13 +549,15 @@ export function buildPlant(plant, textures) {
       const a = points[i];
       const b = points[(i + 1) % points.length];
       const length = Math.hypot(b.x - a.x, b.y - a.y) / 1000;
-      const geometry = scaleUv(new THREE.BoxGeometry(length + wall.width / 1000, WALL_HEIGHT, wall.width / 1000), length / 4, WALL_HEIGHT / 4);
-      const mesh = placed(geometry, wallMaterial, (a.x + b.x) / 2, WALL_HEIGHT / 2, (a.y + b.y) / 2, Math.atan2(b.y - a.y, b.x - a.x));
-      group.add(mesh);
+      const heading = Math.atan2(b.y - a.y, b.x - a.x);
+      const upperHeight = WALL_HEIGHT - 1.2;
+      const dado = placed(scaleUv(new THREE.BoxGeometry(length + wall.width / 1000, 1.2, wall.width / 1000), length / 3, 1.2 / 2), dadoMaterial, (a.x + b.x) / 2, 0.6, (a.y + b.y) / 2, heading);
+      const mesh = placed(scaleUv(new THREE.BoxGeometry(length + wall.width / 1000, upperHeight, wall.width / 1000), length / 3, upperHeight / 3), wallMaterial, (a.x + b.x) / 2, 1.2 + upperHeight / 2, (a.y + b.y) / 2, heading);
+      group.add(dado, mesh);
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const along = { x: (b.x - a.x) / (length * 1000), y: (b.y - a.y) / (length * 1000) };
       const facing = Math.sign((centre.x - mid.x) * -along.y + (centre.y - mid.y) * along.x);
-      sides.push({ a, along, length: length * 1000, x: worldX(mid.x), z: worldZ(mid.y), nx: -along.y * facing, nz: -along.x * facing, meshes: [mesh], cut: false });
+      sides.push({ a, along, length: length * 1000, x: worldX(mid.x), z: worldZ(mid.y), nx: -along.y * facing, nz: -along.x * facing, meshes: [dado, mesh], cut: false });
     }
   }
 
@@ -456,10 +570,10 @@ export function buildPlant(plant, textures) {
     const height = Number(column.attrs.HEIGHT ?? 10500) / 1000;
     columnLists.get(geometry).push(matrix(column.x, 0, column.y, column.heading, 1, height, 1));
   }
-  const columnMaterial = standard(0xb8922c, 0.2, 0.5);
+  const columnMaterial = standard(0x9a9ea2, 0.3, 0.5);
   for (const [geometry, list] of columnLists) group.add(instanced(geometry, columnMaterial, list));
 
-  const beamMaterial = standard(0x8c3b39, 0.2, 0.52);
+  const beamMaterial = standard(0x5a5f65, 0.35, 0.5);
   for (const beam of plant.beams) {
     const a = beam.points[0];
     const b = beam.points.at(-1);
@@ -468,13 +582,16 @@ export function buildPlant(plant, textures) {
   }
 
   const markGeometries = {};
+  // Floor paint: lanes and walkways are full colour bands, thin marks sit on top of them.
   plant.marks.forEach((mark, i) => {
     (markGeometries[mark.color] ??= []).push(ribbon(mark, mark.width || 80, 0.004 + (mark.width > 1000 ? 0 : 0.002) + i * 1e-5));
   });
   for (const [color, list] of Object.entries(markGeometries)) {
-    const mesh = new THREE.Mesh(mergeGeometries(list), new THREE.MeshStandardMaterial({
+    const material = new THREE.MeshStandardMaterial({
       color: MARK_HEX[color], roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    }));
+    });
+    material.defines = { DETAIL_FLOOR: '' };
+    const mesh = new THREE.Mesh(mergeGeometries(list), material);
     mesh.receiveShadow = true;
     group.add(mesh);
   }
@@ -490,7 +607,7 @@ export function buildPlant(plant, textures) {
     group.add(mesh);
   }
 
-  buildRacks(plant, group);
+  buildRacks(plant, group, textures);
   plant.machines.forEach((m) => buildMachine(m, group));
   plant.conveyors.forEach((c) => buildConveyor(c, group));
   plant.cranes.forEach((c) => buildCrane(c, group));
@@ -508,27 +625,38 @@ export function buildPlant(plant, textures) {
     nearest.meshes.push(...meshes);
     group.add(...meshes);
   };
-  plant.doors.forEach((door) => fitToWall(door.rects[0], buildDoor(door, centre)));
+  plant.doors.forEach((door) => fitToWall(door.rects[0], buildDoor(door, centre, textures)));
 
-  const glassMaterial = standard(0x3a8fb3, 0.55, 0.22, { envMapIntensity: 1.3 });
-  const panelMaterial = standard(0xe6e6e0, 0.1, 0.55);
+  // Daylight windows are unlit: they read as bright as in the photos and cost nothing to shade.
+  const glassMaterial = new THREE.MeshBasicMaterial({ map: textures.window, color: 0xc0c4c7 });
+  const panelMaterial = new THREE.MeshStandardMaterial({ map: textures.corrugatedColor, normalMap: textures.corrugatedNormal, roughnessMap: textures.corrugatedRough, color: new THREE.Color(1.32, 1.25, 1.12), metalness: 0.08, roughness: 0.68 });
   for (const pane of plant.glazing) {
     const rect = pane.rects[0];
     const sill = Number(pane.attrs.SILL ?? 1500) / 1000;
     const height = Number(pane.attrs.HEIGHT ?? 6000) / 1000;
-    const material = pane.block === 'PANEL_3000' ? panelMaterial : glassMaterial;
-    fitToWall(rect, [placed(new THREE.BoxGeometry(rect.w / 1000, height, 0.28), material, rect.x, sill + height / 2, rect.y, rect.heading)]);
+    const glass = pane.block !== 'PANEL_3000';
+    const w = rect.w / 1000;
+    const geometry = scaleUv(new THREE.BoxGeometry(w, height, 0.28), w / (glass ? 1.5 : 3), height / (glass ? 1.5 : 3));
+    const mesh = placed(geometry, glass ? glassMaterial : panelMaterial, rect.x, sill + height / 2, rect.y, rect.heading);
+    if (glass) mesh.castShadow = false;
+    fitToWall(rect, [mesh]);
   }
 
   const stations = plant.stations.map((station) => buildStation(station, group));
   for (const side of sides) for (const mesh of side.meshes) mesh.userData.solid = mesh.material;
-  return { group, stations, sides, bounds, centre, size: { x: sizeX, y: sizeY } };
+  const keep = new Set([floor, ...sides.flatMap((side) => side.meshes), ...stations.flatMap((d) => [...d.rails, ...d.lifts])]);
+  mergeStatic(group, keep);
+  const roof = buildRoof(plant, bounds, centre, sizeX, sizeY, textures);
+  group.add(roof);
+  return { group, stations, sides, roof, bounds, centre, size: { x: sizeX, y: sizeY } };
 }
 
 // Walls between the camera and the hall stop drawing but keep casting shadows.
 const CUT_AWAY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 
-export function updateCutaway(sides, camera) {
+// The roof (trusses, lamps, deck) only shows from inside the hall; from above it would hide the floor.
+export function updateCutaway(sides, camera, roof) {
+  if (roof) roof.visible = camera.position.y < ROOF_HEIGHT - 0.4;
   for (const side of sides) {
     const cut = (camera.position.x - side.x) * side.nx + (camera.position.z - side.z) * side.nz < 0;
     if (cut === side.cut) continue;

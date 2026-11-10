@@ -69,8 +69,8 @@ async function convertInto(asset, { format, buffer, vfs = null, mainDir = '' }) 
 
 function unknownMessage(format) {
   return format && format !== 'unknown'
-    ? `暂不支持 .${format} 文件。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF，底图请用 PNG/JPG/WebP`
-    : '无法识别文件格式。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF，底图请用 PNG/JPG/WebP';
+    ? `暂不支持 .${format} 文件。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF/DWG，底图请用 PNG/JPG/WebP`
+    : '无法识别文件格式。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF/DWG，底图请用 PNG/JPG/WebP';
 }
 
 async function convertZip(asset, buffer) {

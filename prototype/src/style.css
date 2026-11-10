@@ -1,7 +1,7 @@
 :root{
   --red:#D7000F;--red-dark:#A3000B;--red-light:#FCE8EA;--ink:#1F2329;--ink2:#646A73;--ink3:#8F959E;
   --bg:#ECEEF1;--surface:#fff;--surface2:#F2F3F5;--line:#E1E4E8;--blue:#2B7DE9;--yellow:#F5B800;--ok:#2EA121;
-  --glass:rgba(255,255,255,.84);--glass-line:rgba(255,255,255,.9);
+  --glass:rgba(255,255,255,.93);--glass-line:rgba(255,255,255,.9);
   --num:"Bahnschrift","DIN Alternate","DIN Next",Consolas,monospace;
   --r:4px;--gap:10px;
   --top:64px;--bottom:92px;--lw:clamp(240px,16vw,290px);--rw:clamp(330px,22vw,390px);
@@ -25,7 +25,7 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .toast[hidden]{display:none}
 
 /* floating glass panels */
-.glass{background:var(--glass);backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);border:1px solid var(--glass-line);box-shadow:0 6px 24px rgba(31,35,41,.10);border-radius:var(--r)}
+.glass{background:var(--glass);border:1px solid var(--glass-line);box-shadow:0 6px 24px rgba(31,35,41,.10);border-radius:var(--r)}
 .panel{position:relative;min-height:0;min-width:0}
 .panel::before{content:"";position:absolute;left:-1px;top:-1px;width:12px;height:12px;border-left:2px solid var(--red);border-top:2px solid var(--red);border-top-left-radius:var(--r);pointer-events:none;z-index:3}
 .ph{height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px;border-bottom:1px solid rgba(31,35,41,.08);flex:none}
@@ -106,11 +106,7 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .item .go:disabled{opacity:.45;cursor:default;border-color:var(--line);color:var(--ink3)}
 .item.err small{color:var(--red)}
 .empty{font-size:12.5px;color:var(--ink3);padding:14px 6px;text-align:center}
-.drop{margin:0 8px 8px;border:1px dashed #B8BDC5;border-radius:var(--r);padding:7px;display:flex;flex-direction:column;align-items:center;cursor:pointer;flex:none;transition:.15s;background:rgba(255,255,255,.4)}
-.drop span{font-size:12.5px;color:var(--ink2)}
-.drop small{font-size:10.5px;color:var(--ink3);font-family:var(--num);letter-spacing:.02em}
-.drop:hover,.drop.over{border-color:var(--red);background:var(--red-light)}
-.drop.busy{opacity:.6;pointer-events:none}
+.libhint{margin:0 8px 8px;font-size:11px;color:var(--ink3);text-align:center;flex:none}
 
 /* ---------------------------------------------------------------- right column */
 .viewbar{display:flex;gap:8px;padding:8px;flex:none;flex-wrap:wrap}
@@ -326,8 +322,34 @@ table.t tr.clickable:hover td{background:var(--bg)}
 .right .agent.min-on{margin-top:auto}
 
 /* one-click clean screen: only the 3D site and a restore button */
-.restore{display:none;position:absolute;left:var(--gap);top:var(--gap);z-index:6;background:var(--glass);backdrop-filter:blur(10px);border:1px solid var(--glass-line);box-shadow:0 4px 16px rgba(31,35,41,.12);color:var(--ink);font-size:12.5px;padding:6px 14px;border-radius:var(--r);border-left:3px solid var(--red)}
+.restore{display:none;position:absolute;left:var(--gap);top:var(--gap);z-index:6;background:var(--glass);border:1px solid var(--glass-line);box-shadow:0 4px 16px rgba(31,35,41,.12);color:var(--ink);font-size:12.5px;padding:6px 14px;border-radius:var(--r);border-left:3px solid var(--red)}
 .restore:hover{color:var(--red)}
 body.clean .top,body.clean .left,body.clean .right,body.clean .bottom,body.clean .drawer{display:none}
 body.clean .restore{display:block}
 body.clean .toast{bottom:28px}
+
+/* Uploads live in the 小华 panel */
+.agent{position:relative}
+.agent.dropping::after{content:"松开即可上传给小华";position:absolute;inset:6px;border:1.5px dashed var(--red);border-radius:var(--r);background:rgba(255,240,241,.82);display:grid;place-items:center;font-size:14px;color:var(--red);pointer-events:none;z-index:5}
+.box{align-items:flex-end}
+.box .clip{width:30px;height:30px;flex:none;display:grid;place-items:center;color:var(--ink2);border-radius:var(--r);cursor:pointer;margin-left:-5px}
+.box .clip:hover{color:var(--red);background:var(--red-light)}
+.attach{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.attach[hidden]{display:none}
+.attach .file{display:flex;align-items:center;gap:6px;max-width:100%;border:1px solid var(--line);border-radius:2px;background:#fff;padding:2px 4px 2px 6px;font-size:12px;color:var(--ink)}
+.attach .file b{font-family:var(--num);font-size:10px;color:#fff;background:var(--ink2);border-radius:2px;padding:0 4px}
+.attach .file small{color:var(--ink3);font-family:var(--num)}
+.attach .file button{color:var(--ink3);font-size:14px;line-height:1;padding:0 3px}
+.attach .file button:hover{color:var(--red)}
+.u .ufiles{display:flex;flex-direction:column;gap:2px;margin-top:4px;font-size:12px;opacity:.85}
+.u .ufiles:first-child{margin-top:0}
+.upcard .uplist{display:flex;flex-direction:column}
+.upcard .up{display:grid;grid-template-columns:34px 1fr auto;grid-template-rows:auto auto;column-gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--line)}
+.upcard .up:first-child{border-top:0}
+.upcard .up .th{grid-row:span 2;width:34px;height:34px;border-radius:2px;background:var(--surface2) center/cover;display:grid;place-items:center;font-size:9.5px;color:var(--ink3);font-family:var(--num)}
+.upcard .up b{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upcard .up small{font-size:11.5px;color:var(--ink3);grid-column:2}
+.upcard .up button{grid-row:1 / span 2;grid-column:3;font-size:12px;border:1px solid var(--red);color:var(--red);border-radius:2px;padding:2px 8px}
+.upcard .up button:disabled{opacity:.5}
+.upcard .up.err small{color:var(--red)}
+.input.has-files .sugg{display:none}

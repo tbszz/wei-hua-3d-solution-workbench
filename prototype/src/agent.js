@@ -16,9 +16,20 @@ const SYSTEM = `你是「小华」，卫华集团「3D 方案工作台」里的�
 5. 功能流程 7 步：1 图纸变三维·点位标定，2 选型与参数，3 流程说明，4 流程动画，5 效率与节拍，6 行程可视化，7 出图下发（后期，只做介绍）。
 6. 回答用简体中文，一到三句话，给关键数字，不要 Markdown 标题和长列表。速度、时间是示意值，必要时提一句。
 7. 不知道当前状态时先调 get_scene_state。
-8. 每条用户指令只执行一次：工具返回成功就停止，不要为同一条指令再次调用同一工具。"再加一台""车长加 200"这类相对说法，以用户发话时的状态为基准算一次。`;
+8. 每条用户指令只执行一次：工具返回成功就停止，不要为同一条指令再次调用同一工具。"再加一台""车长加 200"这类相对说法，以用户发话时的状态为基准算一次。
+9. 零件建模（text-to-cad）：用户要做鞍座、货架、钢卷、托盘等零件三维模型时调 cad_build_part；用户给的是零件 CAD 图纸（场景库里的 DXF/DWG）时调 cad_from_drawing。要"入库"就 register_product=true。生成要几十秒，先说一句"正在建模"。
+10. 货位与库存：布置库区用 layout_slots（坐标要在 get_scene_state 的「厂房范围_mm」内，不给起点就自动放在南侧）；输入库存用 fill_inventory，回答时说清"已用货位 n 个，空置货位 n 个"。
+11. 行业选型：先 recommend_products（行业 + 单件重量），再 adapt_product 按卷材尺寸/重量适配车体参数；用户要求应用或另存型号时再传 apply / save_as。
+12. 技术方案流程演示：用户给流程信息/工序节点时调 define_process，再 play_flow（全流程 mode=full；讲某个节点 mode=node）。这只是说明流程，不做仿真。
+13. 生产仿真：用户要评估产线产出、各工位节拍、瓶颈时调 simulate_line（给 stations；用已定义流程用 source=flow；不给则用当前 AGV+行车方案），回答给实际产出/小时、班产范围、瓶颈和"瓶颈加机对比"。
+14. 上传文件：用户只能在你这里上传文件（左边资源库只展示和手动放入）。上传结果会以「（用户上传了 n 个文件：…）」告诉你 id、类型和是否可用。三维模型要放进厂房时用 place_asset：位置只按用户原话（"放在 H-01 东边 5 米"→ ref=H-01, east_m=5；"x 30 米 y 12 米"→ x_mm=30000, y_mm=12000；"转 90 度"→ rotate_deg=90），用户没说位置就先问一句放哪，不要自己定；"往北挪 2 米"按「已放入模型」里的当前坐标算一次。图纸（DXF/DWG）用 load_site_asset 载入为厂房，不带工位图层的会自动叠为底图。转换失败的把原因原样告诉用户。`;
 
-const SUGGESTIONS = ['播放全流程', '只看第 3 步', '节拍改成 90 秒', '模拟一个 8 小时班', '显示行程', '车长改成 3200', '加一台 AGV', '在 H-01 东边 8 米加一个吊装点'];
+const SUGGESTIONS = ['做一个 Φ1800 钢卷用的 V 型鞍座并入库', '布置 A 区鞍座货位 2 行 10 列', '库存 14 卷，填进货位', '钢铁行业 25 吨钢卷怎么选型', '仿真 开卷60s 矫直75s 剪切90s 堆垛50s 跑 8 小时', '播放全流程', '只看第 3 步', '节拍改成 90 秒', '模拟一个 8 小时班', '显示行程', '车长改成 3200', '加一台 AGV', '在 H-01 东边 8 米加一个吊装点'];
+
+const KIND = { model: '三维模型', site: '图纸', image: '图片', document: '文档' };
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const usable = (a) => a.status === 'ready' || Boolean(a.url && a.status !== 'failed' && a.status !== 'unsupported');
 
 const CN_NUM = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 const num = (s) => (s in CN_NUM ? CN_NUM[s] : Number(s));
@@ -58,6 +69,12 @@ function localIntent(text, app) {
     while (app.site.findPoint(`${prefix}-0${i}`)) i += 1;
     calls.push(['add_station', { id: `${prefix}-0${i}`, role, ref: m[1].toUpperCase(), east_m: dir[0], north_m: dir[1] }]);
   }
+  const lastModel = app.lastUploads?.filter((a) => a.kind === 'model' && usable(a)).at(-1);
+  if (lastModel && (m = t.match(/放(?:在|到)([A-Z]+-\d+)(?:的)?(东|西|南|北)边?(\d+(?:\.\d+)?)米/i))) {
+    const d = Number(m[3]);
+    const [east_m, north_m] = { 东: [d, 0], 西: [-d, 0], 北: [0, d], 南: [0, -d] }[m[2]];
+    calls.push(['place_asset', { asset: lastModel.id, ref: m[1].toUpperCase(), east_m, north_m }]);
+  } else if (lastModel && (m = t.match(/放(?:在|到)([A-Z]+-\d+)/i))) calls.push(['place_asset', { asset: lastModel.id, ref: m[1].toUpperCase() }]);
   if (/俯视/.test(t)) calls.push(['set_camera', { view: 'top' }]);
   else if (/跟随/.test(t)) calls.push(['set_camera', { view: 'follow' }]);
   else if (/总览/.test(t)) calls.push(['set_camera', { view: 'overview' }]);
@@ -72,6 +89,8 @@ export class Agent {
   online = false;
 
   busy = false;
+
+  pending = []; // files staged in the chat box, uploaded on send
 
   constructor({ tools, app }) {
     this.tools = tools;
@@ -100,6 +119,65 @@ export class Agent {
       if (b && !this.busy) this.send(b.textContent);
     });
     this.msgs.addEventListener('click', (e) => this.onCardAction(e));
+    this.initAttach();
+  }
+
+  // Files: paper-clip button, drag onto the 小华 panel, or paste. They wait as chips until send,
+  // so the user can say where to put them in the same message.
+  initAttach() {
+    this.attachEl = document.getElementById('attach');
+    const picker = document.getElementById('chatFiles');
+    picker.addEventListener('change', () => {
+      this.stage([...picker.files]);
+      picker.value = '';
+    });
+    const panel = this.form.closest('.agent') ?? this.form;
+    let depth = 0;
+    const hasFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+    panel.addEventListener('dragenter', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth += 1;
+      panel.classList.add('dropping');
+    });
+    panel.addEventListener('dragover', (e) => {
+      if (hasFiles(e)) e.preventDefault();
+    });
+    panel.addEventListener('dragleave', () => {
+      depth = Math.max(0, depth - 1);
+      if (!depth) panel.classList.remove('dropping');
+    });
+    panel.addEventListener('drop', (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      panel.classList.remove('dropping');
+      this.stage([...e.dataTransfer.files]);
+    });
+    this.input.addEventListener('paste', (e) => {
+      const files = [...(e.clipboardData?.files ?? [])];
+      if (!files.length) return;
+      e.preventDefault();
+      this.stage(files);
+    });
+    this.attachEl.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-unstage]');
+      if (!b) return;
+      this.pending.splice(Number(b.dataset.unstage), 1);
+      this.renderAttach();
+    });
+  }
+
+  stage(files) {
+    for (const f of files) if (!this.pending.some((p) => p.name === f.name && p.size === f.size)) this.pending.push(f);
+    this.renderAttach();
+    this.input.focus();
+  }
+
+  renderAttach() {
+    this.attachEl.hidden = !this.pending.length;
+    this.attachEl.parentElement.classList.toggle('has-files', this.pending.length > 0);
+    this.attachEl.innerHTML = this.pending.map((f, i) => `<span class="file"><b>${esc(f.name.split('.').pop().toUpperCase())}</b>${esc(f.name)}<small>${fmtSize(f.size)}</small><button type="button" data-unstage="${i}" title="移除">×</button></span>`).join('');
   }
 
   async init() {
@@ -129,20 +207,29 @@ export class Agent {
 
   submit() {
     const text = this.input.value.trim();
-    if (!text || this.busy) return;
+    const files = this.pending;
+    if ((!text && !files.length) || this.busy) return;
     this.input.value = '';
     this.input.style.height = 'auto';
-    this.send(text);
+    this.pending = [];
+    this.renderAttach();
+    this.send(text, files);
   }
 
   scroll() {
     this.msgs.scrollTop = this.msgs.scrollHeight;
   }
 
-  userBubble(text) {
+  userBubble(text, files = []) {
     const el = document.createElement('div');
     el.className = 'u';
-    el.textContent = text;
+    if (text) el.append(document.createTextNode(text));
+    if (files.length) {
+      const list = document.createElement('div');
+      list.className = 'ufiles';
+      list.innerHTML = files.map((f) => `<span>📎 ${esc(f.name)}</span>`).join('');
+      el.append(list);
+    }
     this.msgs.append(el);
     this.scroll();
   }
@@ -191,12 +278,21 @@ export class Agent {
     document.getElementById('send').disabled = busy;
   }
 
-  async send(text) {
-    this.userBubble(text);
+  async send(text, files = []) {
+    this.userBubble(text, files);
     this.setBusy(true);
     const ui = this.assistantBlock();
     try {
-      if (this.online) await this.runOnline(text, ui);
+      let note = '';
+      if (files.length) {
+        note = await this.uploadFiles(files, ui);
+        if (!note) return;
+      }
+      if (!text) {
+        this.replyToUpload(ui, note);
+        return;
+      }
+      if (this.online) await this.runOnline(note ? `${text}\n${note}` : text, ui);
       else await this.runOffline(text, ui);
     } catch (error) {
       console.error(error);
@@ -211,6 +307,56 @@ export class Agent {
       this.setBusy(false);
       this.scroll();
     }
+  }
+
+  // Upload through the library, show a result card, and return a note that tells the model the ids.
+  async uploadFiles(files, ui) {
+    const thinking = document.createElement('div');
+    thinking.className = 'thinking';
+    thinking.textContent = `上传并转换 ${files.length} 个文件`;
+    ui.block.append(thinking);
+    this.scroll();
+    let assets;
+    try {
+      ({ assets } = await this.app.library.upload(files));
+    } catch (error) {
+      ui.text.textContent = `上传失败：${error.message}。${this.app.library.online ? '' : '后端（8787）没连上，文件没有存下来。'}`;
+      return '';
+    } finally {
+      thinking.remove();
+    }
+    this.app.lastUploads = assets;
+    const rows = assets.map((a) => {
+      const ok = usable(a);
+      const what = ok ? `${KIND[a.kind] ?? a.kind} · ${esc(a.meta?.formatName ?? a.originalFormat ?? '')}` : esc(a.message || '无法识别');
+      let act = '';
+      if (ok && a.kind === 'site') act = `<button data-action="load-site" data-asset="${esc(a.id)}">${a.meta?.convention === 'generic' ? '叠为底图' : '载入为厂房'}</button>`;
+      return `<div class="up ${ok ? '' : 'err'}"><span class="th" style="${a.thumbUrl ? `background-image:url(${esc(a.thumbUrl)})` : ''}">${a.thumbUrl ? '' : esc((a.originalFormat ?? '').toUpperCase())}</span><b>${esc(a.name)}</b><small>${what}</small>${act}</div>`;
+    }).join('');
+    const ready = assets.filter(usable).length;
+    ui.card(`<div class="card upcard"><h4>已存入场景库<span class="r ${ready === assets.length ? 'ok' : 'warn'}">${ready}/${assets.length} 可用</span></h4><div class="uplist">${rows}</div></div>`);
+    ui.newText();
+    this.scroll();
+    const desc = assets.map((a) => `id=${a.id} 名称=${a.name} 类型=${KIND[a.kind] ?? a.kind}${usable(a) ? '' : ` 不可用（${a.message || '无法识别'}）`}${a.kind === 'site' && a.meta?.convention === 'generic' ? ' 无工位图层只能叠底图' : ''}`).join('；');
+    return `（用户上传了 ${assets.length} 个文件：${desc}）`;
+  }
+
+  // Files sent without text: ask where to put them instead of guessing a position.
+  replyToUpload(ui, note) {
+    const assets = this.app.lastUploads ?? [];
+    const models = assets.filter((a) => a.kind === 'model' && usable(a));
+    const sites = assets.filter((a) => a.kind === 'site' && usable(a));
+    const bad = assets.filter((a) => !usable(a));
+    const parts = [];
+    if (models.length) {
+      const ids = this.app.site.points().slice(0, 2).map((p) => p.id);
+      parts.push(`${models.map((a) => a.name).join('、')} 已转成三维模型。要放在哪？比如"放在 ${ids[0] ?? 'H-01'} 东边 5 米"或"放在 x 30 米、y 12 米，转 90 度"；也可以在左边场景库手动点「放入场景」。`);
+    }
+    if (sites.length) parts.push(`图纸 ${sites.map((a) => a.name).join('、')} 可以点卡片上的按钮载入，或直接说"载入这张图纸"。`);
+    if (bad.length) parts.push(`${bad.map((a) => `${a.name}：${a.message || '无法识别'}`).join('；')}。`);
+    const reply = parts.join('') || '文件已存入场景库。';
+    ui.text.textContent = reply;
+    this.messages.push({ role: 'user', content: note }, { role: 'assistant', content: reply });
   }
 
   async execute(name, args, ui) {
@@ -361,6 +507,12 @@ export class Agent {
       const r = await this.execute('set_params', { agv_count: this.app.site.agvCount + 1 }, ui);
       if (r.ok) await this.execute('set_takt', { target_seconds: this.app.site.target }, ui);
       note = `（用户点了「加一台 AGV」，现在 ${this.app.site.agvCount} 台）`;
+    } else if (action === 'load-site') {
+      const id = button.dataset.asset;
+      const r = await this.execute('load_site_asset', { asset: id }, ui);
+      ui.block.querySelector('.text:empty')?.remove();
+      ui.newText().textContent = r.ok ? (r.底图 ? `已叠为底图（${r.线条数} 条线），工序沿用当前厂房。` : `已载入图纸，生成 ${r.工序数} 道工序。`) : `没载入：${r.error}`;
+      note = `（用户点了「载入图纸」${id}：${r.ok ? '成功' : `失败 ${r.error}`}）`;
     } else if (action === 'play-bottleneck') {
       const step = this.app.site.efficiency.bottleneck === '行车' ? 4 : 2;
       await this.execute('play_animation', { mode: 'step', step }, ui);

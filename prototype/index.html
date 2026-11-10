@@ -55,10 +55,7 @@
       <button class="min" data-min title="缩小 / 展开"></button>
     </header>
     <div class="libbody" id="libBody"></div>
-    <label class="drop" id="drop">
-      <input type="file" id="fileInput" multiple hidden />
-      <span>拖入或点击上传</span><small>DXF · DWG · GLB · OBJ · STL · STEP · FBX · 图片</small>
-    </label>
+    <div class="libhint">上传文件请在右边对小华说</div>
   </section>
 </aside>
 
@@ -91,8 +88,13 @@
     <div class="msgs" id="msgs"></div>
     <div class="input">
       <div class="sugg" id="sugg"></div>
+      <div class="attach" id="attach" hidden></div>
       <form class="box" id="form">
-        <textarea id="prompt" rows="1" placeholder="说一句话，场景跟着变"></textarea>
+        <label class="clip" title="上传文件（可多选）：DXF · DWG · GLB · OBJ · STL · STEP · FBX · 图片">
+          <input type="file" id="chatFiles" multiple hidden />
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 01-7.8-7.8l8.6-8.6a3.7 3.7 0 015.2 5.2l-8.6 8.6a1.8 1.8 0 01-2.6-2.6l7.9-7.9"/></svg>
+        </label>
+        <textarea id="prompt" rows="1" placeholder="说一句话，场景跟着变；也可以拖入或粘贴文件"></textarea>
         <button class="send" id="send" type="submit" title="发送">➤</button>
       </form>
     </div>
@@ -120,6 +122,9 @@
       <button data-tab="params">选型参数</button>
       <button data-tab="eff">效率节拍</button>
       <button data-tab="travel">行程统计</button>
+      <button data-tab="slots">货位库存</button>
+      <button data-tab="flow">工艺流程</button>
+      <button data-tab="linesim">产线仿真</button>
     </div>
     <div class="legend">
       <span><s style="background:#2B7DE9"></s>载货</span>

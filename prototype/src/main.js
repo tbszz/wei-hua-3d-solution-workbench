@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG } from '../../demo/src/catalog.js';
-import { SAMPLE_PLAN } from '../../demo/src/scene/site.js';
+import { SAMPLE_PLAN, fitDepthRange } from '../../demo/src/scene/site.js';
 import { applyBands, loadVehicle } from '../../demo/src/vehicle.js';
 import { Agent } from './agent.js';
 import { ProcessSite } from './engine.js';
@@ -13,14 +13,17 @@ import { Library } from './library.js';
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
 const view = $('view');
-const QUALITY = { pixelRatio: 2, shadowSize: 4096, shadowRadius: 4 };
+// Tuned for integrated GPUs: a 2048 PCF shadow map that is redrawn only as often as things move,
+// and a pixel ratio that steps down when the frame rate drops (see adaptPixelRatio).
+const QUALITY = { pixelRatio: Math.min(devicePixelRatio, 1.5), shadowSize: 2048, shadowRadius: 2 };
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.pixelRatio));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(QUALITY.pixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.8;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;
 
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 900);
 const controls = new OrbitControls(camera, canvas);
@@ -119,6 +122,8 @@ function measureFree() {
   camera.setViewOffset(W, H, -dx, -dy, W, H);
 }
 
+app.flyTo = (target, position, duration) => flyTo(target, position, duration);
+
 function fitDistance(w, h) {
   const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const tanV = tv * (free.h / free.H);
@@ -207,8 +212,8 @@ function place(el, v) {
   projected.copy(v).project(camera);
   const visible = projected.z < 1 && Math.abs(projected.x) < 1.1 && Math.abs(projected.y) < 1.1;
   el.style.display = visible ? '' : 'none';
-  el.style.left = `${(projected.x * 0.5 + 0.5) * view.clientWidth}px`;
-  el.style.top = `${(-projected.y * 0.5 + 0.5) * view.clientHeight}px`;
+  el.style.left = `${(projected.x * 0.5 + 0.5) * viewSize.w}px`;
+  el.style.top = `${(-projected.y * 0.5 + 0.5) * viewSize.h}px`;
 }
 
 function roleOf(point) {
@@ -246,6 +251,7 @@ function updateLabels() {
     seen.add(key);
     place(pin(key, 'asset', `<span class="lab">${p.asset.name}</span>`), new THREE.Vector3(p.x / 1000, p.height + 0.6, -p.y / 1000));
   }
+  for (const hook of app.labelHooks ?? []) hook({ pin, place, seen });
   for (const [key, el] of pins) if (!seen.has(key)) {
     el.remove();
     pins.delete(key);
@@ -435,7 +441,7 @@ function laterHtml() {
 
 function renderDock() {
   if (!site.process || !app.product) return;
-  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml }[app.tab]();
+  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml, ...(app.dockTabs ?? {}) }[app.tab]();
   $('dockMain').innerHTML = body;
   updatePlayhead();
 }
@@ -695,9 +701,15 @@ $('dockMain').addEventListener('change', (e) => {
 
 // ---------------------------------------------------------------- loop
 
+// Cached so per-frame label placement never forces a layout.
+const viewSize = { w: 1, h: 1 };
 function resize() {
   const w = view.clientWidth;
   const h = view.clientHeight;
+  // A minimized or hidden window reports 0×0; resizing to that would make the camera aspect NaN.
+  if (!w || !h) return;
+  viewSize.w = w;
+  viewSize.h = h;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   measureFree();
@@ -712,9 +724,68 @@ controls.addEventListener('start', () => {
 });
 const clock = new THREE.Clock();
 let lastStep = 0;
+
+// Shadows: every other frame while the timeline plays, a few times a second otherwise
+// (enough for edits, uploads and the crane being dragged around).
+let shadowAge = Infinity;
+let shadowFrame = 0;
+function updateShadows(delta) {
+  shadowAge += delta;
+  shadowFrame++;
+  if (site.playing ? shadowFrame % 2 === 0 : shadowAge > 0.25) {
+    renderer.shadowMap.needsUpdate = true;
+    shadowAge = 0;
+  }
+}
+
+// Step the pixel ratio down when the frame rate stays low and back up when there is headroom.
+// Ignores the first seconds after boot (shader compiles), and stops retrying a ratio that failed twice.
+const pixel = { ratio: QUALITY.pixelRatio, floor: Math.min(devicePixelRatio, 1) * 0.75, frames: 0, since: 0, bad: 0, good: 0, failed: {} };
+function adaptPixelRatio() {
+  const now = performance.now();
+  if (!pixel.since) pixel.since = now + 3000;
+  if (now < pixel.since) return;
+  pixel.frames++;
+  const span = now - pixel.since;
+  if (span < 1000) return;
+  const fps = (pixel.frames * 1000) / span;
+  pixel.frames = 0;
+  pixel.since = now;
+  if (span > 1500 || document.hidden) return; // the tab was in the background
+  pixel.bad = fps < 42 ? pixel.bad + 1 : 0;
+  pixel.good = fps > 57 ? pixel.good + 1 : 0;
+  let next = pixel.ratio;
+  if (pixel.bad >= 2 && pixel.ratio > pixel.floor) {
+    pixel.failed[pixel.ratio] = (pixel.failed[pixel.ratio] ?? 0) + 1;
+    next = Math.max(pixel.floor, pixel.ratio - 0.25);
+  } else if (pixel.good >= 5 && pixel.ratio < QUALITY.pixelRatio) {
+    const up = Math.min(QUALITY.pixelRatio, pixel.ratio + 0.25);
+    if ((pixel.failed[up] ?? 0) < 2) next = up;
+  }
+  if (next === pixel.ratio) return;
+  pixel.ratio = next;
+  pixel.bad = pixel.good = 0;
+  renderer.setPixelRatio(next);
+}
+
+// Compile every shader and upload every texture up front (the roof included, which is hidden
+// from the start view), so the first look inside the hall does not stall.
+async function warmUp() {
+  const roof = site.built?.roof;
+  const shown = roof?.visible;
+  if (roof) roof.visible = true;
+  try {
+    await renderer.compileAsync(site.scene, camera);
+  } catch (error) {
+    console.warn('shader warm-up', error);
+  }
+  if (roof) roof.visible = shown;
+  for (const texture of Object.values(site.textures ?? {})) renderer.initTexture(texture);
+}
 let manual = false;
 // Debug: step frames by hand when the tab is hidden and rAF is paused.
-window.__frames = (n = 1) => { manual = true; for (let i = 0; i < n; i++) frame(1 / 30); manual = false; };
+// ResizeObserver is paused too, so re-measure first.
+window.__frames = (n = 1) => { resize(); manual = true; for (let i = 0; i < n; i++) frame(1 / 30); manual = false; };
 function frame(dt) {
   const delta = dt ?? Math.min(clock.getDelta(), 0.1);
   if (site.timeline && app.product) {
@@ -737,7 +808,11 @@ function frame(dt) {
     }
     controls.autoRotate = app.autoRotate && app.view === 'overview' && !fly.active;
     controls.update(delta);
+    fitDepthRange(camera, controls.target);
+    updateShadows(delta);
+    for (const hook of app.frameHooks ?? []) hook(delta);
     renderer.render(site.scene, camera);
+    if (!manual) adaptPixelRatio();
     updateLabels();
     updateHud();
     updatePlayhead();
@@ -774,6 +849,8 @@ async function boot() {
     app.library.init();
     app.setView('overview');
     fly.duration = 0.01;
+    loading.textContent = '正在预编译材质…';
+    await warmUp();
     loading.hidden = true;
     frame();
   } catch (error) {

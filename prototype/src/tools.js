@@ -3,6 +3,7 @@
 import { CATALOG } from '../../demo/src/catalog.js';
 import { effHtml } from './main.js';
 import { fmtTime, simulateShift } from './process.js';
+import { createExtTools } from './tools-ext.js';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -11,10 +12,14 @@ const fn = (name, description, properties = {}, required = []) => ({
 
 export const SCHEMAS = [
   fn('list_library', '列出资源库：产品库车型、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型。'),
-  fn('place_asset', '把场景库里的三维模型放进厂房。不给坐标就放在厂房中部空地。', {
+  fn('place_asset', '把场景库里的三维模型放进厂房（已放过的会挪到新位置）。位置按用户原话给：绝对坐标 x_mm/y_mm，或参考点位 ref 加偏移 east_m/north_m（X 向东、Y 向北）。用户没说位置时先问，不要自己定。', {
     asset: { type: 'string', description: '场景库文件 id 或名称' },
+    ref: { type: 'string', description: '参考点位编号，如 RM-01、H-01' },
+    east_m: { type: 'number', description: '相对参考点向东米数，向西为负' },
+    north_m: { type: 'number', description: '相对参考点向北米数，向南为负' },
     x_mm: { type: 'number' },
     y_mm: { type: 'number' },
+    rotate_deg: { type: 'number', description: '俯视逆时针旋转角度（可选）' },
     size_m: { type: 'number', description: '把最长边缩放到这个米数（可选）' },
   }, ['asset']),
   fn('remove_asset', '把已放进场景的模型移出。', { asset: { type: 'string' } }, ['asset']),
@@ -114,6 +119,8 @@ export function createTools(app) {
       效率: { 节拍_s: +eff.takt.toFixed(1), 每小时: +eff.perHour.toFixed(1), 瓶颈: eff.bottleneck, 目标节拍_s: eff.target, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1) },
       播放: { 时间_s: +site.time.toFixed(1), 总长_s: +site.duration.toFixed(1), 播放中: site.playing, 分步: site.window?.step ?? null, 倍速: site.speed },
       待确认工序: app.pendingProcess ?? null,
+      场景库: (app.library?.assets ?? []).slice(-12).map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 可用: a.status === 'ready', 底图: a.meta?.convention === 'generic' || undefined })),
+      已放入模型: app.library?.placedList() ?? [],
     };
   };
 
@@ -330,8 +337,19 @@ export function createTools(app) {
       };
     },
 
-    place_asset: async ({ asset, x_mm, y_mm, size_m }) => {
-      const r = await app.library.place(asset, { x: x_mm, y: y_mm, size: size_m });
+    place_asset: async ({ asset, ref, east_m = 0, north_m = 0, x_mm, y_mm, rotate_deg, size_m }) => {
+      let x = x_mm;
+      let y = y_mm;
+      if (ref) {
+        const base = site.findPoint(ref);
+        if (!base) throw new Error(`参考点位 ${ref} 不存在，现有：${site.points().map((p) => p.id).join('、')}`);
+        x = base.x + east_m * 1000;
+        y = base.y + north_m * 1000;
+      }
+      if ((x === undefined) !== (y === undefined)) throw new Error('坐标要成对给：x_mm 和 y_mm，或 ref 加 east_m/north_m');
+      const b = site.built?.bounds;
+      if (b && x !== undefined && (x < b.minX || x > b.maxX || y < b.minY || y > b.maxY)) throw new Error(`位置 (${Math.round(x)}, ${Math.round(y)}) 在厂房外，厂房范围 X ${Math.round(b.minX)}–${Math.round(b.maxX)}、Y ${Math.round(b.minY)}–${Math.round(b.maxY)} mm`);
+      const r = await app.library.place(asset, { x, y, size: size_m, rotate: rotate_deg });
       app.setView('overview');
       return { result: r, chip: `放入 ${r.名称}` };
     },
@@ -344,7 +362,7 @@ export function createTools(app) {
 
     load_site_asset: async ({ asset }) => {
       const r = await app.library.loadSite(asset);
-      return { result: r, chip: `图纸 ${r.图纸}` };
+      return { result: r, chip: r.底图 ? `底图 ${r.底图}` : `图纸 ${r.图纸}` };
     },
 
     record_video: ({ on }) => {
@@ -359,11 +377,12 @@ export function createTools(app) {
     },
   };
 
+  const ext = createExtTools(app, { runCore: (name, args) => H[name](args ?? {}) });
   return {
-    schemas: SCHEMAS,
-    stateSummary,
+    schemas: [...SCHEMAS, ...ext.schemas],
+    stateSummary: () => ({ ...stateSummary(), ...ext.state() }),
     async run(name, args) {
-      const handler = H[name];
+      const handler = H[name] ?? ext.handlers[name];
       if (!handler) throw new Error(`没有工具 ${name}`);
       return handler(args ?? {});
     },
