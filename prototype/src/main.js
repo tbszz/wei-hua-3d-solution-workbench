@@ -1,4 +1,5 @@
-// 卫华 3D 方案工作台 prototype: three.js site on the left, Doubao agent on the right.
+// AI3D智能工厂 prototype: three.js site in the middle, the module rail (项目案例库 / 产品库 /
+// AI3D工厂 / 工序流程 / 生产节拍) on the left, Doubao agent on the right.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG } from '../../demo/src/catalog.js';
@@ -948,6 +949,7 @@ function renderDock() {
 app.renderDock = renderDock;
 
 function renderKpis() {
+  renderTakt();
   if (site.isScene) {
     const s = site.summary;
     $('kpis').innerHTML = `
@@ -970,6 +972,41 @@ function renderKpis() {
     <div><small>行车利用率</small><b>${(eff.utilization.crane * 100).toFixed(0)}<em>%</em></b></div>`;
 }
 app.renderKpis = renderKpis;
+
+// 生产节拍 section of the left rail: the KPI-bar numbers at a glance, per-step durations and the
+// full efficiency breakdown (effHtml). Redrawn with the KPIs, i.e. on every app.refresh().
+function renderTakt() {
+  const body = $('taktBody');
+  if (!body) return;
+  if (site.isScene || !site.efficiency || !site.process) {
+    $('taktSum').textContent = '';
+    body.innerHTML = '<p class="takt-empty">当前打开的是图纸生成的厂房，还没有工序节拍。打开带工序的方案（例如对小华说「切回示例工序」）后，这里显示单件节拍与产能。</p>';
+    return;
+  }
+  const eff = site.efficiency;
+  const shift = app.shift ?? simulateShift(eff, site.duration, 8);
+  const steps = site.process.steps;
+  const max = Math.max(1, ...steps.map((x) => x.duration));
+  const cur = site.stepAt?.().n;
+  const cls = eff.target ? (eff.meets ? 'good' : 'bad') : '';
+  $('taktSum').textContent = `${eff.takt.toFixed(0)} s/件`;
+  const bars = steps.map((x) => `<li data-play="${x.n}" class="${x.n === cur ? 'cur' : ''}" title="${x.title} · ${fmtTime(x.t0)}–${fmtTime(x.t1)} · 点击播放这一步">
+      <span class="n num">${String(x.n).padStart(2, '0')}</span><b>${x.title}</b>
+      <span class="tbar"><i class="${DEV_CLASS[x.device] ?? ''}" style="width:${((x.duration / max) * 100).toFixed(1)}%"></i></span>
+      <span class="d num">${x.duration.toFixed(0)}s</span></li>`).join('');
+  body.innerHTML = `<div class="tk-kpis">
+      <div class="${cls}"><small>单件节拍${eff.target ? ` · 目标 ${eff.target}s` : ''}</small><b class="num">${eff.takt.toFixed(1)}<em>s</em></b></div>
+      <div><small>${shift.hours} 小时产能</small><b class="num">${shift.pieces}<em>件</em></b></div>
+      <div><small>AGV / 瓶颈</small><b><span class="num">${eff.agvCount}</span><em>台 · ${eff.bottleneck}</em></b></div>
+    </div>
+    <h5>各工序用时</h5>
+    <ol class="tk-bars">${bars}</ol>
+    <details class="tk-more"><summary>效率明细</summary>${effHtml(eff, shift)}</details>`;
+}
+$('taktBody').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-play]');
+  if (li) app.play({ mode: 'step', step: Number(li.dataset.play) });
+});
 
 // Left column: the five process steps, current one highlighted with live progress.
 const DEV_CLASS = { AGV: '', 行车: 'crane', 建造: 'build' };
@@ -1207,6 +1244,31 @@ document.addEventListener('click', (e) => {
   } else panel.classList.toggle('min-on');
   relayout();
 });
+// Header module nav: [data-open-card="secXxx"] opens that left-rail section through app.openCard.
+// openSectionInline is the temporary fallback (unfold in place + scroll into view); the popup-card
+// module replaces it by assigning app.openCard. [data-open-dashboard] is left to the dashboard.
+function openSectionInline(id) {
+  const sec = $(id);
+  if (!sec) return;
+  if (document.body.classList.contains('clean')) setCleanLater?.(false);
+  sec.classList.remove('min-on');
+  relayout();
+  sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  sec.classList.remove('flash');
+  void sec.offsetWidth;
+  sec.classList.add('flash');
+}
+app.openCard ??= openSectionInline;
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-open-card]');
+  if (chip) app.openCard?.(chip.dataset.openCard);
+});
+// A chip is lit while its section is open, however it was opened.
+const syncModNav = () => {
+  for (const b of document.querySelectorAll('[data-open-card]')) b.classList.toggle('on', $(b.dataset.openCard)?.classList.contains('min-on') === false);
+};
+for (const sec of document.querySelectorAll('aside.left > .panel')) new MutationObserver(syncModNav).observe(sec, { attributes: true, attributeFilter: ['class'] });
+syncModNav();
 // Chat cards: only the newest is open; click a card title to open or fold it.
 $('msgs').addEventListener('click', (e) => {
   const h = e.target.closest('.card > h4');
@@ -1463,7 +1525,7 @@ async function boot() {
     await site.loadBase(text, '模拟平面图 sample-plant.dxf');
     app.baseDxf = { text, name: '模拟平面图 sample-plant.dxf' };
     app.sampleDxf = app.baseDxf; // a new scene starts from the sample plant
-    $('source').textContent = '主场景 · sample-plant.dxf';
+    $('source').textContent = '场景搭建 · sample-plant.dxf';
     loading.textContent = '正在加载 AGV1…';
     await app.selectProduct('agv1');
     resize();

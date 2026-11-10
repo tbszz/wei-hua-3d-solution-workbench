@@ -1,9 +1,11 @@
-// Left column resource library, merged with the project title.
-//   标准产品库  shared products with standard parameters (backend product library, built-ins)
-//   项目库      projects; each has its own 产品库 (copies of standard products + customised ones)
-//               and 场景库 (scenes, and the drawings/models uploaded into the project)
+// Left rail resource sections (the other two rail sections, 工序流程 and 生产节拍, are main.js):
+//   #casesBody   项目案例库  archived snapshots of projects; preview, restore as the current project
+//   #prodBody    产品库      shared products with standard parameters (backend product library, built-ins)
+//   #factoryBody AI3D工厂    the active project: its build modules (scenes: 场景搭建 / 鞍座搭建 /
+//                            产品搭建 / added ones), its 产品库 (copies of standard products +
+//                            customised ones) and 文件 (drawings/models uploaded into the project)
 // Products and files move between them by drag and drop, by right-click menus, or by the small
-// buttons that appear on hover. The tree is kept in projects.js and saved to the backend
+// buttons that appear on hover. The data is kept in projects.js and saved to the backend
 // (falls back to localStorage) so it survives a reload.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -20,6 +22,14 @@ const loader = new GLTFLoader();
 const STORE_KEY = 'wh.workspace.v1';
 const WS_URL = '/api/projects/workspace/state';
 const DRAG_TYPE = 'application/x-wh-lib';
+// The rail sections the library renders into; all share one set of tree handlers.
+const HOSTS = ['casesBody', 'prodBody', 'factoryBody'];
+const fmtDate = (ms) => {
+  if (!ms) return '日期未知';
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 // The scene crane is procedural (示意) and stands for the overhead-crane product below until
 // the real crane GLB arrives.
 const CATS = [
@@ -38,7 +48,12 @@ const ICON = {
   scene: svg('<path d="M1.8 13.5h12.4M3 13.5V6.5l5-3.8 5 3.8v7"/><path d="M6.3 13.5V9.6h3.4v3.9"/>'),
   plus: svg('<path d="M8 3v10M3 8h10"/>', 12),
   more: svg('<circle cx="3.5" cy="8" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/><circle cx="12.5" cy="8" r=".9" fill="currentColor"/>', 13),
+  archive: svg('<rect x="1.8" y="2.5" width="12.4" height="3.2" rx=".6"/><path d="M3 5.7v7c0 .5.4.8.8.8h8.4c.4 0 .8-.3.8-.8v-7M6.5 8.5h3"/>'),
+  saddle: svg('<path d="M1.8 12.5h12.4M3.5 12.5V9.2M12.5 12.5V9.2"/><path d="M3.5 9.2c1.2-.2 2.2-1 2.6-2.2h3.8c.4 1.2 1.4 2 2.6 2.2"/><circle cx="8" cy="5" r="2"/>'),
+  module: svg('<rect x="2" y="2" width="5" height="5" rx=".6"/><rect x="9" y="2" width="5" height="5" rx=".6"/><rect x="2" y="9" width="5" height="5" rx=".6"/><path d="M11.5 9.5v4M9.5 11.5h4"/>'),
 };
+// Icon and hint for each kind of build module (projects.js MODULES).
+const MODULE_ICON = { site: 'scene', saddle: 'saddle', product: 'box', custom: 'module' };
 
 async function getJson(url, init) {
   const r = await fetch(url, init);
@@ -149,7 +164,7 @@ export class Library {
       this.products = [];
       this.online = false;
     }
-    if (!this.products.length) this.products = CATALOG.map((c) => ({ id: c.id, model: c.model, category: 'agv', summary: c.summary, thumbUrl: `${THUMBNAIL_ROOT}/${c.thumbnail}` }));
+    if (!this.products.length) this.products = CATALOG.map((c) => ({ id: c.id, model: c.model, category: 'agv', summary: c.summary, plate: c.plate, params: c.params, thumbUrl: `${THUMBNAIL_ROOT}/${c.thumbnail}` }));
     if (!this.products.some((p) => p.id === SCENE_CRANE.id)) this.products.push(SCENE_CRANE);
     try {
       this.assets = (await getJson('/api/library/scene')).assets ?? [];
@@ -186,11 +201,29 @@ export class Library {
       return;
     }
     this.dirty = false;
-    const body = $('libBody');
-    const focused = document.activeElement?.closest?.('#libBody .row')?.dataset.row;
-    body.innerHTML = this.stdHtml() + this.projectsHtml();
-    if (focused) body.querySelector(`.row[data-row="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+    const focused = document.activeElement?.closest?.('.libbody .row')?.dataset.row;
+    const paint = (id, html) => {
+      const el = $(id);
+      if (el) el.innerHTML = html;
+    };
+    paint('casesBody', this.casesHtml());
+    paint('prodBody', this.stdHtml());
+    paint('factoryBody', this.factoryHtml());
+    if (focused) this.rowEl(focused)?.focus({ preventScroll: true });
     this.renderTitle();
+  }
+
+  // Tree hosts are looked up by id every time: a section may be moved (popped out as a card).
+  hosts() {
+    return HOSTS.map((id) => $(id)).filter(Boolean);
+  }
+
+  qa(sel) {
+    return this.hosts().flatMap((h) => [...h.querySelectorAll(sel)]);
+  }
+
+  rowEl(key) {
+    return this.qa(`.row[data-row="${CSS.escape(key)}"]`)[0] ?? null;
   }
 
   renderTitle() {
@@ -199,15 +232,31 @@ export class Library {
     const t = $('projTitle');
     if (t) {
       t.textContent = p.name;
-      t.closest('.ph').title = `当前项目：${p.name} · 场景：${s.name}`;
+      t.title = `当前项目：${p.name} · 模块：${s.name}`;
     }
-    const chip = $('sceneSel');
-    if (chip) {
-      chip.textContent = s.name;
-      chip.title = `当前场景：${s.name}（点击切换 / 新建场景）`;
-    }
+    const set = (id, text) => {
+      const el = $(id);
+      if (el) el.textContent = text;
+    };
+    set('casesCount', `${this.ws.archives.length} 个`);
+    set('prodCount', `${this.std.length} 个`);
     const drawing = this.drawing ? this.asset(this.drawing)?.name ?? '图纸' : SAMPLE_NAME;
     $('source').textContent = `${s.name} · ${drawing}`;
+  }
+
+  // Standard size / parameters line for a product: rated load and body dimensions where known.
+  specOf(p) {
+    const parts = [];
+    const load = Number.isFinite(p.capacityT) ? p.capacityT : Number(/(\d+(?:\.\d+)?)\s*t\b/i.exec(p.plate ?? '')?.[1]);
+    if (Number.isFinite(load) && load > 0) parts.push(`额定 ${load} t`);
+    const prm = p.params ?? {};
+    const nom = (k) => (Number.isFinite(prm[k]?.nominal) ? Math.round(prm[k].nominal) : null);
+    const dims = ['length', 'width', 'height'].map(nom);
+    if (dims[0] && dims[1]) parts.push(`${dims.filter(Boolean).join('×')} mm`);
+    else {
+      for (const [, r] of Object.entries(prm).slice(0, 2)) if (r?.label && Number.isFinite(r.nominal)) parts.push(`${r.label} ${Math.round(r.nominal * 100) / 100}`);
+    }
+    return parts.join(' · ');
   }
 
   node(key, defOpen, head, kids, cls = '') {
@@ -228,33 +277,62 @@ export class Library {
     const rows = cat.items.map((p) => {
       const use = this.inUse(p);
       const owned = cur.products.some((e) => e.productId === p.id);
+      const spec = this.specOf(p);
       const sub = use ? `<small class="use">● ${esc(use.label)}</small>` : `<small>${esc(p.summary ?? p.category ?? '')}</small>`;
-      return `<div class="row std ${use ? 'inuse' : ''} ${this.sel === `std:${p.id}` ? 'sel' : ''}" tabindex="-1" draggable="true" data-row="std:${esc(p.id)}" data-kind="std" data-id="${esc(p.id)}" ${use ? `data-focus="${esc(use.focus)}"` : ''} title="拖到项目里，或右键加入项目">
-        ${this.thumb(p, 'lg')}<span class="nm"><b>${esc(p.model ?? p.name)}</b>${sub}</span>
+      return `<div class="row std ${use ? 'inuse' : ''} ${this.sel === `std:${p.id}` ? 'sel' : ''}" tabindex="-1" draggable="true" data-row="std:${esc(p.id)}" data-kind="std" data-id="${esc(p.id)}" ${use ? `data-focus="${esc(use.focus)}"` : ''} title="拖到 AI3D工厂 或三维视图里，或右键加入项目">
+        ${this.thumb(p, 'lg')}<span class="nm"><b>${esc(p.model ?? p.name)}</b>${sub}${spec ? `<small class="spec num">${esc(spec)}</small>` : ''}</span>
         <span class="racts">${use ? `<button class="go on" data-act="locate" title="跳转到场景中的 ${esc(use.label)}">${ICON.locate}</button>` : ''}<button class="ib ${owned ? 'done' : ''}" data-act="add-cur" title="${owned ? `「${esc(cur.name)}」已有此产品` : `加入当前项目「${esc(cur.name)}」`}">${owned ? '✓' : ICON.plus}</button></span>
       </div>`;
     }).join('');
     const seg = `<div class="cats">${groups.map((g) => `<button data-cat="${g.key}" class="${g.key === cat.key ? 'on' : ''}">${g.label}<em class="num">${g.items.length}</em></button>`).join('')}</div>`;
-    const head = `<div class="lsh" data-toggle><i class="car"></i>标准产品库<em class="cnt">${std.length}</em><span class="lsh-note">标准参数</span></div>`;
-    return this.node('std', true, head, seg + (rows || `<div class="empty">${cat.label}暂无标准产品</div>`), 'lsec');
+    return seg + (rows || `<div class="empty">${cat.label}暂无标准产品</div>`);
   }
 
-  projectsHtml() {
-    const ws = this.ws;
-    const projects = ws.projects.map((p) => this.projectHtml(p)).join('');
-    const head = `<div class="lsh" data-toggle data-drop="new-project"><i class="car"></i>项目库<em class="cnt">${ws.projects.length}</em><button class="ib" data-act="new-project" title="新建项目">${ICON.plus}</button></div>`;
-    return this.node('proj', true, head, projects, 'lsec');
+  // 项目案例库: archived snapshots, newest first. A row unfolds into a read-only preview.
+  casesHtml() {
+    const list = this.ws.archives;
+    if (!list.length) return '<div class="empty">还没有归档的项目。<br>在「AI3D工厂」点「保存归档」，当前项目会存一份到这里。</div>';
+    return list.map((a) => {
+      const p = a.project;
+      const head = `<div class="row arc ${this.sel === `ar:${a.id}` ? 'sel' : ''}" tabindex="-1" data-row="ar:${a.id}" data-kind="archive" data-archive="${a.id}" data-toggle title="点击预览（只读），双击恢复为当前项目">
+        <i class="car"></i><span class="ico">${ICON.archive}</span><span class="nm"><b>${esc(a.name)}</b><small class="num">${fmtDate(a.archivedAt)} · ${p.scenes.length} 个场景</small></span>
+        <span class="racts"><button class="go" data-act="restore" title="复制一份到 AI3D工厂，作为当前项目">恢复</button></span>
+        <button class="ib more" data-act="menu" title="恢复 / 重命名 / 删除">${ICON.more}</button>
+      </div>`;
+      const mods = p.scenes.map((s) => {
+        const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
+        return `<div class="pv d1"><span class="ico">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${s.placed.length ? ` · ${s.placed.length} 个模型` : ''}</small></span></div>`;
+      }).join('');
+      const prods = p.products.map((e) => esc(e.name ?? this.product(e.productId)?.model ?? e.productId)).join('、');
+      const info = `<div class="pvinfo d1">产品：${prods || '无'}<br>文件：${p.assets.length} 个</div>`;
+      const acts = `<div class="pvacts d1"><button class="go" data-act="restore" data-archive="${a.id}">恢复为当前项目</button><span class="muted">只读预览，恢复后在 AI3D工厂 编辑副本</span></div>`;
+      return this.node(`ar:${a.id}`, false, head, mods + info + acts, 'arcn');
+    }).join('');
   }
 
-  projectHtml(p) {
-    const ws = this.ws;
-    const cur = p.id === ws.active.id;
-    const head = `<div class="row pnode ${cur ? 'cur' : ''} ${this.sel === `pj:${p.id}` ? 'sel' : ''}" tabindex="-1" data-row="pj:${p.id}" data-kind="project" data-project="${p.id}" data-drop="project" data-toggle title="${cur ? '当前项目' : '双击切换到这个项目'}">
-      <i class="car"></i><span class="ico">${ICON.folder}</span><span class="nm"><b>${esc(p.name)}</b></span>
-      ${cur ? '<span class="tag">当前</span>' : '<span class="racts"><button class="go" data-act="switch">切换</button></span>'}
-      <button class="ib more" data-act="menu" title="更多操作">${ICON.more}</button>
+  // AI3D工厂: the active project, its build modules, its products and its files.
+  factoryHtml() {
+    const p = this.ws.active;
+    const head = `<div class="row proj ${this.sel === `pj:${p.id}` ? 'sel' : ''}" tabindex="-1" data-row="pj:${p.id}" data-kind="project" data-project="${p.id}" data-drop="project" title="当前项目（双击或 F2 重命名，右键更多操作）">
+      <span class="ico">${ICON.folder}</span><span class="nm"><b>${esc(p.name)}</b><small>${p.scenes.length} 个模块 · ${p.products.length} 个产品 · ${p.assets.length} 个文件</small></span>
+      <button class="ib more" data-act="menu" title="重命名 / 切换项目 / 新建项目">${ICON.more}</button>
     </div>`;
-    // project products
+    const mods = p.scenes.map((s) => {
+      const open = s.id === p.activeScene;
+      const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
+      const n = s.placed.length;
+      return `<div class="row sc mod d1 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-module="${esc(s.kind)}" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的模块' : '点击打开这个模块'}">
+        <span class="ico sc">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
+        ${open ? '<span class="tag">打开中</span>' : '<span class="racts"><button class="go" data-act="open-scene">打开</button></span>'}
+      </div>`;
+    }).join('');
+    const add = `<div class="addmod d1"><button type="button" data-act="add-module" title="添加一个搭建模块">${ICON.plus}<span>添加模块</span></button></div>`;
+    return head + mods + add + this.projectFolds(p);
+  }
+
+  // The active project's own 产品库 and 文件, kept compact as two folds under the modules.
+  projectFolds(p) {
+    const cur = true;
     const pp = p.products.map((e) => {
       const prod = this.product(e.productId);
       const name = e.name ?? prod?.model ?? e.productId;
@@ -263,30 +341,19 @@ export class Library {
       const use = cur && prod ? this.inUse(prod) : null;
       const sub = !prod ? '<small class="warn">产品库里已没有这个型号</small>' : use ? `<small class="use">● ${esc(use.label)}</small>` : `<small>${custom ? `定制 · 基于 ${esc(base)}` : '标准参数'}</small>`;
       const act = use ? `<button class="go on" data-act="locate" title="跳转到场景中的 ${esc(use.label)}">${ICON.locate}</button>` : cur && prod && this.usable(prod) ? '<button class="go" data-act="use">选用</button>' : '';
-      return `<div class="row pp d2 ${use ? 'inuse' : ''} ${this.sel === `pp:${p.id}:${e.key}` ? 'sel' : ''}" tabindex="-1" draggable="true" data-row="pp:${p.id}:${e.key}" data-kind="pp" data-project="${p.id}" data-key="${e.key}" data-id="${esc(e.productId)}" ${use ? `data-focus="${esc(use.focus)}"` : ''}>
+      return `<div class="row pp d1 ${use ? 'inuse' : ''} ${this.sel === `pp:${p.id}:${e.key}` ? 'sel' : ''}" tabindex="-1" draggable="true" data-row="pp:${p.id}:${e.key}" data-kind="pp" data-project="${p.id}" data-key="${e.key}" data-id="${esc(e.productId)}" ${use ? `data-focus="${esc(use.focus)}"` : ''}>
         ${prod ? this.thumb(prod) : '<span class="th">?</span>'}<span class="nm"><b>${esc(name)}${custom ? '<i class="kd c">定制</i>' : ''}</b>${sub}</span><span class="racts">${act}</span>
       </div>`;
-    }).join('') || '<div class="hint d2">从上面的标准产品库拖进来，或右键「加入项目」</div>';
-    const ppHead = `<div class="row fold d1" tabindex="-1" data-row="ppf:${p.id}" data-kind="products" data-project="${p.id}" data-drop="products" data-toggle>
-      <i class="car"></i><span class="ico">${ICON.box}</span><span class="nm"><b>产品库</b></span><em class="cnt">${p.products.length}</em><button class="ib" data-act="menu" title="从标准产品库添加">${ICON.plus}</button>
+    }).join('') || '<div class="hint d1">从「产品库」拖进来，或点产品右边的 ＋</div>';
+    const ppHead = `<div class="row fold" tabindex="-1" data-row="ppf:${p.id}" data-kind="products" data-project="${p.id}" data-drop="products" data-toggle>
+      <i class="car"></i><span class="ico">${ICON.box}</span><span class="nm"><b>项目产品库</b></span><em class="cnt">${p.products.length}</em><button class="ib" data-act="menu" title="从产品库添加">${ICON.plus}</button>
     </div>`;
-    // scenes + files
-    const scenes = p.scenes.map((s) => {
-      const open = cur && s.id === p.activeScene;
-      const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
-      const n = s.placed.length;
-      return `<div class="row sc d2 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的场景' : '点击切换到这个场景'}">
-        <span class="ico sc">${ICON.scene}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
-        ${open ? '<span class="tag">打开中</span>' : '<span class="racts"><button class="go" data-act="open-scene">打开</button></span>'}
-      </div>`;
-    }).join('');
     const files = p.assets.map((id) => this.asset(id)).filter(Boolean).reverse().map((a) => this.assetHtml(p, a, cur)).join('');
-    const scHead = `<div class="row fold d1" tabindex="-1" data-row="scf:${p.id}" data-kind="scenes" data-project="${p.id}" data-drop="scenes" data-toggle>
-      <i class="car"></i><span class="ico">${ICON.scene}</span><span class="nm"><b>场景库</b></span><em class="cnt">${p.scenes.length + p.assets.length}</em><button class="ib" data-act="menu" title="新建场景 / 上传">${ICON.plus}</button>
+    const fHead = `<div class="row fold" tabindex="-1" data-row="scf:${p.id}" data-kind="scenes" data-project="${p.id}" data-drop="scenes" data-toggle>
+      <i class="car"></i><span class="ico">${ICON.folder}</span><span class="nm"><b>文件</b></span><em class="cnt">${p.assets.length}</em><button class="ib" data-act="menu" title="上传图纸 / 模型">${ICON.plus}</button>
     </div>`;
-    const filesBlock = files ? `<div class="hint d2 fsep">文件 · 拖进三维视图即可放入</div>${files}` : '';
-    const kids = this.node(`pj:${p.id}:pp`, true, ppHead, pp) + this.node(`pj:${p.id}:sc`, true, scHead, scenes + filesBlock);
-    return this.node(`pj:${p.id}`, cur, head, kids, `pj ${cur ? 'cur' : ''}`);
+    const filesBody = files ? `<div class="hint d1">图纸、模型 · 拖进三维视图即可放入</div>${files}` : '<div class="hint d1">还没有文件。图纸和模型在右边发给小华上传</div>';
+    return `<div class="folds">${this.node(`pj:${p.id}:pp`, false, ppHead, pp)}${this.node(`pj:${p.id}:sc`, p.assets.length > 0, fHead, filesBody)}</div>`;
   }
 
   assetHtml(p, a, cur) {
@@ -300,7 +367,7 @@ export class Library {
     const thumb = a.thumbUrl ? `background-image:url(${esc(a.thumbUrl)})` : '';
     const sub = ok ? `${KIND[a.kind] ?? a.kind} · ${esc(a.meta?.formatName ?? a.originalFormat)}` : esc(a.message || '无法识别');
     const placed = cur && this.placed.has(a.id);
-    return `<div class="row as d2 ${ok ? '' : 'err'} ${placed ? 'inuse' : ''} ${this.sel === `as:${p.id}:${a.id}` ? 'sel' : ''}" tabindex="-1" draggable="${ok}" data-row="as:${p.id}:${a.id}" data-kind="asset" data-project="${p.id}" data-id="${a.id}" ${placed ? `data-focus="asset:${a.id}"` : ''} title="${esc(placed ? '点击跳转到场景中的这个模型' : a.message ?? '')}">
+    return `<div class="row as d1 ${ok ? '' : 'err'} ${placed ? 'inuse' : ''} ${this.sel === `as:${p.id}:${a.id}` ? 'sel' : ''}" tabindex="-1" draggable="${ok}" data-row="as:${p.id}:${a.id}" data-kind="asset" data-project="${p.id}" data-id="${a.id}" ${placed ? `data-focus="asset:${a.id}"` : ''} title="${esc(placed ? '点击跳转到场景中的这个模型' : a.message ?? '')}">
       <span class="th" style="${thumb}">${thumb ? '' : esc(a.originalFormat ?? '')}</span><span class="nm"><b>${esc(a.name)}</b><small>${sub}</small></span><span class="racts">${act}</span>
     </div>`;
   }
@@ -308,21 +375,27 @@ export class Library {
   // ------------------------------------------------------------------ events
 
   bind() {
-    const body = $('libBody');
-    body.addEventListener('click', (e) => this.onClick(e));
-    body.addEventListener('dblclick', (e) => this.onDblClick(e));
-    body.addEventListener('contextmenu', (e) => this.onContext(e));
-    body.addEventListener('keydown', (e) => this.onKey(e));
-    body.addEventListener('dragstart', (e) => this.onDragStart(e));
-    body.addEventListener('dragend', () => this.endDrag());
-    body.addEventListener('dragover', (e) => this.onDragOver(e));
-    body.addEventListener('dragleave', (e) => {
-      const t = e.target.closest?.('.drop-ok');
-      if (t && !t.contains(e.relatedTarget)) t.classList.remove('drop-ok');
+    for (const body of this.hosts()) {
+      body.addEventListener('click', (e) => this.onClick(e));
+      body.addEventListener('dblclick', (e) => this.onDblClick(e));
+      body.addEventListener('contextmenu', (e) => this.onContext(e));
+      body.addEventListener('keydown', (e) => this.onKey(e));
+      body.addEventListener('dragstart', (e) => this.onDragStart(e));
+      body.addEventListener('dragend', () => this.endDrag());
+      body.addEventListener('dragover', (e) => this.onDragOver(e));
+      body.addEventListener('dragleave', (e) => {
+        const t = e.target.closest?.('.drop-ok');
+        if (t && !t.contains(e.relatedTarget)) t.classList.remove('drop-ok');
+      });
+      body.addEventListener('drop', (e) => this.onDrop(e));
+      body.addEventListener('scroll', () => this.closeMenu(), { passive: true });
+    }
+    // 保存归档 in the AI3D工厂 header: archive without folding / popping the section.
+    $('archiveBtn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.run(() => this.archiveActive());
     });
-    body.addEventListener('drop', (e) => this.onDrop(e));
-    body.addEventListener('scroll', () => this.closeMenu(), { passive: true });
-    // Scene switchers: the scene chip in the library header and the scene name under the 3D view.
+    // Scene switcher: the module name under the 3D view.
     const src = $('source');
     src.classList.add('scene-pick');
     src.title = '切换场景';
@@ -339,11 +412,6 @@ export class Library {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
       pick(src);
-    });
-    // The header chip is a button, so a click also unfolds a folded library card (main.js).
-    $('sceneSel')?.addEventListener('click', (e) => {
-      const el = e.currentTarget;
-      requestAnimationFrame(() => pick(el)); // after the card has unfolded and settled
     });
     // Products and models can also be dropped straight into the 3D view.
     const view = $('view');
@@ -368,11 +436,11 @@ export class Library {
 
   rowInfo(row) {
     const d = row?.dataset ?? {};
-    return { kind: d.kind, project: d.project, id: d.id, key: d.key, scene: d.scene, row };
+    return { kind: d.kind, project: d.project, id: d.id, key: d.key, scene: d.scene, archive: d.archive, row };
   }
 
   select(row) {
-    for (const r of $('libBody').querySelectorAll('.row.sel')) r.classList.remove('sel');
+    for (const r of this.qa('.row.sel')) r.classList.remove('sel');
     this.sel = row?.dataset.row ?? null;
     if (row) {
       row.classList.add('sel');
@@ -416,7 +484,9 @@ export class Library {
         this.openMenu(row ?? act, r.left, r.bottom + 2);
         return;
       }
-      this.run(() => this.doAct(act.dataset.act, this.rowInfo(row)));
+      const info = this.rowInfo(row);
+      info.archive ??= act.dataset.archive;
+      this.run(() => this.doAct(act.dataset.act, info));
       return;
     }
     const toggler = e.target.closest('[data-toggle]');
@@ -438,15 +508,19 @@ export class Library {
     const row = e.target.closest('.row');
     if (!row) return;
     const info = this.rowInfo(row);
-    const primary = { project: 'switch', scene: 'open-scene', pp: 'use', asset: 'primary' }[info.kind];
+    // The active project's row renames it; an archived case is restored as the current project.
+    if (info.kind === 'project' && info.project === this.ws.active.id) return this.startRename(row);
+    const primary = { project: 'switch', scene: 'open-scene', pp: 'use', asset: 'primary', archive: 'restore' }[info.kind];
     if (primary) this.run(() => this.doAct(primary, info));
+    return undefined;
   }
 
   onKey(e) {
     if (e.target.closest('input')) return;
     const row = e.target.closest('.row');
     const k = e.key;
-    const rows = [...$('libBody').querySelectorAll('.row')].filter((r) => r.offsetParent);
+    const host = e.target.closest('.libbody') ?? e.currentTarget;
+    const rows = [...host.querySelectorAll('.row')].filter((r) => r.offsetParent);
     const i = rows.indexOf(row);
     let handled = true;
     if (k === 'ArrowDown' || k === 'ArrowUp') this.select(rows[Math.min(rows.length - 1, Math.max(0, i + (k === 'ArrowDown' ? 1 : -1)))]);
@@ -478,6 +552,12 @@ export class Library {
         return this.addProduct(ws.active.id, id);
       case 'new-project':
         return this.newProject();
+      case 'add-module':
+        return this.addModule();
+      case 'archive-save':
+        return this.archiveActive();
+      case 'restore':
+        return this.restoreArchive(info.archive);
       case 'switch':
         return this.switchProject(project);
       case 'open-scene':
@@ -512,6 +592,7 @@ export class Library {
         return undefined;
       }
       case 'delete':
+        if (kind === 'archive') return this.deleteArchive(info.archive);
         if (kind === 'project') return this.deleteProject(project);
         if (kind === 'pp') {
           const e = ws.removeProduct(project, key);
@@ -521,7 +602,7 @@ export class Library {
         if (kind === 'asset') {
           if (project === ws.active.id) this.remove(id);
           ws.removeAsset(project, id);
-          app.toast(`已从「${ws.project(project).name}」场景库移除 ${this.asset(id)?.name ?? id}`);
+          app.toast(`已从「${ws.project(project).name}」文件中移除 ${this.asset(id)?.name ?? id}`);
         }
         this.persistSoon();
         return undefined;
@@ -534,9 +615,7 @@ export class Library {
     const p = this.ws.project(projectId);
     const prod = this.product(productId);
     const { entry, added } = this.ws.addProduct(projectId, productId);
-    this.ws.setOpen(`pj:${projectId}`, true);
     this.ws.setOpen(`pj:${projectId}:pp`, true);
-    this.ws.setOpen('proj', true);
     this.persistSoon();
     if (!quiet) this.app.toast(added ? `已把 ${prod?.model ?? productId} 加入「${p.name}」产品库` : `「${p.name}」产品库里已经有 ${prod?.model ?? productId}`);
     this.flash(`pp:${projectId}:${entry.key}`);
@@ -547,10 +626,9 @@ export class Library {
     const p = this.ws.project(projectId);
     const a = this.asset(assetId);
     const added = this.ws.addAsset(projectId, assetId);
-    this.ws.setOpen(`pj:${projectId}`, true);
     this.ws.setOpen(`pj:${projectId}:sc`, true);
     this.persistSoon();
-    this.app.toast(added ? `已把 ${a?.name ?? assetId} 加入「${p.name}」场景库` : `「${p.name}」场景库里已经有 ${a?.name ?? assetId}`);
+    this.app.toast(added ? `已把 ${a?.name ?? assetId} 加入「${p.name}」的文件` : `「${p.name}」的文件里已经有 ${a?.name ?? assetId}`);
     this.flash(`as:${projectId}:${assetId}`);
   }
 
@@ -558,7 +636,7 @@ export class Library {
   flash(rowKey) {
     this.sel = rowKey;
     requestAnimationFrame(() => {
-      const el = $('libBody').querySelector(`.row[data-row="${CSS.escape(rowKey)}"]`);
+      const el = this.rowEl(rowKey);
       if (!el) return;
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       el.classList.remove('flash');
@@ -567,25 +645,76 @@ export class Library {
     });
   }
 
-  newProject({ withProduct, focus = true } = {}) {
+  // A new project opens in AI3D工厂 with its name ready to type (open=false: just create it).
+  async newProject({ withProduct, open = true } = {}) {
     const p = this.ws.createProject('新项目', withProduct ? [withProduct] : []);
-    this.ws.setOpen(`pj:${p.id}`, true);
-    this.ws.setOpen('proj', true);
     this.persistSoon();
-    this.render();
-    // Name it straight away, like a new folder in a file manager.
-    if (focus) {
-      const row = $('libBody').querySelector(`.row[data-row="pj:${p.id}"]`);
-      row?.scrollIntoView({ block: 'nearest' });
-      if (row) this.startRename(row);
+    if (!open) {
+      this.render();
+      return p;
     }
+    await this.switchProject(p.id);
+    this.render();
+    const row = this.rowEl(`pj:${p.id}`);
+    row?.scrollIntoView({ block: 'nearest' });
+    if (row) this.startRename(row);
     return p;
+  }
+
+  // ------------------------------------------------------------------ AI3D工厂 modules + 项目案例库
+
+  // ＋ in AI3D工厂: ask for a name, add the module and open it.
+  async addModule(name) {
+    const p = this.ws.active;
+    const suggest = this.ws.uniqueName('新模块', p.scenes.map((s) => s.name));
+    const label = name ?? prompt('新模块名称（例如：吊具搭建、产线搭建）', suggest);
+    if (label === null || label === undefined) return null;
+    this.captureScene();
+    const s = this.ws.addModule(p.id, label.trim() || suggest, { productId: this.app.product?.id });
+    await this.switchProject(p.id, s.id);
+    this.flash(`sc:${p.id}:${s.id}`);
+    return s;
+  }
+
+  // 保存归档: snapshot the active project (as it is in the 3D view right now) into 项目案例库.
+  archiveActive() {
+    this.captureScene();
+    const rec = this.ws.archiveProject(this.ws.active.id);
+    this.ws.setOpen(`ar:${rec.id}`, false);
+    this.persistSoon();
+    this.app.toast(`已归档「${rec.name}」到项目案例库（${rec.project.scenes.length} 个场景，${fmtDate(rec.archivedAt)}）`);
+    this.flash(`ar:${rec.id}`);
+    return rec;
+  }
+
+  // 恢复为当前项目: a copy of the case becomes the active project; the case itself is unchanged.
+  async restoreArchive(archiveId) {
+    if (!archiveId) throw new Error('没有选中案例');
+    const rec = this.ws.archive(archiveId);
+    this.captureScene();
+    const p = this.ws.restoreArchive(archiveId);
+    const s = this.ws.activeScene;
+    const errors = await this.applyScene(s);
+    this.persistSoon();
+    this.app.openCard?.('secFactory');
+    this.app.toast(errors.length ? `已把案例「${rec.name}」恢复为当前项目「${p.name}」，${errors.length} 项没能还原：${errors[0]}` : `已把案例「${rec.name}」恢复为当前项目「${p.name}」`, errors.length > 0);
+    this.flash(`pj:${p.id}`);
+    return p;
+  }
+
+  deleteArchive(archiveId) {
+    const rec = this.ws.archive(archiveId);
+    if (!confirm(`删除案例「${rec.name}」（${fmtDate(rec.archivedAt)} 归档）？\n删除后不能恢复；已经恢复出来的项目不受影响。`)) return;
+    this.ws.removeArchive(archiveId);
+    if (this.sel === `ar:${archiveId}`) this.sel = null;
+    this.persistSoon();
+    this.app.toast(`已删除案例「${rec.name}」`);
   }
 
   async deleteProject(id) {
     const p = this.ws.project(id);
     if (this.ws.projects.length <= 1) throw new Error('至少要保留一个项目');
-    if (!confirm(`删除项目「${p.name}」？\n项目里的产品引用和场景会一起删除；标准产品库和已上传的文件本身不受影响。`)) return;
+    if (!confirm(`删除项目「${p.name}」？\n项目里的产品引用和搭建模块会一起删除；标准产品库和已上传的文件本身不受影响。`)) return;
     const wasActive = this.ws.active.id === id;
     this.ws.removeProject(id);
     if (wasActive) {
@@ -602,7 +731,7 @@ export class Library {
 
   async deleteScene(projectId, sceneId) {
     const s = this.ws.scene(projectId, sceneId);
-    if (!confirm(`删除场景「${s.name}」？`)) return;
+    if (!confirm(`删除模块「${s.name}」？\n这个模块里放的模型位置会一起删除；文件本身不受影响。`)) return;
     const wasOpen = projectId === this.ws.active.id && this.ws.active.activeScene === sceneId;
     this.ws.removeScene(projectId, sceneId);
     if (wasOpen) {
@@ -614,7 +743,7 @@ export class Library {
       }
     }
     this.persistSoon();
-    this.app.toast(`已删除场景「${s.name}」`);
+    this.app.toast(`已删除模块「${s.name}」`);
   }
 
   async switchProject(projectId, sceneId) {
@@ -622,7 +751,6 @@ export class Library {
     if (projectId === ws.active.id && (!sceneId || sceneId === ws.active.activeScene)) return;
     this.captureScene();
     ws.setActive(projectId, sceneId);
-    ws.setOpen(`pj:${projectId}`, true);
     const p = ws.active;
     const s = ws.activeScene;
     const errors = await this.applyScene(s);
@@ -637,11 +765,10 @@ export class Library {
   async newScene(projectId, { copyCurrent = false } = {}) {
     if (projectId === this.ws.active.id) this.captureScene();
     const from = copyCurrent ? this.ws.activeScene : null;
-    const s = this.ws.addScene(projectId, copyCurrent ? `${from.name} 副本` : '新场景', from ?? { productId: this.app.product?.id });
-    this.ws.setOpen(`pj:${projectId}:sc`, true);
+    const s = this.ws.addScene(projectId, copyCurrent ? `${from.name} 副本` : '新模块', from ?? { productId: this.app.product?.id }, 'custom');
     await this.switchProject(projectId, s.id);
     this.render();
-    const row = $('libBody').querySelector(`.row[data-row="sc:${projectId}:${s.id}"]`);
+    const row = this.rowEl(`sc:${projectId}:${s.id}`);
     if (row) this.startRename(row);
   }
 
@@ -711,11 +838,12 @@ export class Library {
 
   startRename(row) {
     const info = this.rowInfo(row);
-    if (!['project', 'pp', 'scene'].includes(info.kind)) return;
+    if (!['project', 'pp', 'scene', 'archive'].includes(info.kind)) return;
     const b = row.querySelector('.nm b');
     if (!b) return;
     const ws = this.ws;
     const current = info.kind === 'project' ? ws.project(info.project).name
+      : info.kind === 'archive' ? ws.archive(info.archive).name
       : info.kind === 'scene' ? ws.scene(info.project, info.scene).name
         : ws.project(info.project).products.find((e) => e.key === info.key)?.name ?? this.product(info.id)?.model ?? '';
     this.renaming = true;
@@ -735,13 +863,14 @@ export class Library {
       const name = input.value.trim();
       if (commit && name && name !== current) {
         if (info.kind === 'project') ws.renameProject(info.project, name);
+        else if (info.kind === 'archive') ws.renameArchive(info.archive, name);
         else if (info.kind === 'scene') ws.renameScene(info.project, info.scene, name);
         else ws.renameProduct(info.project, info.key, name);
         this.persistSoon();
       }
       this.sel = row.dataset.row;
       this.render();
-      $('libBody').querySelector(`.row[data-row="${CSS.escape(this.sel)}"]`)?.focus({ preventScroll: true });
+      this.rowEl(this.sel)?.focus({ preventScroll: true });
     };
     input.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -774,14 +903,22 @@ export class Library {
       return [
         ...(others.length ? others.map((p) => ({ label: p.name, tag: p.id === cur.id ? '当前' : '', act: run(() => fn(p.id)) })) : [{ label: '还没有其他项目', disabled: true }]),
         { sep: true },
-        { label: '新建项目…', act: run(makeNew ?? (() => fn(this.newProject().id))) },
+        { label: '新建项目…', act: run(makeNew ?? (async () => fn((await this.newProject({ open: false })).id))) },
       ];
     };
     if (row.classList.contains('lsh')) {
-      if (row.closest('[data-open-key="proj"]')) return [{ label: '新建项目', act: run(() => this.newProject()) }];
       return [];
     }
     switch (info.kind) {
+      case 'archive': {
+        if (!info.archive) return [];
+        return [
+          { label: '恢复为当前项目', hint: '复制一份出来继续改，案例本身不变', act: run(() => this.restoreArchive(info.archive)) },
+          { sep: true },
+          { label: '重命名', key: 'F2', act: () => this.startRename(row) },
+          { label: '删除', key: 'Del', danger: true, act: run(() => this.deleteArchive(info.archive)) },
+        ];
+      }
       case 'std': {
         const prod = this.product(info.id);
         const use = prod && this.inUse(prod);
@@ -796,11 +933,12 @@ export class Library {
       case 'project': {
         const isCur = info.project === cur.id;
         return [
-          { label: '切换到这个项目', disabled: isCur, act: run(() => this.switchProject(info.project)) },
-          { label: '新建场景', act: run(() => this.newScene(info.project)) },
+          { label: '重命名', key: 'F2', disabled: !isCur, act: () => this.startRename(row) },
+          { label: '保存归档', hint: '存一份到项目案例库', disabled: !isCur, act: run(() => this.archiveActive()) },
+          { label: '添加模块…', disabled: !isCur, act: run(() => this.addModule()) },
           { label: '从标准产品库添加', sub: this.stdSub(info.project) },
           { sep: true },
-          { label: '重命名', key: 'F2', act: () => this.startRename(row) },
+          { label: '切换到项目', sub: projectsSub((pid) => this.switchProject(pid), { except: cur.id, makeNew: () => this.newProject() }) },
           { label: '新建项目', act: run(() => this.newProject()) },
           { label: '删除项目', key: 'Del', danger: true, disabled: ws.projects.length <= 1, act: run(() => this.deleteProject(info.project)) },
         ];
@@ -820,19 +958,17 @@ export class Library {
       }
       case 'scenes':
         return [
-          { label: '新建场景', hint: '从示例厂房开始', act: run(() => this.newScene(info.project)) },
-          { label: '复制当前场景', disabled: info.project !== cur.id, act: run(() => this.newScene(info.project, { copyCurrent: true })) },
-          { sep: true },
           { label: '上传图纸 / 模型…', hint: '交给小华转换', act: () => this.pickUpload(info.project) },
         ];
       case 'scene': {
         const open = info.project === cur.id && cur.activeScene === info.scene;
         return [
           { label: '打开', disabled: open, act: run(() => this.openScene(info.project, info.scene)) },
-          { label: '复制场景', act: run(async () => { await this.openScene(info.project, info.scene); await this.newScene(info.project, { copyCurrent: true }); }) },
+          { label: '复制模块', act: run(async () => { await this.openScene(info.project, info.scene); await this.newScene(info.project, { copyCurrent: true }); }) },
+          { label: '添加模块…', act: run(() => this.addModule()) },
           { sep: true },
           { label: '重命名', key: 'F2', act: () => this.startRename(row) },
-          { label: '删除场景', key: 'Del', danger: true, disabled: ws.project(info.project).scenes.length <= 1, act: run(() => this.deleteScene(info.project, info.scene)) },
+          { label: '删除模块', key: 'Del', danger: true, disabled: ws.project(info.project).scenes.length <= 1, act: run(() => this.deleteScene(info.project, info.scene)) },
         ];
       }
       case 'asset': {
@@ -870,8 +1006,8 @@ export class Library {
     return list.length ? list : [{ label: '标准产品库为空', disabled: true }];
   }
 
-  newProjectWith(productId) {
-    const p = this.newProject({ withProduct: productId });
+  async newProjectWith(productId) {
+    const p = await this.newProject({ withProduct: productId });
     this.app.toast(`已新建项目并加入 ${this.product(productId)?.model ?? productId}，输入项目名称后回车`);
     return p;
   }
@@ -895,11 +1031,11 @@ export class Library {
       return { label: s.name, hint: drawing, tag: open ? '打开中' : '', disabled: open, act: run(() => this.openScene(p.id, s.id)) };
     });
     return [
-      { lab: `「${cur.name}」的场景` },
+      { lab: `「${cur.name}」的模块` },
       ...sceneItems(cur),
       { sep: true },
-      { label: '新建场景', hint: '从示例厂房开始', act: run(() => this.newScene(cur.id)) },
-      { label: '复制当前场景', act: run(() => this.newScene(cur.id, { copyCurrent: true })) },
+      { label: '添加模块…', act: run(() => this.addModule()) },
+      { label: '复制当前模块', act: run(() => this.newScene(cur.id, { copyCurrent: true })) },
       ...(ws.projects.length > 1 ? [{ sep: true }, { lab: '其他项目' }, ...ws.projects.filter((p) => p.id !== cur.id).map((p) => ({ label: p.name, sub: sceneItems(p) }))] : []),
     ];
   }
@@ -1018,7 +1154,7 @@ export class Library {
     row.classList.add('dragging');
     document.body.classList.add('lib-dragging');
     // Outline every place this item can go, so the user sees the targets before moving.
-    for (const t of $('libBody').querySelectorAll('[data-drop]')) t.classList.toggle('can-drop', Boolean(this.dropMode(this.drag, t)));
+    for (const t of this.qa('[data-drop]')) t.classList.toggle('can-drop', Boolean(this.dropMode(this.drag, t)));
   }
 
   endDrag() {
@@ -1027,7 +1163,7 @@ export class Library {
     clearTimeout(this.springTimer);
     document.body.classList.remove('lib-dragging');
     $('view').classList.remove('lib-drop');
-    for (const t of $('libBody').querySelectorAll('.can-drop, .drop-ok, .dragging')) t.classList.remove('can-drop', 'drop-ok', 'dragging');
+    for (const t of this.qa('.can-drop, .drop-ok, .dragging')) t.classList.remove('can-drop', 'drop-ok', 'dragging');
     if (this.dirty) this.render();
   }
 
@@ -1044,7 +1180,7 @@ export class Library {
     }
     if (drag.kind === 'asset' && (where === 'project' || where === 'scenes')) {
       if (drag.from === pid) return null;
-      return `松开：加入「${pname}」场景库`;
+      return `松开：加入「${pname}」的文件`;
     }
     return null;
   }
@@ -1052,7 +1188,7 @@ export class Library {
   onDragOver(e) {
     if (!this.drag) return;
     const t = e.target.closest('[data-drop]');
-    for (const x of $('libBody').querySelectorAll('.drop-ok')) if (x !== t) x.classList.remove('drop-ok');
+    for (const x of this.qa('.drop-ok')) if (x !== t) x.classList.remove('drop-ok');
     const mode = t && this.dropMode(this.drag, t);
     if (!mode) return;
     e.preventDefault();
@@ -1074,7 +1210,7 @@ export class Library {
     e.preventDefault();
     this.endDrag();
     if (t.dataset.drop === 'new-project') {
-      this.newProjectWith(drag.id);
+      this.run(() => this.newProjectWith(drag.id));
       return;
     }
     const pid = t.dataset.project;
@@ -1119,10 +1255,8 @@ export class Library {
     const assets = body.assets ?? (body.asset ? [body.asset] : []);
     const pid = this.ws.active.id;
     for (const a of assets) this.ws.addAsset(pid, a.id);
-    this.ws.setOpen(`pj:${pid}`, true);
     this.ws.setOpen(`pj:${pid}:sc`, true);
-    this.ws.setOpen('proj', true);
-    document.querySelector('.panel.lib')?.classList.remove('min-on');
+    this.app.openCard?.('secFactory');
     await this.reload();
     this.persistSoon();
     if (assets[0]) this.flash(`as:${pid}:${assets[0].id}`);
@@ -1146,7 +1280,7 @@ export class Library {
       }
     }
     let first = null;
-    for (const el of $('libBody').querySelectorAll('.row[data-focus]')) {
+    for (const el of this.qa('.row[data-focus]')) {
       const on = el.dataset.focus === kind;
       el.classList.toggle('sel', on);
       if (on && el.classList.contains('pp')) first ??= el;
@@ -1618,6 +1752,8 @@ export class Library {
       项目场景: p.scenes.map((s) => s.name),
       项目文件: p.assets.map((id) => this.asset(id)).filter(Boolean).map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 可用: Library.usable(a), 图纸类型: a.kind === 'site' ? (a.meta?.convention === 'generic' ? '普通厂房图（生成厂房）' : '工序图纸') : undefined })),
       其他项目: ws.projects.filter((x) => x.id !== p.id).map((x) => x.name),
+      搭建模块: p.scenes.map((s) => ({ 名称: s.name, 类型: ({ site: '场景搭建', saddle: '鞍座搭建', product: '产品搭建' })[s.kind] ?? '自定义', 打开中: s.id === p.activeScene })),
+      项目案例库: ws.archives.map((a) => ({ id: a.id, 名称: a.name, 归档日期: fmtDate(a.archivedAt), 场景数: a.project.scenes.length })),
     };
   }
 }

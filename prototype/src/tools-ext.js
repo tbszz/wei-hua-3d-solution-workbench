@@ -121,15 +121,9 @@ export function createExtTools(app, { runCore }) {
   app.zones = zones;
   app.frameHooks = [...(app.frameHooks ?? []), () => warehouse.update(), (dt) => flow.update(dt), (dt) => line.update(dt)];
   app.labelHooks = [...(app.labelHooks ?? []), (ctx) => warehouse.labels(ctx), (ctx) => flow.labels(ctx), (ctx) => line.labels(ctx), (ctx) => zones.labels(ctx)];
-  app.dockTabs = { ...(app.dockTabs ?? {}), slots: () => slotsHtml(), flow: () => flow.dockHtml(), linesim: () => line.dockHtml() };
+  app.dockTabs = { ...(app.dockTabs ?? {}), slots: () => slotsHtml(), linesim: () => line.dockHtml() };
 
   document.getElementById('dockMain')?.addEventListener('click', (e) => {
-    const f = e.target.closest('[data-flow]');
-    if (f) {
-      if (f.dataset.flow === 'stop') flow.stop();
-      else flow.start({ mode: 'full' });
-      app.renderDock();
-    }
     const l = e.target.closest('[data-linesim]');
     if (l && line.result) {
       if (l.dataset.linesim === 'play') line.playing = !line.playing;
@@ -137,6 +131,21 @@ export function createExtTools(app, { runCore }) {
       if (l.dataset.linesim === 'faster') line.speed = Math.min(1200, line.speed * 2);
       app.renderDock();
     }
+  });
+
+  // The process flow lives in the 工序流程 section of the left rail (#flowBox), not in the drawer.
+  app.renderFlow = () => {
+    const box = document.getElementById('flowBox');
+    if (!box) return;
+    box.hidden = !flow.flow;
+    box.innerHTML = flow.flow ? flow.dockHtml() : '';
+  };
+  document.getElementById('flowBox')?.addEventListener('click', (e) => {
+    const f = e.target.closest('[data-flow]');
+    if (!f) return;
+    if (f.dataset.flow === 'stop') flow.stop();
+    else flow.start({ mode: 'full' });
+    app.renderFlow();
   });
 
   function slotsHtml() {
@@ -323,15 +332,17 @@ export function createExtTools(app, { runCore }) {
 
     define_process: (a) => {
       const r = flow.define(a);
-      app.setTab('flow', true);
+      app.renderFlow();
+      app.openCard?.('secProcess');
       flow.focus(null);
       return { result: r, chip: `流程 · ${r.节点数} 个节点` };
     },
 
     play_flow: (a) => {
-      if (a.stop) { flow.stop(); app.renderDock(); return { result: { 已停止: true }, chip: '停止演示' }; }
+      if (a.stop) { flow.stop(); app.renderFlow(); return { result: { 已停止: true }, chip: '停止演示' }; }
       const r = flow.start(a);
-      app.setTab('flow', true);
+      app.renderFlow();
+      app.openCard?.('secProcess');
       return { result: r, chip: a.mode === 'node' ? `节点流程 · ${a.node}` : '全流程演示' };
     },
 

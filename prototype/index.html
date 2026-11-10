@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>卫华 3D 方案工作台</title>
+<title>AI3D智能工厂</title>
 <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -20,15 +20,27 @@
   <div class="brand">
     <div class="mark">卫</div>
     <div class="ttl">
-      <b>卫华 3D 方案工作台</b>
+      <div class="ttlrow">
+        <b>AI3D智能工厂</b>
+        <!-- Module nav mirrors the left rail. [data-open-card] opens that rail section;
+             [data-open-dashboard] opens the full-screen dashboard (bound by the dashboard module). -->
+        <nav class="modnav" id="modNav" aria-label="模块">
+          <button class="mod" data-open-card="secCases" title="项目案例库：已归档的历史项目">项目案例库</button>
+          <button class="mod" data-open-card="secProducts" title="产品库：标准产品与参数">产品库</button>
+          <button class="mod" data-open-card="secFactory" title="AI3D工厂：当前项目的搭建模块">AI3D工厂</button>
+          <button class="mod" data-open-card="secProcess" title="工序流程：当前方案的工序步骤">工序流程</button>
+          <button class="mod" data-open-card="secTakt" title="生产节拍：单件节拍、产能与瓶颈">生产节拍</button>
+          <button class="mod dash" data-open-dashboard title="可视化大屏">可视化大屏</button>
+        </nav>
+      </div>
       <nav class="steps" id="steps">
-        <button class="step" data-step="1"><i>1</i>图纸点位</button>
-        <button class="step" data-step="2"><i>2</i>选型参数</button>
-        <button class="step" data-step="3"><i>3</i>流程说明</button>
-        <button class="step" data-step="4"><i>4</i>流程动画</button>
-        <button class="step" data-step="5"><i>5</i>效率节拍</button>
-        <button class="step" data-step="6"><i>6</i>行程可视化</button>
-        <button class="step later" data-step="7"><i>7</i>出图下发</button>
+        <button class="step" data-step="1" title="1 图纸点位"><i>1</i>图纸点位</button>
+        <button class="step" data-step="2" title="2 选型参数"><i>2</i>选型参数</button>
+        <button class="step" data-step="3" title="3 流程说明"><i>3</i>流程说明</button>
+        <button class="step" data-step="4" title="4 流程动画"><i>4</i>流程动画</button>
+        <button class="step" data-step="5" title="5 效率节拍"><i>5</i>效率节拍</button>
+        <button class="step" data-step="6" title="6 行程可视化"><i>6</i>行程可视化</button>
+        <button class="step later" data-step="7" title="7 出图下发"><i>7</i>出图下发</button>
       </nav>
     </div>
   </div>
@@ -43,19 +55,40 @@
   </div>
 </header>
 
+<!-- Left rail: five sections, each a .panel > .ph header + body. Folded (min-on) they show only
+     their headers; the rail scrolls when open sections overflow. -->
 <aside class="left">
-  <section class="panel glass grow min-on">
-    <header class="ph"><b><i>01</i>工序流程</b><span class="num" id="procTotal"></span><button class="min" data-min title="缩小 / 展开"></button></header>
-    <ol class="proclist" id="procList"></ol>
+  <section class="panel glass min-on" id="secCases">
+    <header class="ph"><b><i>01</i>项目案例库</b><span class="num" id="casesCount"></span><button class="min" data-min title="缩小 / 展开"></button></header>
+    <div class="libbody tree" id="casesBody" tabindex="-1"></div>
   </section>
-  <section class="panel glass lib min-on">
+  <section class="panel glass min-on" id="secProducts">
+    <header class="ph"><b><i>02</i>产品库</b><span class="num" id="prodCount"></span><button class="min" data-min title="缩小 / 展开"></button></header>
+    <div class="libbody tree" id="prodBody" tabindex="-1"></div>
+  </section>
+  <section class="panel glass min-on" id="secFactory">
     <header class="ph">
-      <b class="ptl"><i>02</i><span class="pname" id="projTitle">冷轧车间 AGV + 行车方案</span></b>
-      <button type="button" class="scnsel" id="sceneSel" title="切换场景">主场景</button>
+      <b><i>03</i>AI3D工厂</b>
+      <span class="phsub" id="projTitle" title="当前项目"></span>
+      <button type="button" class="arcbtn" id="archiveBtn" title="把当前项目存一份到项目案例库">保存归档</button>
       <button class="min" data-min title="缩小 / 展开"></button>
     </header>
-    <div class="libbody tree" id="libBody" tabindex="-1"></div>
-    <div class="libhint">拖拽或右键整理 · 上传文件在右边对小华说</div>
+    <div class="secbody">
+      <div class="libbody tree" id="factoryBody" tabindex="-1"></div>
+      <div class="libhint">点模块打开 · 拖拽或右键整理 · 上传文件在右边对小华说</div>
+    </div>
+  </section>
+  <section class="panel glass min-on" id="secProcess">
+    <header class="ph"><b><i>04</i>工序流程</b><span class="num" id="procTotal"></span><button class="min" data-min title="缩小 / 展开"></button></header>
+    <div class="secbody">
+      <ol class="proclist" id="procList"></ol>
+      <div class="flowbox" id="flowBox" hidden></div>
+      <div class="libhint">定义或修改工艺流程：对右边的小华说，例如「按 开卷→矫直→剪切→堆垛→入库 定义流程并演示」</div>
+    </div>
+  </section>
+  <section class="panel glass min-on" id="secTakt">
+    <header class="ph"><b><i>05</i>生产节拍</b><span class="num" id="taktSum"></span><button class="min" data-min title="缩小 / 展开"></button></header>
+    <div class="secbody takt" id="taktBody"></div>
   </section>
 </aside>
 
@@ -70,7 +103,7 @@
     <div class="seg"><button id="keysBtn" title="犀牛 Rhino 习惯的快捷键 (F1)">快捷键</button></div>
   </section>
   <section class="panel glass devcard min-on">
-    <header class="ph"><b><i>03</i>设备卡</b><span class="num" id="hudWindow">--</span><button class="min" data-min title="缩小 / 展开"></button></header>
+    <header class="ph"><b><i>06</i>设备卡</b><span class="num" id="hudWindow">--</span><button class="min" data-min title="缩小 / 展开"></button></header>
     <div class="dc">
       <div class="dct"><span class="no num" id="hudNo">01</span><b id="hudTitle">正在加载厂房…</b><span class="badge" id="hudDev">AGV</span></div>
       <div class="bar"><span id="hudBar"></span></div>
@@ -126,7 +159,6 @@
       <button data-tab="eff">效率节拍</button>
       <button data-tab="travel">行程统计</button>
       <button data-tab="slots">货位库存</button>
-      <button data-tab="flow">工艺流程</button>
       <button data-tab="linesim">产线仿真</button>
     </div>
     <div class="legend">

@@ -1,20 +1,34 @@
 // Project workspace kept beside the standard product library.
-// 标准产品库 is shared and read-only here: products with standard parameters.
-// 项目库 holds projects; each project has its own 产品库 (copies of standard products and the
-// products customised for it) and its own 场景库 (scenes plus the drawings/models uploaded to it).
+// 产品库 (standard products) is shared and read-only here: products with standard parameters.
+// AI3D工厂 is the active project: its build modules (each one a scene: 场景搭建 / 鞍座搭建 /
+// 产品搭建 / modules the user adds), its own product list (copies of standard products and the
+// products customised for it) and the drawings/models uploaded to it.
+// 项目案例库 holds archived snapshots of projects (data.archives); restoring one makes a fresh copy.
 // Pure data: no DOM, no three.js, so it can be tested with node --test.
 
 export const DEFAULT_PROJECT_NAME = '冷轧车间 AGV + 行车方案';
-export const DEFAULT_SCENE_NAME = '主场景';
+// Build modules every new project starts with. Each module is a scene record with a `kind`.
+export const MODULES = [
+  { kind: 'site', name: '场景搭建' },
+  { kind: 'saddle', name: '鞍座搭建' },
+  { kind: 'product', name: '产品搭建' },
+];
+export const MODULE_KINDS = [...MODULES.map((m) => m.kind), 'custom'];
+export const DEFAULT_SCENE_NAME = MODULES[0].name;
+const LEGACY_SCENE_NAME = '主场景'; // the single scene of workspaces saved before modules existed
+const VERSION = 2;
 
 let seq = 0;
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const clean = (s, fallback) => String(s ?? '').trim().slice(0, 60) || fallback;
+const copy = (x) => JSON.parse(JSON.stringify(x));
+const kindOf = (k) => (MODULE_KINDS.includes(k) ? k : 'custom');
 
-export function newScene(name = DEFAULT_SCENE_NAME, from = null) {
+export function newScene(name = DEFAULT_SCENE_NAME, from = null, kind = null) {
   return {
     id: uid('s'),
     name: clean(name, DEFAULT_SCENE_NAME),
+    kind: kindOf(kind ?? from?.kind), // which build module this scene is: site | saddle | product | custom
     drawing: from?.drawing ?? null, // scene-library asset id of the base drawing; null = the sample plant
     overlay: from?.overlay ?? null, // asset id of a drawing laid over the floor for reference
     placed: (from?.placed ?? []).map((p) => ({ ...p })),
@@ -22,44 +36,72 @@ export function newScene(name = DEFAULT_SCENE_NAME, from = null) {
   };
 }
 
+export const defaultModules = () => MODULES.map((m) => newScene(m.name, null, m.kind));
+
 export function newProject(name, products = []) {
-  const scene = newScene();
+  const scenes = defaultModules();
   return {
     id: uid('p'),
     name: clean(name, '新项目'),
     products: products.map((productId) => ({ key: uid('pp'), productId, name: null })),
-    scenes: [scene],
+    scenes,
     assets: [],
-    activeScene: scene.id,
+    activeScene: scenes[0].id,
   };
 }
 
 export function defaultWorkspace() {
   const project = newProject(DEFAULT_PROJECT_NAME, ['agv1', 'double-girder-crane-demo']);
   project.scenes[0].productId = 'agv1';
-  return { v: 1, activeProject: project.id, projects: [project], open: {} };
+  return { v: VERSION, activeProject: project.id, projects: [project], archives: [], open: {} };
+}
+
+// Workspaces saved before build modules existed had free scenes: the 主场景 becomes 场景搭建 and the
+// missing default modules are added after the existing scenes, so nothing the user made is lost.
+function migrateScenes(scenes) {
+  if (!scenes.some((s) => s.kind === 'site')) {
+    const main = scenes.find((s) => s.name === LEGACY_SCENE_NAME) ?? scenes[0];
+    if (main) {
+      main.kind = 'site';
+      if (main.name === LEGACY_SCENE_NAME) main.name = MODULES[0].name;
+    }
+  }
+  for (const m of MODULES) if (!scenes.some((s) => s.kind === m.kind)) scenes.push(newScene(m.name, null, m.kind));
+  return scenes;
+}
+
+function normalizeProject(p, legacy) {
+  let scenes = (Array.isArray(p.scenes) ? p.scenes : []).filter((s) => s && typeof s === 'object').map((s) => ({ ...newScene(s.name, s), id: s.id || uid('s') }));
+  if (legacy) scenes = migrateScenes(scenes);
+  if (!scenes.length) scenes = defaultModules();
+  return {
+    id: p.id || uid('p'),
+    name: clean(p.name, '未命名项目'),
+    products: (Array.isArray(p.products) ? p.products : []).filter((x) => x?.productId).map((x) => ({ key: x.key || uid('pp'), productId: x.productId, name: x.name ?? null })),
+    scenes,
+    assets: [...new Set((Array.isArray(p.assets) ? p.assets : []).filter((x) => typeof x === 'string'))],
+    activeScene: scenes.some((s) => s.id === p.activeScene) ? p.activeScene : scenes[0].id,
+  };
+}
+
+function normalizeArchive(a, legacy) {
+  if (!a || typeof a !== 'object' || !a.project || typeof a.project !== 'object') return null;
+  const project = normalizeProject(a.project, legacy);
+  const at = Number(a.archivedAt);
+  return { id: a.id || uid('a'), name: clean(a.name, project.name), archivedAt: Number.isFinite(at) ? at : 0, project };
 }
 
 // Repair whatever came back from storage so the UI never meets a half-formed record.
 export function normalize(data) {
   if (!data || typeof data !== 'object' || !Array.isArray(data.projects) || !data.projects.length) return defaultWorkspace();
-  const projects = data.projects.filter((p) => p && typeof p === 'object').map((p) => {
-    const scenes = (Array.isArray(p.scenes) ? p.scenes : []).filter(Boolean).map((s) => ({ ...newScene(s.name, s), id: s.id || uid('s') }));
-    if (!scenes.length) scenes.push(newScene());
-    return {
-      id: p.id || uid('p'),
-      name: clean(p.name, '未命名项目'),
-      products: (Array.isArray(p.products) ? p.products : []).filter((x) => x?.productId).map((x) => ({ key: x.key || uid('pp'), productId: x.productId, name: x.name ?? null })),
-      scenes,
-      assets: [...new Set((Array.isArray(p.assets) ? p.assets : []).filter((x) => typeof x === 'string'))],
-      activeScene: scenes.some((s) => s.id === p.activeScene) ? p.activeScene : scenes[0].id,
-    };
-  });
+  const legacy = !(Number(data.v) >= VERSION);
+  const projects = data.projects.filter((p) => p && typeof p === 'object').map((p) => normalizeProject(p, legacy));
   if (!projects.length) return defaultWorkspace();
   return {
-    v: 1,
+    v: VERSION,
     activeProject: projects.some((p) => p.id === data.activeProject) ? data.activeProject : projects[0].id,
     projects,
+    archives: (Array.isArray(data.archives) ? data.archives : []).map((a) => normalizeArchive(a, legacy)).filter(Boolean),
     open: data.open && typeof data.open === 'object' ? { ...data.open } : {},
   };
 }
@@ -71,6 +113,10 @@ export class Workspace {
 
   get projects() {
     return this.data.projects;
+  }
+
+  get archives() {
+    return this.data.archives;
   }
 
   get active() {
@@ -159,11 +205,17 @@ export class Workspace {
     return entry;
   }
 
-  addScene(projectId, name, from = null) {
+  addScene(projectId, name, from = null, kind = 'custom') {
     const p = this.project(projectId);
-    const s = newScene(this.uniqueName(clean(name, '新场景'), p.scenes.map((x) => x.name)), from);
+    const s = newScene(this.uniqueName(clean(name, '新场景'), p.scenes.map((x) => x.name)), from, kind);
     p.scenes.push(s);
     return s;
+  }
+
+  // A build module the user adds next to 场景搭建 / 鞍座搭建 / 产品搭建. `from` seeds the scene
+  // (e.g. { productId }); without a drawing in `from` it starts from the sample plant.
+  addModule(projectId, name, from = null) {
+    return this.addScene(projectId, clean(name, '新模块'), from, 'custom');
   }
 
   renameScene(projectId, sceneId, name) {
@@ -195,6 +247,58 @@ export class Workspace {
     if (i < 0) return false;
     p.assets.splice(i, 1);
     return true;
+  }
+
+  // ---------------------------------------------------------------- 项目案例库 (archives)
+
+  archive(id) {
+    const a = this.archives.find((x) => x.id === id);
+    if (!a) throw new Error('案例不存在');
+    return a;
+  }
+
+  // Snapshot a project (deep copy) into the case library, newest first. The project stays as it is.
+  archiveProject(projectId = this.data.activeProject, now = Date.now()) {
+    const p = this.project(projectId);
+    const record = { id: uid('a'), name: p.name, archivedAt: now, project: copy(p) };
+    this.archives.unshift(record);
+    return record;
+  }
+
+  // Restore an archived case as a new project (fresh ids, so the archive itself stays untouched)
+  // and make it the active one. Returns the new project.
+  restoreArchive(archiveId) {
+    const src = copy(this.archive(archiveId).project);
+    const ids = new Map();
+    const scenes = src.scenes.map((s) => {
+      const scene = newScene(s.name, s);
+      ids.set(s.id, scene.id);
+      return scene;
+    });
+    if (!scenes.length) scenes.push(...defaultModules());
+    const p = {
+      id: uid('p'),
+      name: this.uniqueName(clean(src.name, '恢复的项目'), this.projects.map((x) => x.name)),
+      products: src.products.map((e) => ({ key: uid('pp'), productId: e.productId, name: e.name ?? null })),
+      scenes,
+      assets: [...src.assets],
+      activeScene: ids.get(src.activeScene) ?? scenes[0].id,
+    };
+    this.projects.push(p);
+    this.data.activeProject = p.id;
+    return p;
+  }
+
+  renameArchive(archiveId, name) {
+    const a = this.archive(archiveId);
+    a.name = clean(name, a.name);
+    return a;
+  }
+
+  removeArchive(archiveId) {
+    const i = this.archives.findIndex((x) => x.id === archiveId);
+    if (i < 0) throw new Error('案例不存在');
+    return this.archives.splice(i, 1)[0];
   }
 
   // Files uploaded before projects existed, or by tools that do not know about projects, and

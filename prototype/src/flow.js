@@ -128,6 +128,7 @@ export class FlowDemo {
     this.play = null;
     if (this.token) this.token.visible = false;
     this.paint();
+    this.app.renderFlow?.();
   }
 
   current() {
@@ -163,12 +164,12 @@ export class FlowDemo {
       const dwell = p.mode === 'node' && subs ? subs * 2.4 : this.pace(n.duration_s);
       const before = p.sub;
       if (subs) p.sub = Math.min(subs - 1, Math.floor((p.t / dwell) * subs));
-      if (p.sub !== before && this.app.tab === 'flow') this.app.renderDock?.();
+      if (p.sub !== before) this.app.renderFlow?.();
       this.token.position.y = 0.9 + 0.25 * Math.sin(p.t * 5);
       if (p.t >= dwell) {
-        if (p.mode === 'node') { p.finished = true; this.app.renderDock?.(); return; }
+        if (p.mode === 'node') { p.finished = true; this.app.renderFlow?.(); return; }
         const last = p.index >= nodes.length - 1;
-        if (last && !this.flow.loop) { p.finished = true; this.app.renderDock?.(); return; }
+        if (last && !this.flow.loop) { p.finished = true; this.app.renderFlow?.(); return; }
         p.phase = 'move';
         p.t = 0;
       }
@@ -182,7 +183,7 @@ export class FlowDemo {
         p.phase = 'dwell';
         p.t = 0;
         p.sub = 0;
-        this.app.renderDock?.();
+        this.app.renderFlow?.();
       }
     }
   }

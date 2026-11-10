@@ -41,7 +41,15 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .mark{width:36px;height:36px;border-radius:var(--r);background:var(--red);color:#fff;font-weight:700;display:grid;place-items:center;font-size:17px;flex:none}
 .ttl{display:flex;flex-direction:column;min-width:0;gap:3px}
-.ttl>b{font-size:16px;white-space:nowrap;letter-spacing:.02em;line-height:1.2}
+.ttlrow{display:flex;align-items:center;gap:10px;min-width:0}
+.ttlrow>b{flex:none;font-size:16px;white-space:nowrap;letter-spacing:.02em;line-height:1.2}
+/* module nav: one chip per left-rail section, plus the dashboard */
+.modnav{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
+.mod{flex:none;height:22px;padding:0 8px;border-radius:11px;border:1px solid transparent;font-size:12px;color:var(--ink2);white-space:nowrap;line-height:20px}
+.mod:hover{background:rgba(31,35,41,.06);color:var(--ink)}
+.mod.on{color:var(--red);background:var(--red-light);border-color:rgba(215,0,15,.3);font-weight:600}
+.mod.dash{margin-left:4px;color:#fff;background:var(--ink)}
+.mod.dash:hover{background:var(--red);color:#fff}
 .steps{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
 .step{display:flex;align-items:center;gap:4px;padding:0 7px 0 2px;border-radius:2px;color:var(--ink2);font-size:12px;white-space:nowrap;height:20px}
 .step:hover{background:rgba(31,35,41,.06)}
@@ -72,11 +80,24 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 
 /* ---------------------------------------------------------------- left column */
 .left,.right{position:fixed;top:calc(var(--top) + var(--gap) * 2);bottom:calc(var(--bottom) + var(--gap) * 2);z-index:4;display:flex;flex-direction:column;gap:var(--gap);min-height:0}
-.left{left:var(--gap);width:var(--lw)}
+.left{left:calc(var(--gap) - 1px);width:calc(var(--lw) + 6px);padding:1px 5px 1px 1px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:rgba(31,35,41,.25) transparent}
 .right{right:var(--gap);width:var(--rw)}
-.left .panel{display:flex;flex-direction:column}
-.left .grow{flex:1.1 1 0}
-.left .lib{flex:1 1 0}
+.left .panel{display:flex;flex-direction:column;flex:none}
+/* The rail stacks five sections; an open one scrolls inside itself past ~46% of the window. */
+.left .panel>.libbody,.left .panel>.secbody{max-height:46vh;overflow:auto;scrollbar-width:thin}
+.left .secbody .libbody,.left .secbody .proclist{flex:none;overflow:visible}
+.secbody{display:flex;flex-direction:column;min-height:0}
+.secbody>.libhint{margin-top:2px}
+@keyframes secflash{0%{box-shadow:0 0 0 2px rgba(215,0,15,.55)}100%{box-shadow:0 0 0 2px rgba(215,0,15,0)}}
+.left .panel.flash{animation:secflash 1.2s ease-out}
+/* AI3D工厂 header: current project name + 保存归档 */
+.ph .phsub{flex:0 1 auto;min-width:0;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:var(--ink2);background:rgba(31,35,41,.06);border-radius:9px;padding:0 7px;line-height:18px}
+.ph .phsub:empty{display:none}
+.ph .arcbtn{flex:none;height:22px;padding:0 8px;border-radius:var(--r);border:1px solid rgba(215,0,15,.4);color:var(--red);background:#fff;font-size:11.5px;white-space:nowrap}
+.ph .arcbtn:hover{background:var(--red);border-color:var(--red);color:#fff}
+.panel.min-on .ph .arcbtn{display:none}
+.flowbox{margin:0 6px 6px;padding:6px 8px;border:1px solid rgba(31,35,41,.08);border-radius:var(--r);background:rgba(255,255,255,.6);font-size:12px}
+.flowbox[hidden]{display:none}
 
 .proclist{list-style:none;overflow:auto;flex:1;padding:6px}
 .proclist li{display:grid;grid-template-columns:28px 1fr auto;gap:0 8px;align-items:center;padding:7px 10px 7px 8px;cursor:pointer;border:1px solid transparent;border-radius:var(--r);position:relative;margin-bottom:4px;background:rgba(255,255,255,.5)}
@@ -111,6 +132,32 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .item.err small{color:var(--red)}
 .empty{font-size:12.5px;color:var(--ink3);padding:14px 6px;text-align:center}
 .libhint{margin:0 8px 8px;font-size:11px;color:var(--ink3);text-align:center;flex:none}
+
+/* 生产节拍 */
+.takt{padding:8px 10px 10px}
+.takt-empty{font-size:12px;color:var(--ink3);line-height:1.6;padding:2px}
+.tk-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.tk-kpis>div{min-width:0;padding:5px 7px;border:1px solid rgba(31,35,41,.08);border-radius:var(--r);background:rgba(255,255,255,.6)}
+.tk-kpis small{display:block;font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-kpis b{display:block;font-family:var(--num);font-size:18px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-kpis b em{font-style:normal;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:10.5px;font-weight:400;color:var(--ink3);margin-left:2px}
+.tk-kpis .good b{color:var(--ok)}
+.tk-kpis .bad b{color:var(--red)}
+.takt h5{margin:10px 0 4px;font-size:11.5px;font-weight:600;color:var(--ink2)}
+.tk-bars{list-style:none}
+.tk-bars li{display:grid;grid-template-columns:18px minmax(0,78px) 1fr 32px;align-items:center;gap:6px;height:22px;padding:0 3px;border-radius:3px;font-size:12px;cursor:pointer}
+.tk-bars li:hover{background:rgba(31,35,41,.05)}
+.tk-bars li.cur{background:var(--red-light)}
+.tk-bars .n{font-size:11px;color:var(--ink3)}
+.tk-bars b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-bars .tbar{height:6px;border-radius:3px;background:rgba(31,35,41,.07);overflow:hidden}
+.tk-bars .tbar i{display:block;height:100%;border-radius:3px;background:var(--blue)}
+.tk-bars .tbar i.crane{background:var(--red)}
+.tk-bars .tbar i.build{background:#B26A00}
+.tk-bars .d{text-align:right;font-size:11.5px;color:var(--ink2)}
+.tk-more{margin-top:8px}
+.tk-more summary{cursor:pointer;font-size:11.5px;color:var(--ink2)}
+.tk-more .eff{padding:6px 0 0}
 
 /* ---------------------------------------------------------------- right column */
 .viewbar{display:flex;gap:8px;padding:8px;flex:none;flex-wrap:wrap}
@@ -300,11 +347,25 @@ table.t tr.clickable:hover td{background:var(--bg)}
   .kpibar>div:nth-child(n+4){display:none}
 }
 @media (max-width: 1450px){
-  .step{font-size:0;gap:0;padding:0 2px}
+  /* steps shrink to numbers (name in the tooltip), the module chips tighten */
+  .step,.step.cur{font-size:0;gap:0;padding:0 2px}
   .step i{font-size:11px}
-  .step.cur{font-size:12px;gap:4px;padding:0 7px 0 2px}
+  .mod{padding:0 6px;font-size:11.5px}
+  .ttlrow{gap:6px}
+  .runst{padding:4px 8px}
   .legend,.proj{display:none}
   .kpibar>div:nth-child(n+3){display:none}
+}
+@media (max-width: 1366px){
+  /* ~1280px laptops: the header keeps the title, module nav, 2 KPIs, clock and actions on one line */
+  .top{gap:10px}
+  .kpibar>div{padding:0 10px;min-width:0}
+  .clock{padding:0 10px}
+  .clock b{font-size:22px}
+  .acts-top{gap:4px}
+  .acts-top button{padding:5px 8px}
+  .mod{padding:0 5px}
+  .mod.dash{margin-left:2px}
 }
 @media (max-width: 1100px){
   :root{--lw:220px;--rw:300px}
@@ -446,8 +507,29 @@ body.clean .keyhelp{right:var(--gap)}
 
 /* ---------------------------------------------------------------- resource library tree */
 /* The project title lives in the library header: the panel is the project. */
-.ph b.ptl{min-width:0;flex:1}
-.ph b.ptl .pname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tree .row.proj{min-height:36px;margin-top:4px;background:linear-gradient(90deg,rgba(215,0,15,.05),transparent 75%)}
+.tree .row.proj .ico{color:var(--red)}
+.tree .row.proj .nm b{font-size:13px}
+.tree .row.mod .ico.sc{background:rgba(215,0,15,.06);color:var(--red)}
+.tree .row.mod.on .ico.sc{background:var(--red);color:#fff}
+.tree .row.mod.on{background:rgba(215,0,15,.05)}
+.tree .row.mod.on .nm b{color:var(--red)}
+.tree .addmod{padding:2px 4px 4px 16px}
+.tree .addmod button{display:flex;align-items:center;justify-content:center;gap:5px;width:100%;height:26px;border:1px dashed rgba(31,35,41,.22);border-radius:var(--r);font-size:12px;color:var(--ink2)}
+.tree .addmod button:hover{border-color:var(--red);color:var(--red);background:var(--red-light)}
+.tree .folds{margin-top:4px;padding-top:4px;border-top:1px dashed rgba(31,35,41,.1)}
+.tree .row.arc{min-height:38px}
+.tree .row.arc .ico{color:var(--ink2)}
+.tree .arcn+.arcn{border-top:1px dashed rgba(31,35,41,.08)}
+.tree .pv{display:flex;align-items:center;gap:7px;min-height:26px;padding:2px 4px 2px 30px;color:var(--ink2)}
+.tree .pv .ico{flex:none;color:var(--ink3)}
+.tree .pv .nm{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px}
+.tree .pv .nm b{font-size:12px;font-weight:500;white-space:nowrap}
+.tree .pv .nm small{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree .pvinfo{padding:2px 6px 4px 30px;font-size:11px;color:var(--ink3);line-height:1.6}
+.tree .pvacts{display:flex;align-items:center;gap:8px;padding:2px 6px 8px 30px;flex-wrap:wrap}
+.tree .pvacts .muted{font-size:10.5px;color:var(--ink3)}
+.tree .row .nm small.spec{color:var(--ink2)}
 .libbody.tree{padding:0 6px 6px;outline:none}
 .tree .node.closed>.kids{display:none}
 .tree .lsec{margin-top:2px}
@@ -538,7 +620,4 @@ body.lib-dragging .tree .lsh.drop-ok .ib{display:none}
 #source.scene-pick{cursor:pointer;border-radius:4px;padding:1px 4px;margin:-1px -4px}
 #source.scene-pick::after{content:'▾';margin-left:4px;font-size:10px;color:var(--ink3)}
 #source.scene-pick:hover,#source.scene-pick:focus-visible{background:var(--surface2);outline:none}
-.ph .scnsel{flex:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;height:22px;padding:0 18px 0 8px;border:1px solid rgba(31,35,41,.14);border-radius:11px;background:#fff;font:inherit;font-size:11.5px;color:var(--ink2);cursor:pointer;position:relative}
-.ph .scnsel::after{content:'▾';position:absolute;right:6px;top:50%;transform:translateY(-52%);font-size:10px;color:var(--ink3)}
-.ph .scnsel:hover{border-color:var(--red);color:var(--red)}
-.panel.min-on .ph .scnsel{display:none}
+
