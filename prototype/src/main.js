@@ -11,6 +11,7 @@ import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
 import { initPopout } from './popout.js';
+import { createSceneLocator, initDashboard } from './dashboard.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -1498,4 +1499,6 @@ async function boot() {
   window.__agent = agent;
   await agent.init();
 }
+// 可视化大屏: plant zones / devices map onto this scene's points and objects (SCENE_MAP in dashboard.js).
+initDashboard(app, { locate: createSceneLocator(app) });
 boot();
