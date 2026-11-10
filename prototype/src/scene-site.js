@@ -363,7 +363,13 @@ export class SceneSite extends Site {
 
   // AGV, cargo and crane at the current process time.
   renderFlow() {
-    if (!this.flow || !this.cranePlan) return;
+    if (!this.flow) {
+      // No AGV route (blank scene, or no bay found): the AGV would sit at the origin, off the floor.
+      for (const carrier of this.carriers ?? []) carrier.visible = false;
+      this.contact.visible = false;
+      return;
+    }
+    if (!this.cranePlan) return;
     const show = this.time >= this.flowVisibleAt;
     const t = this.time;
     this.time = this.processTime;
