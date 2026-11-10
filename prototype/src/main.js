@@ -12,6 +12,7 @@ import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
 import { initPopout } from './popout.js';
+import { initPopcards, escHtml } from './popcard.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -1225,50 +1226,19 @@ $('resetBtn').addEventListener('click', () => {
   setRotate(true);
 });
 
-// Panels fold to their header; the camera re-centres on the space they free up.
+// The camera re-centres on the free area when the clean screen hides or shows the rails.
 const relayout = () => {
   resize();
   if (['overview', 'top', 'front', 'right'].includes(app.view)) app.setView(app.view, { noHistory: true });
 };
-// Every card starts folded to its header; clicking the header opens or folds it. Controls inside
-// the header (library tabs, pop-out) only open a folded card.
-document.addEventListener('click', (e) => {
-  const head = e.target.closest('.panel > .ph, .panel > .ahead');
-  if (!head) return;
-  const panel = head.closest('.panel');
-  if (panel.classList.contains('popped')) return;
-  const control = e.target.closest('button, input, label, a');
-  if (control && !control.matches('[data-min]')) {
-    if (!panel.classList.contains('min-on')) return;
-    panel.classList.remove('min-on');
-  } else panel.classList.toggle('min-on');
-  relayout();
+// Rails only show panel headers; a header opens its panel as a floating card over the view.
+initPopcards(app);
+app.cards.registerStrip('secProcess', () => {
+  const cur = $('procList').querySelector('li.cur b')?.textContent;
+  return `${cur ? `<b>${escHtml(cur)}</b> · ` : ''}${escHtml($('procTotal').textContent)}`;
 });
-// Header module nav: [data-open-card="secXxx"] opens that left-rail section through app.openCard.
-// openSectionInline is the temporary fallback (unfold in place + scroll into view); the popup-card
-// module replaces it by assigning app.openCard. [data-open-dashboard] is left to the dashboard.
-function openSectionInline(id) {
-  const sec = $(id);
-  if (!sec) return;
-  if (document.body.classList.contains('clean')) setCleanLater?.(false);
-  sec.classList.remove('min-on');
-  relayout();
-  sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  sec.classList.remove('flash');
-  void sec.offsetWidth;
-  sec.classList.add('flash');
-}
-app.openCard ??= openSectionInline;
-document.addEventListener('click', (e) => {
-  const chip = e.target.closest('[data-open-card]');
-  if (chip) app.openCard?.(chip.dataset.openCard);
-});
-// A chip is lit while its section is open, however it was opened.
-const syncModNav = () => {
-  for (const b of document.querySelectorAll('[data-open-card]')) b.classList.toggle('on', $(b.dataset.openCard)?.classList.contains('min-on') === false);
-};
-for (const sec of document.querySelectorAll('aside.left > .panel')) new MutationObserver(syncModNav).observe(sec, { attributes: true, attributeFilter: ['class'] });
-syncModNav();
+// Header module nav [data-open-card] chips are opened and lit by popcard.js.
+app.cards.registerStrip('secDevice', () => `<b>${escHtml($('hudTitle').textContent)}</b> · ${escHtml($('hudWindow').textContent)}`);
 // Chat cards: only the newest is open; click a card title to open or fold it.
 $('msgs').addEventListener('click', (e) => {
   const h = e.target.closest('.card > h4');
