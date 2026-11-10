@@ -13,6 +13,7 @@ import { createTools } from './tools.js';
 import { Library } from './library.js';
 import { initPopout } from './popout.js';
 import { initPopcards, escHtml } from './popcard.js';
+import { initMobile } from './mobile.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -1579,4 +1580,6 @@ async function boot() {
   window.__agent = agent;
   await agent.init();
 }
+// Phone layout: 3D view + 项目案例库 / 工序流程 / 可视化大屏 dock (mobile.js).
+initMobile(app, { relayout });
 boot();
