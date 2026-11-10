@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>卫华 3D 方案工作台</title>
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+<header class="top">
+  <div class="brand"><div class="mark">卫</div><b>卫华 · 3D 方案工作台</b><span>AI 方案 Agent</span></div>
+  <nav class="steps" id="steps">
+    <button class="step" data-step="1"><i>1</i>图纸变三维 · 点位标定</button><span class="sep"></span>
+    <button class="step" data-step="2"><i>2</i>选型与参数适配</button><span class="sep"></span>
+    <button class="step" data-step="3"><i>3</i>流程说明</button><span class="sep"></span>
+    <button class="step" data-step="4"><i>4</i>流程动画</button><span class="sep"></span>
+    <button class="step" data-step="5"><i>5</i>效率与节拍</button><span class="sep"></span>
+    <button class="step" data-step="6"><i>6</i>行程可视化</button><span class="sep"></span>
+    <button class="step later" data-step="7"><i>7</i>出图下发<em>后期</em></button>
+  </nav>
+  <div class="proj"><span id="source">某钢厂冷轧车间</span><span class="tag demo">演示数据</span><span class="tag" id="version">方案 v1</span></div>
+</header>
+
+<div class="main">
+  <section class="left">
+    <div class="view" id="view">
+      <canvas id="canvas"></canvas>
+      <div id="labels"></div>
+      <div class="hud" id="hud">
+        <div class="k"><span id="hudStep">全流程</span><span class="num" id="hudWindow">--</span></div>
+        <div class="t" id="hudTitle">正在加载厂房…</div>
+        <div class="bar"><span id="hudBar"></span></div>
+        <div class="row" id="hudRow"></div>
+      </div>
+      <div class="tools">
+        <div class="seg" id="views">
+          <button data-view="overview" class="on">总览</button><button data-view="follow">跟随 AGV</button><button data-view="crane">行车</button><button data-view="top">俯视</button>
+        </div>
+        <button class="btn" id="travelBtn">◉ 行程轨迹</button>
+        <button class="btn" id="shotBtn">⤓ 导出图片</button>
+      </div>
+      <div class="legend">
+        <span><s style="background:#2B7DE9"></s>AGV 载货</span>
+        <span><s style="background:#2EA121"></s>AGV 空车</span>
+        <span><s style="background:#D7000F"></s>行车吊运</span>
+        <span>示意模型 · 演示参数</span>
+      </div>
+      <div class="coord" id="coord"></div>
+      <div class="loading" id="loading">正在加载…</div>
+    </div>
+
+    <div class="dock" id="dock">
+      <div class="tabs" id="tabs">
+        <button data-tab="points">点位表</button>
+        <button data-tab="params">选型参数</button>
+        <button data-tab="process">工序表</button>
+        <button data-tab="gantt" class="on">时间轴 · 甘特图</button>
+        <button data-tab="eff">效率与节拍</button>
+        <button data-tab="travel">行程统计</button>
+        <div class="play">
+          <button class="pbtn" id="playBtn" title="播放 / 暂停">❚❚</button>
+          <span class="num" id="clock">00:00 / 00:00</span>
+          <select id="speedSel" title="播放速度"><option value="0.5">0.5×</option><option value="1">1×</option><option value="2">2×</option><option value="4" selected>4×</option><option value="8">8×</option></select>
+          <button class="link" id="allBtn">全流程</button>
+          <button class="link" id="nextBtn">▸ 下一步</button>
+        </div>
+      </div>
+      <div class="dockbody">
+        <div class="dockmain" id="dockMain"></div>
+        <div class="kpis" id="kpis"></div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="agent">
+    <div class="ahead">
+      <div class="avatar">华</div>
+      <div><b>小华 · 方案助手</b><div class="sub">说一句话，左边的方案跟着变</div></div>
+      <span class="st" id="llmStatus">连接中</span>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="input">
+      <div class="sugg" id="sugg"></div>
+      <form class="box" id="form">
+        <textarea id="prompt" rows="1" placeholder="说说你想怎么改，比如“慢放吊装那一步”"></textarea>
+        <button class="send" id="send" type="submit" title="发送">➤</button>
+      </form>
+      <div class="note">参数只来自产品库、CAD 或你的原话；超范围的修改会被拒绝并说明原因</div>
+    </div>
+  </aside>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

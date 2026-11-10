@@ -49,6 +49,12 @@ export class Site {
     this.scene.add(this.contact);
     this.carrier = new THREE.Group();
     this.scene.add(this.carrier);
+    // The first carrier is the primary AGV used for cargo and camera tracking.
+    // Additional carriers are lightweight clones that follow the same CAD route
+    // with a phase offset when the plan requests more than one AGV.
+    this.carriers = [this.carrier];
+    this.vehicleRoot = null;
+    this.vehicleProduct = null;
     this.deckHeight = 0.5;
   }
 
@@ -97,11 +103,36 @@ export class Site {
   }
 
   setVehicle(root, product, state) {
-    this.carrier.clear();
+    for (const carrier of this.carriers ?? []) {
+      carrier.removeFromParent();
+      carrier.clear();
+    }
+    this.carrier = new THREE.Group();
+    this.scene.add(this.carrier);
+    this.carriers = [this.carrier];
+    this.vehicleRoot = root;
+    this.vehicleProduct = product;
     this.carrier.add(root);
     root.position.set(0, 0, 0);
     root.rotation.set(0, 0, 0);
     this.updateVehicleSize(product, state);
+    this.syncVehicleFleet(this.agvCount ?? 1);
+  }
+
+  syncVehicleFleet(count = 1) {
+    const wanted = Math.max(1, Math.min(4, Math.round(Number(count) || 1)));
+    if (!this.vehicleRoot) return;
+    while (this.carriers.length < wanted) {
+      const carrier = new THREE.Group();
+      carrier.add(this.vehicleRoot.clone(true));
+      this.scene.add(carrier);
+      this.carriers.push(carrier);
+    }
+    while (this.carriers.length > wanted) {
+      const carrier = this.carriers.pop();
+      carrier.removeFromParent();
+      carrier.clear();
+    }
   }
 
   updateVehicleSize(product, state) {
@@ -128,9 +159,14 @@ export class Site {
 
   renderPose() {
     this.pose = poseAt(this.timeline, this.time);
+    const routeDuration = this.timeline.duration;
+    for (let index = 0; index < this.carriers.length; index += 1) {
+      const phase = index === 0 ? 0 : (routeDuration * index) / this.carriers.length;
+      const pose = poseAt(this.timeline, (this.time + phase) % routeDuration);
+      this.carriers[index].position.set(pose.x / 1000, 0, -pose.y / 1000);
+      this.carriers[index].rotation.y = pose.heading;
+    }
     const { x, y, heading } = this.pose;
-    this.carrier.position.set(x / 1000, 0, -y / 1000);
-    this.carrier.rotation.y = heading;
     this.contact.position.x = x / 1000;
     this.contact.position.z = -y / 1000;
     this.contact.rotation.y = heading;

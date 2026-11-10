@@ -7,7 +7,7 @@
 ## 定位
 
 - **解决的问题**：传统方案靠 CAD 图纸讲解，不直观，影响获客。
-- **场景**：先做 AGV 物料搬运，**暂不做吊装**。
+- **场景**：AGV 物料搬运 + 起重机吊装。11-09 纪要写的是“暂不做吊装”，2026-11-10 改为起重机也进 P0，范围见 [PRD](docs/PRD.md) 第 4 节。
 - **核心**：标品的参数化自动建模。
 - **以后可以延展**：对接研发环节自动出图、AR 实景展示。
 
@@ -49,7 +49,7 @@
 
 | 位置 | 放什么 | 状态 |
 |---|---|---|
-| `docs/` | [CAD 平面图约定](docs/cad-convention.md) | 已写 |
+| `docs/` | [实景方案 Agent 可行性分析与 PRD](docs/PRD.md)、[CAD 平面图约定](docs/cad-convention.md) | PRD 是草案 |
 | `data/product-models/raw/` | 需求方提供的产品三维模型原件，不入库 | 空 |
 | `data/product-models/simplified/` | 转码简化后的模型和缩略图 | AGV1、Z1-1000-BZ |
 | `data/cad/` | 模拟的客户现场 CAD 平面图 | 示例图，布局照 Rhino 厂房截图目测 |
@@ -118,3 +118,15 @@ blender -b --factory-startup --python src/parametric/preprocess_z1.py -- <Z1-100
 - 待办里没有写清每项的负责人。
 
 纪要里的文字记录和妙记没有读，上面只根据总结和待办整理。
+
+## 卫华 3D 方案工作台（第一版）
+
+新增 workbench/：左侧复用 three.js 厂房与路线引擎，右侧是支持 SSE 的 Agent 对话。未配置模型 key 时可离线跑完整演示脚本，在线模式可通过 .env 接入 Anthropic、MiniMax 或 BigModel。
+
+~~~bash
+cd workbench
+npm install
+npm run dev
+~~~
+
+打开 <http://127.0.0.1:5181>；服务端使用 8787 端口。详细脚本、工具白名单、示意模型说明和验收截图见 [workbench/README.md](workbench/README.md)。

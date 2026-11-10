@@ -1,0 +1,7 @@
+﻿node_modules
+dist
+.env
+server/scene-plan.json
+test-results
+server/scene-plan*.json
+server/domain/probe.txt
