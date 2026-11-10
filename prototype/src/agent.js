@@ -22,6 +22,7 @@ const SYSTEM = `你是「小华」，卫华集团「3D 方案工作台」里的�
 11. 行业选型：先 recommend_products（行业 + 单件重量），再 adapt_product 按卷材尺寸/重量适配车体参数；用户要求应用或另存型号时再传 apply / save_as。
 12. 技术方案流程演示：用户给流程信息/工序节点时调 define_process，再 play_flow（全流程 mode=full；讲某个节点 mode=node）。这只是说明流程，不做仿真。
 13. 生产仿真：用户要评估产线产出、各工位节拍、瓶颈时调 simulate_line（给 stations；用已定义流程用 source=flow；不给则用当前 AGV+行车方案），回答给实际产出/小时、班产范围、瓶颈和"瓶颈加机对比"。
+13b. 目标产能：用户说"每分钟跑 3 次""60 秒内要跑 5 次""一小时要出 20 卷"这种"多少时间内跑多少次"的目标时调 set_rate_goal（seconds=时间窗口秒数，count=次数；flow 选流程：current 当前 AGV+行车方案（默认）、sample 示例方案、flow 已定义的工艺流程；用户说的是哪个流程不清楚、而状态里有多个可选时先问一句）。用户要"按这个改/应用到方案"时再传 apply=true（只对 current）。回答给要求节拍、当前节拍、能否达到、瓶颈和各设备达标需要几台；超过模型上限（AGV 4 台、行车 1 台）就说要提速或放宽目标。只说"节拍 X 秒"时仍用 set_takt。
 14. 上传文件：用户只能在你这里上传文件（左边资源库只展示和手动放入）。上传结果会以「（用户上传了 n 个文件：…）」告诉你 id、类型和是否可用。三维模型要放进厂房时用 place_asset：位置只按用户原话（"放在 H-01 东边 5 米"→ ref=H-01, east_m=5；"x 30 米 y 12 米"→ x_mm=30000, y_mm=12000；"转 90 度"→ rotate_deg=90），用户没说位置就先问一句放哪，不要自己定；"往北挪 2 米"按「已放入模型」里的当前坐标算一次。图纸（DXF/DWG）用 load_site_asset 载入：带卫华工位图层的替换工序方案厂房；普通厂房图纸会识别柱网、跨、吊车梁、墙和设备，生成新厂房，播完建造过程后在厂房里接着播 AGV + 行车工序动画（见下面「图纸生成的厂房」）。用户明确说"叠底图""只做参考"时才传 overlay=true 叠为底图。转换失败的把原因原样告诉用户。
 图纸生成的厂房（状态 JSON 里「模式」为「图纸生成的厂房」）：用户上传普通厂房 DWG/DXF 后，load_site_asset 识别柱网、跨、吊车梁、墙和设备，生成厂房并播放建造过程（地坪→立柱→吊车梁→行车→围护→设备→屋面）。系统同时自动在一个跨里排好 AGV 环线和四个点位（CHG-01 充电位、RM-01 原料上料位、H-01 吊装交接点、FG-01 成品区），厂房建好后接着循环播放工序动画：AGV 接卷 → 跑环线送到交接点 → 该跨行车夹卷吊到成品区 → AGV 空车返回。这不是另一个模式，同一个厂房里先建造后工序。这时：
   - "播放工序动画 / 看 AGV 跑 / 看行车吊运" 用 play_animation mode=process；"重新建造" 是 play_animation mode=all；分步用 mode=step，步骤编号见状态里的「步骤」（建造步骤在前，工序步骤在后）。
@@ -31,7 +32,7 @@ const SYSTEM = `你是「小华」，卫华集团「3D 方案工作台」里的�
   - 用户说"把起重机/大车/铝卷放进来"时，先看状态里的资源库或调 list_library 找模型，再调 place_asset。位置用跨（bay：A、B…）和 along_m（沿跨长方向米数）表达；起重机、行车类模型用 mount=runway 装到该跨轨道上；"放 5 卷铝卷"用 count=5。
   - 已放入的模型用 move_asset 移动/旋转/缩放，用 remove_asset 移出；实例 id 见 已放入模型。
   - 用户上传的模型想长期复用、或说"放进产品库"时，调 add_to_product_library。
-  - 选型（select_product）、参数（set_params：车体、台数、速度、吊运高度）、节拍目标（set_takt）、班次（simulate_shift）、行程（show_travel）在图纸厂房里同样可用，作用于该跨的 AGV 和行车；下方甘特图、工序表、点位表、选型参数、效率节拍、行程统计面板也都对应它。点位由系统自动排布，add_station / set_process 只在示例方案里用。用户明确要回示例方案时才调 exit_scene。
+  - 选型（select_product）、参数（set_params：车体、台数、速度、吊运高度）、节拍目标（set_takt）、目标产能（set_rate_goal）、班次（simulate_shift）、行程（show_travel）在图纸厂房里同样可用，作用于该跨的 AGV 和行车；下方甘特图、工序表、点位表、选型参数、效率节拍、行程统计面板也都对应它。点位由系统自动排布，add_station / set_process 只在示例方案里用。用户明确要回示例方案时才调 exit_scene。
   - 资源库里没有用户要的模型时，直说没有，并请用户在左侧资源库上传（支持 GLB/GLTF/OBJ/STL/FBX/STEP），不要用别的模型冒充。
 
 不凭空生成设备（最重要）：
@@ -111,9 +112,25 @@ function sceneIntent(t, app) {
   return calls;
 }
 
+// "每分钟跑 3 次" / "60 秒内跑 5 次" / "一小时出 20 卷" → set_rate_goal.
+const CN = '[一二两三四五六七八九十]';
+function rateIntent(t) {
+  const m = t.match(new RegExp(String.raw`(每|一个?|(\d+(?:\.\d+)?|${CN})个?)(秒钟?|分钟|小时)(?:之?内|里)?(?:要|能|得|需要)?(?:跑|做|出|运|送|吊|完成)?(\d+|${CN})(次|卷|件|趟)`));
+  if (!m) return null;
+  const n = m[2] ? num(m[2]) : 1;
+  const unit = { 秒: 1, 秒钟: 1, 分钟: 60, 小时: 3600 }[m[3]];
+  const args = { seconds: n * unit, count: num(m[4]) };
+  if (/工艺流程/.test(t)) args.flow = 'flow';
+  else if (/示例方案/.test(t)) args.flow = 'sample';
+  if (/应用|按这个改|直接改|照这个改/.test(t)) args.apply = true;
+  return ['set_rate_goal', args];
+}
+
 // Offline: map common phrases to tool calls.
 function localIntent(text, app) {
   const t = text.replace(/\s+/g, '');
+  const rate = rateIntent(t);
+  if (rate) return [rate];
   const scene = sceneIntent(t, app);
   if (scene.length || app.site.isScene) return scene;
   const calls = [];
@@ -645,6 +662,10 @@ export class Agent {
       const r = await this.execute('set_params', { agv_count: this.app.site.agvCount + 1 }, ui);
       if (r.ok) await this.execute('set_takt', { target_seconds: this.app.site.target }, ui);
       note = `（用户点了「加一台 AGV」，现在 ${this.app.site.agvCount} 台）`;
+    } else if (action === 'apply-goal') {
+      const g = { seconds: Number(button.dataset.seconds), count: Number(button.dataset.count) };
+      const r = await this.execute('set_rate_goal', { ...g, flow: 'current', apply: true }, ui);
+      note = `（用户点了「按目标产能应用到方案」：${r.ok === false ? `失败 ${r.error}` : `每 ${g.seconds} 秒 ${g.count} 次，现在 AGV ${this.app.site.agvCount} 台`}）`;
     } else if (action === 'load-site') {
       const id = button.dataset.asset;
       const r = await this.execute('load_site_asset', { asset: id }, ui);

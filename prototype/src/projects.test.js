@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PROJECT_NAME, Workspace, normalize } from './projects.js';
+import { BLANK_DRAWING, DEFAULT_PROJECT_NAME, Workspace, normalize } from './projects.js';
 
 test('a fresh workspace has one project with the scene products and the three build modules', () => {
   const ws = new Workspace(null);
@@ -225,4 +225,23 @@ test('normalize repairs broken stored data', () => {
   assert.deepEqual(ws.projects[0].products, []);
   assert.deepEqual(ws.projects[0].assets, ['x']);
   assert.equal(ws.activeProject, ws.projects[0].id);
+});
+
+test('scene subtitle can be set, survives copy/restore, and clears back to automatic', () => {
+  const ws = new Workspace();
+  const p = ws.active;
+  const s = ws.activeScene;
+  assert.equal(s.label, null);
+  ws.setSceneLabel(p.id, s.id, '  3 号冷轧厂房 ');
+  assert.equal(s.label, '3 号冷轧厂房');
+  const copy = ws.addScene(p.id, '副本', s);
+  assert.equal(copy.label, '3 号冷轧厂房');
+  const rec = ws.archiveProject(p.id);
+  const restored = ws.restoreArchive(rec.id);
+  assert.equal(restored.scenes[0].label, '3 号冷轧厂房');
+  ws.setSceneLabel(p.id, s.id, '   ');
+  assert.equal(s.label, null);
+  const blank = ws.addModule(p.id, '空白场景', { drawing: BLANK_DRAWING });
+  assert.equal(blank.drawing, BLANK_DRAWING);
+  assert.equal(new Workspace(JSON.parse(JSON.stringify(ws.toJSON()))).scene(p.id, blank.id).drawing, BLANK_DRAWING);
 });

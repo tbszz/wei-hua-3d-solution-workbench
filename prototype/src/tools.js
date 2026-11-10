@@ -155,6 +155,12 @@ export const SCHEMAS = [
   }, ['mode']),
   fn('seek', '把时间轴跳到某一秒。', { seconds: { type: 'number' } }, ['seconds']),
   fn('set_takt', '设定目标节拍（秒/件），判断能否达到并给出瓶颈和建议。', { target_seconds: { type: 'number' } }, ['target_seconds']),
+  fn('set_rate_goal', '目标产能：选一个流程，设定「在 seconds 秒内要跑 count 次」（如每分钟 3 次 → seconds=60,count=3；每小时 20 卷 → seconds=3600,count=20），算出要求节拍、当前节拍、能否达到、瓶颈和每台设备达标需要几台，并打开效率节拍面板。apply=true 时按结果改方案（设目标节拍，AGV 按需改台数，最多 4 台），只对 flow=current 有效。', {
+    seconds: { type: 'number', description: '时间窗口（秒）1–86400' },
+    count: { type: 'integer', description: '这段时间内要跑的次数' },
+    flow: { type: 'string', enum: ['current', 'sample', 'flow'], description: 'current=当前打开的 AGV+行车方案（默认）；sample=示例方案（在图纸厂房里时）；flow=已定义的工艺流程（define_process）' },
+    apply: { type: 'boolean', description: '按结果直接改方案，默认 false' },
+  }, ['seconds', 'count']),
   fn('simulate_shift', '模拟一个班次，统计完成件数和设备忙闲。结果确定、可复现。', {
     hours: { type: 'number', description: '班次时长 0.5–24 小时' },
   }, ['hours']),
@@ -261,7 +267,7 @@ export function createTools(app) {
       流程角色: site.roles,
       点位: site.points().map((p) => ({ id: p.id, 名称: p.name, role: p.role, x: Math.round(p.x), y: Math.round(p.y), 来源: p.source })),
       工序: site.process.steps.map((s) => ({ n: s.n, 设备: s.device, 动作: s.title, 用时_s: +s.duration.toFixed(1), 起止: `${fmtTime(s.t0)}-${fmtTime(s.t1)}` })),
-      效率: { 节拍_s: +eff.takt.toFixed(1), 每小时: +eff.perHour.toFixed(1), 瓶颈: eff.bottleneck, 目标节拍_s: eff.target, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1) },
+      效率: { 节拍_s: +eff.takt.toFixed(1), 每小时: +eff.perHour.toFixed(1), 瓶颈: eff.bottleneck, 目标节拍_s: eff.target, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1), 目标产能: app.goalSummary?.() ?? null },
       播放: { 时间_s: +site.time.toFixed(1), 总长_s: +site.duration.toFixed(1), 播放中: site.playing, 分步: site.window?.step ?? null, 倍速: site.speed },
       待确认工序: app.pendingProcess ?? null,
       项目库: app.library?.ws ? app.library.summary() : null,
@@ -452,6 +458,17 @@ export function createTools(app) {
         result: { 目标_s: target_seconds, 当前节拍_s: +eff.takt.toFixed(1), 达到: eff.meets, 差距_s: +eff.gap.toFixed(1), 瓶颈: eff.bottleneck, AGV单循环_s: +eff.agvCycle.toFixed(1), 行车单循环_s: +eff.craneCycle.toFixed(1), 利用率: { AGV: +(eff.utilization.agv * 100).toFixed(0), 行车: +(eff.utilization.crane * 100).toFixed(0) }, 建议: eff.advice ?? null },
         chip: `${target_seconds} s · ${eff.meets ? '可达到' : '未达到'}`,
         card: card('效率分析', '速度参数为示意值', effHtml(eff) + acts),
+      };
+    },
+
+    set_rate_goal: (args) => {
+      const r = app.setRateGoal(args);
+      const s = r.after ?? r.summary;
+      const label = `${s.目标} · ${s.达到 ? '可达到' : '未达到'}`;
+      return {
+        result: { ...r.summary, ...(r.applied ? { 已应用: r.applied, 应用后: { 当前节拍_s: s.当前节拍_s, 达到: s.达到, 瓶颈: s.瓶颈 } } : {}), 可选流程: r.options },
+        chip: r.applied ? `${label} · 已应用` : label,
+        card: card('目标产能', `${s.流程} · ${s.目标}`, `<div class="eff">${r.card}</div>`),
       };
     },
 

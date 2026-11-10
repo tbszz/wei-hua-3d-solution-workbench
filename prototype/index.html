@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>AI3D智能工厂</title>
+<title>AI3D智能搭建引擎</title>
 <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
@@ -19,35 +19,14 @@
 <header class="top glass">
   <div class="brand">
     <div class="mark">卫</div>
-    <div class="ttl">
-      <div class="ttlrow">
-        <b>AI3D智能工厂</b>
-        <!-- Module nav mirrors the left rail. [data-open-card] opens that rail section as a floating
-             card (popcard.js); <em data-mirror="id"> repeats that section's header figure.
-             [data-open-dashboard] opens the full-screen dashboard (bound by the dashboard module). -->
-        <nav class="modnav" id="modNav" aria-label="模块">
-          <button class="mod" data-open-card="secCases" title="项目案例库：已归档的历史项目">项目案例库<em data-mirror="casesCount"></em></button>
-          <button class="mod" data-open-card="secProducts" title="产品库：标准产品与参数">产品库<em data-mirror="prodCount"></em></button>
-          <button class="mod" data-open-card="secFactory" title="AI3D工厂：当前项目与场景">AI3D工厂<em data-mirror="factoryScene"></em></button>
-          <button class="mod" data-open-card="secProcess" title="工序流程：点工序播放到这一步">工序流程<em data-mirror="procSteps"></em></button>
-          <button class="mod" data-open-card="secTakt" title="生产节拍：单件节拍、产能与瓶颈">生产节拍<em data-mirror="taktSum"></em></button>
-          <button class="mod dash" data-open-dashboard title="可视化大屏">可视化大屏</button>
-        </nav>
-      </div>
-      <nav class="steps" id="steps">
-        <button class="step" data-step="1" title="1 图纸点位"><i>1</i>图纸点位</button>
-        <button class="step" data-step="2" title="2 选型参数"><i>2</i>选型参数</button>
-        <button class="step" data-step="3" title="3 流程说明"><i>3</i>流程说明</button>
-        <button class="step" data-step="4" title="4 流程动画"><i>4</i>流程动画</button>
-        <button class="step" data-step="5" title="5 效率节拍"><i>5</i>效率节拍</button>
-        <button class="step" data-step="6" title="6 行程可视化"><i>6</i>行程可视化</button>
-        <button class="step later" data-step="7" title="7 出图下发"><i>7</i>出图下发</button>
-      </nav>
-    </div>
+    <b class="ttl">AI3D智能搭建引擎</b>
   </div>
-  <span class="runst" id="runSt">运行中</span>
-  <div class="kpibar" id="kpis"></div>
-  <div class="clock"><b class="num" id="clock">00:00</b><small class="num" id="clockTotal">/ 00:00</small></div>
+  <!-- Centre of the header: run state, KPIs and the clock. -->
+  <div class="topmid">
+    <span class="runst" id="runSt">运行中</span>
+    <div class="kpibar" id="kpis"></div>
+    <div class="clock"><b class="num" id="clock">00:00</b><small class="num" id="clockTotal">/ 00:00</small></div>
+  </div>
   <div class="acts-top">
     <button id="clearBtn" title="清屏 (H)">清屏</button>
     <button id="resetBtn">复位</button>

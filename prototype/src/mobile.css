@@ -25,8 +25,6 @@ html.m-phone .drawer,
 html.m-phone .restore,
 html.m-phone .keyhelp,
 html.m-phone .cmdline,
-html.m-phone .top .modnav,
-html.m-phone .top .steps,
 html.m-phone .top .kpibar,
 html.m-phone .top .clock,
 html.m-phone .top .acts-top,
@@ -41,7 +39,7 @@ html.m-phone .top{left:var(--gap);right:var(--gap);top:calc(var(--gap) + env(saf
 html.m-phone .top::after{width:40%}
 html.m-phone .brand{gap:8px}
 html.m-phone .mark{width:30px;height:30px;font-size:15px}
-html.m-phone .ttlrow>b{font-size:15px}
+html.m-phone .ttl{font-size:15px}
 html.m-phone .runst{padding:3px 8px;font-size:12px}
 html.m-phone .m-play{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:17px;background:var(--red,#D7000F);color:#fff;font-size:13px;line-height:1}
 html.m-phone .m-play.paused{background:var(--ink,#1F2329)}

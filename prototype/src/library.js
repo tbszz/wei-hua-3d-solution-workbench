@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CATALOG, THUMBNAIL_ROOT } from '../../demo/src/catalog.js';
-import { Workspace } from './projects.js';
+import { BLANK_DRAWING, Workspace } from './projects.js';
 import { readEquipment } from '../../demo/src/scene/read-equipment.js';
 import { buildFromSpec, exportGlb, fileName } from './model-builder.js';
 
@@ -41,6 +41,7 @@ const CATS = [
 ];
 export const SCENE_CRANE = { id: 'double-girder-crane-demo', model: '双梁桥式起重机（示意）', category: 'overhead_crane', summary: '场景中的行车 #1，程序化示意模型' };
 const SAMPLE_NAME = 'sample-plant.dxf';
+const BLANK_NAME = '空白场景';
 
 const svg = (d, size = 13) => `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICON = {
@@ -341,7 +342,7 @@ export class Library {
     };
     set('casesCount', `${this.ws.archives.length} 个`);
     set('prodCount', `${this.std.length} 个`);
-    const drawing = this.drawing ? this.asset(this.drawing)?.name ?? '图纸' : SAMPLE_NAME;
+    const drawing = !s.label && !this.drawing ? SAMPLE_NAME : this.sceneSub(s, this.drawing);
     $('source').textContent = `${s.name} · ${drawing}`;
   }
 
@@ -368,6 +369,13 @@ export class Library {
     const url = p.thumbUrl ?? p.thumbnail;
     const label = /crane/i.test(p.category ?? '') ? '行车' : /agv/i.test(p.category ?? 'agv') ? 'AGV' : '产品';
     return `<span class="th ${size}" style="${url ? `background-image:url(${esc(url)})` : ''}">${url ? '' : label}</span>`;
+  }
+
+  // The line under a scene's name: what the user typed, else which plant the scene starts from.
+  sceneSub(s, drawing = s.drawing) {
+    if (s.label) return s.label;
+    if (drawing === BLANK_DRAWING) return BLANK_NAME;
+    return drawing ? this.asset(drawing)?.name ?? '图纸' : '示例厂房';
   }
 
   stdHtml() {
@@ -401,7 +409,7 @@ export class Library {
         <button class="ib more" data-act="menu" title="恢复 / 重命名 / 删除">${ICON.more}</button>
       </div>`;
       const mods = p.scenes.map((s) => {
-        const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
+        const drawing = this.sceneSub(s);
         return `<div class="pv d1"><span class="ico">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${s.placed.length ? ` · ${s.placed.length} 个模型` : ''}</small></span></div>`;
       }).join('');
       const prods = p.products.map((e) => esc(e.name ?? this.product(e.productId)?.model ?? e.productId)).join('、');
@@ -428,10 +436,10 @@ export class Library {
     </div>`;
     const mods = p.scenes.map((s) => {
       const open = s.id === p.activeScene;
-      const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
+      const drawing = this.sceneSub(s);
       const n = s.placed.length;
       return `<div class="row sc mod d1 ${open ? 'on' : ''} ${this.sel === `sc:${p.id}:${s.id}` ? 'sel' : ''}" tabindex="-1" data-row="sc:${p.id}:${s.id}" data-kind="scene" data-module="${esc(s.kind)}" data-project="${p.id}" data-scene="${s.id}" title="${open ? '正在编辑的场景' : '点击打开这个场景'}">
-        <span class="ico sc">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small>${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
+        <span class="ico sc">${ICON[MODULE_ICON[s.kind] ?? 'module']}</span><span class="nm"><b>${esc(s.name)}</b><small title="双击修改这行文字">${esc(drawing)}${n ? ` · ${n} 个模型` : ''}</small></span>
         ${open ? '<span class="tag">打开中</span>' : '<span class="racts"><button class="go" data-act="open-scene">打开</button></span>'}
       </div>${open ? this.placedRows() : ''}`;
     }).join('');
@@ -603,9 +611,9 @@ export class Library {
       e.stopPropagation();
       if (act.disabled) return;
       if (row) this.select(row);
-      if (act.dataset.act === 'menu') {
+      if (act.dataset.act === 'menu' || act.dataset.act === 'add-module') {
         const r = act.getBoundingClientRect();
-        this.openMenu(row ?? act, r.left, r.bottom + 2);
+        this.openMenu(row ?? act, r.left, r.bottom + 2, act.dataset.act === 'add-module' ? this.addSceneItems() : null);
         return;
       }
       const info = this.rowInfo(row);
@@ -631,6 +639,8 @@ export class Library {
     if (e.target.closest('[data-act], input')) return;
     const row = e.target.closest('.row');
     if (!row) return;
+    // Double-click on the line under a scene's name (示例厂房 …) edits that line.
+    if (row.dataset.kind === 'scene' && e.target.closest?.('.nm small')) return this.startLabelEdit(row);
     const info = this.rowInfo(row);
     // The active project's row renames it; an archived case is restored as the current project.
     if (info.kind === 'project' && info.project === this.ws.active.id) return this.startRename(row);
@@ -796,16 +806,42 @@ export class Library {
   // ------------------------------------------------------------------ AI3D工厂 modules + 项目案例库
 
   // ＋ in AI3D工厂: ask for a name, add the module and open it.
-  async addModule(name) {
+  // blank=true starts from an empty floor instead of the sample plant.
+  async addModule(name, { blank = false } = {}) {
     const p = this.ws.active;
-    const suggest = this.ws.uniqueName('新场景', p.scenes.map((s) => s.name));
-    const label = name ?? prompt('新场景名称（例如：吊具搭建、产线搭建）', suggest);
+    const suggest = this.ws.uniqueName(blank ? BLANK_NAME : '新场景', p.scenes.map((s) => s.name));
+    const label = name ?? prompt(`新${blank ? '空白' : ''}场景名称（例如：吊具搭建、产线搭建）`, suggest);
     if (label === null || label === undefined) return null;
     this.captureScene();
-    const s = this.ws.addModule(p.id, label.trim() || suggest, { productId: this.app.product?.id });
+    const s = this.ws.addModule(p.id, label.trim() || suggest, { productId: this.app.product?.id, drawing: blank ? BLANK_DRAWING : null });
     await this.switchProject(p.id, s.id);
     this.flash(`sc:${p.id}:${s.id}`);
     return s;
+  }
+
+  // What ＋ 场景 / 添加场景 offers.
+  addSceneItems() {
+    const run = (fn) => () => this.run(fn);
+    return [
+      { label: '空白场景…', hint: '只有地坪，模型自己放', act: run(() => this.addModule(undefined, { blank: true })) },
+      { label: '从示例厂房开始…', hint: '冷轧车间 AGV + 行车', act: run(() => this.addModule()) },
+      { label: '复制当前场景', act: run(() => this.newScene(this.ws.active.id, { copyCurrent: true })) },
+    ];
+  }
+
+  // Turn a scene into an empty floor: its drawing and placed models go; name and products stay.
+  async clearToBlank(projectId, sceneId) {
+    const s = this.ws.scene(projectId, sceneId);
+    const open = projectId === this.ws.active.id && this.ws.active.activeScene === sceneId;
+    const n = open ? this.placed.size : s.placed.length;
+    if (!confirm(`把场景「${s.name}」清空为空白场景？\n${n ? `场景里的 ${n} 个模型会移出，` : ''}图纸不再作为底座（文件本身不受影响）。`)) return;
+    if (!open) await this.switchProject(projectId, sceneId);
+    Object.assign(s, { drawing: BLANK_DRAWING, overlay: null, placed: [] });
+    const errors = await this.applyScene(s);
+    if (errors.length) throw new Error(errors[0]);
+    this.persistSoon();
+    this.app.toast(`场景「${s.name}」已清空为空白场景，可以把产品库或文件里的模型拖进三维视图`);
+    this.flash(`sc:${projectId}:${sceneId}`);
   }
 
   // 保存归档: snapshot the active project (as it is in the 3D view right now) into 项目案例库.
@@ -913,7 +949,8 @@ export class Library {
     try {
       if ((scene.drawing ?? null) !== this.drawing) {
         try {
-          if (scene.drawing) await this.loadSite(scene.drawing, { quiet: true });
+          if (scene.drawing === BLANK_DRAWING) await this.loadBlank();
+          else if (scene.drawing) await this.loadSite(scene.drawing, { quiet: true });
           else await this.loadSample();
         } catch (error) {
           errors.push(error.message);
@@ -1014,6 +1051,55 @@ export class Library {
     input.addEventListener('dblclick', (e) => e.stopPropagation());
   }
 
+  // Edit the line under a scene's name in place (示例厂房 -> whatever the user calls the plant).
+  // Clearing it puts the automatic text back.
+  startLabelEdit(row) {
+    // A click just before the double-click may have opened the scene and redrawn the tree.
+    if (!row.isConnected) row = this.rowEl(row.dataset.row);
+    if (!row) return;
+    const info = this.rowInfo(row);
+    if (info.kind !== 'scene') return;
+    const small = row.querySelector('.nm small');
+    if (!small) return;
+    const ws = this.ws;
+    const s = ws.scene(info.project, info.scene);
+    const auto = this.sceneSub({ ...s, label: null });
+    const current = s.label ?? auto;
+    this.renaming = true;
+    const input = document.createElement('input');
+    input.className = 'rn sub';
+    input.value = current;
+    input.placeholder = auto;
+    input.maxLength = 60;
+    input.title = `清空后回车，恢复为「${auto}」`;
+    small.replaceWith(input);
+    row.draggable = false;
+    input.focus();
+    input.select();
+    let done = false;
+    const finish = (commit) => {
+      if (done) return;
+      done = true;
+      this.renaming = false;
+      const text = input.value.trim();
+      if (commit && text !== current) {
+        ws.setSceneLabel(info.project, info.scene, text === auto ? null : text);
+        this.persistSoon();
+      }
+      this.sel = row.dataset.row;
+      this.render();
+      this.rowEl(this.sel)?.focus({ preventScroll: true });
+    };
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('dblclick', (e) => e.stopPropagation());
+  }
+
   // ------------------------------------------------------------------ context menu
 
   onContext(e) {
@@ -1076,7 +1162,7 @@ export class Library {
         return [
           { label: '重命名', key: 'F2', disabled: !isCur, act: () => this.startRename(row) },
           { label: '保存归档', hint: '存一份到项目案例库', disabled: !isCur, act: run(() => this.archiveActive()) },
-          { label: '添加场景…', disabled: !isCur, act: run(() => this.addModule()) },
+          { label: '添加场景', disabled: !isCur, sub: this.addSceneItems() },
           { label: '从标准产品库添加', sub: this.stdSub(info.project) },
           { sep: true },
           { label: '切换到项目', sub: projectsSub((pid) => this.switchProject(pid), { except: cur.id, makeNew: () => this.newProject() }) },
@@ -1107,9 +1193,11 @@ export class Library {
         return [
           { label: '打开', disabled: open, act: run(() => this.openScene(info.project, info.scene)) },
           { label: '复制场景', act: run(async () => { await this.openScene(info.project, info.scene); await this.newScene(info.project, { copyCurrent: true }); }) },
-          { label: '添加场景…', act: run(() => this.addModule()) },
+          { label: '添加场景', sub: this.addSceneItems() },
+          { label: '清空为空白场景…', disabled: info.project !== cur.id, act: run(() => this.clearToBlank(info.project, info.scene)) },
           { sep: true },
           { label: '重命名', key: 'F2', act: () => this.startRename(row) },
+          { label: '修改说明文字', hint: this.sceneSub(ws.scene(info.project, info.scene)), act: () => this.startLabelEdit(row) },
           { label: '删除场景', key: 'Del', danger: true, disabled: ws.project(info.project).scenes.length <= 1, act: run(() => this.deleteScene(info.project, info.scene)) },
         ];
       }
@@ -1168,15 +1256,14 @@ export class Library {
     const run = (fn) => () => this.run(fn);
     const sceneItems = (p) => p.scenes.map((s) => {
       const open = p.id === cur.id && s.id === p.activeScene;
-      const drawing = s.drawing ? this.asset(s.drawing)?.name ?? '图纸' : '示例厂房';
+      const drawing = this.sceneSub(s);
       return { label: s.name, hint: drawing, tag: open ? '打开中' : '', disabled: open, act: run(() => this.openScene(p.id, s.id)) };
     });
     return [
       { lab: `「${cur.name}」的场景` },
       ...sceneItems(cur),
       { sep: true },
-      { label: '添加场景…', act: run(() => this.addModule()) },
-      { label: '复制当前场景', act: run(() => this.newScene(cur.id, { copyCurrent: true })) },
+      ...this.addSceneItems(),
       ...(ws.projects.length > 1 ? [{ sep: true }, { lab: '其他项目' }, ...ws.projects.filter((p) => p.id !== cur.id).map((p) => ({ label: p.name, sub: sceneItems(p) }))] : []),
     ];
   }
@@ -1744,6 +1831,14 @@ export class Library {
     const s = this.app.sampleDxf;
     if (!s) throw new Error('示例厂房没有加载');
     return this.loadDxf(s.text, s.name, null, '示例厂房无法生成工序');
+  }
+
+  // An empty floor, for a scene built up by hand.
+  async loadBlank() {
+    this.removeOverlay();
+    await this.app.enterScene(null, BLANK_NAME, null, { blank: true });
+    this.drawing = BLANK_DRAWING;
+    this.render();
   }
 
   async loadDxf(text, name, drawingId, failMsg) {

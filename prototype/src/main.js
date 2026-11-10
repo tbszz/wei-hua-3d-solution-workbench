@@ -1,4 +1,4 @@
-// AI3D智能工厂 prototype: three.js site in the middle, the module rail (项目案例库 / 产品库 /
+// AI3D智能搭建引擎 prototype: three.js site in the middle, the module rail (项目案例库 / 产品库 /
 // AI3D工厂 / 工序流程 / 生产节拍) on the left, Doubao agent on the right.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -9,6 +9,7 @@ import { Agent } from './agent.js';
 import { ProcessSite } from './engine.js';
 import { SceneSite } from './scene-site.js';
 import { COIL, fmtTime, simulateShift } from './process.js';
+import { goalLabel, rateCheck } from './rategoal.js';
 import { createTools } from './tools.js';
 import { Library } from './library.js';
 import { initPopout } from './popout.js';
@@ -1021,6 +1022,114 @@ export function effHtml(eff = site.efficiency, shift = app.shift) {
   </div>`;
 }
 
+// ---- 效率节拍 · 目标产能: pick a process, then "run N times in M seconds"; all user-set.
+// Processes on offer: the AGV + crane plan of the open plant, the sample plan (when a drawing
+// plant is open) and the user-defined 工艺流程 (define_process), each as stations in series.
+const GOAL_PRESETS = [[60, '每分钟'], [3600, '每小时'], [28800, '8 小时班']];
+app.goal = { src: 'site', seconds: 60, count: 1, text: { seconds: '60', count: '1' } };
+
+function goalSources() {
+  const list = [];
+  const agvCrane = (s, id, name) => {
+    if (!s?.efficiency || !s.process || (s.isScene && !s.flow)) return;
+    list.push({
+      id,
+      name,
+      site: s,
+      lead: s.isScene ? s.flowDuration : s.duration,
+      stations: [
+        { key: 'agv', name: `${app.product?.model ?? 'AGV'} 运送`, cycle: s.efficiency.agvCycle, units: s.agvCount, max: 4 },
+        { key: 'crane', name: s.isScene ? `行车 ${s.flow.bay.name} 跨` : '行车 #1', cycle: s.efficiency.craneCycle, units: 1, max: 1 },
+      ],
+    });
+  };
+  agvCrane(site, 'site', site.isScene ? `${site.sourceName ?? '图纸厂房'} · AGV + 行车` : '示例方案 · AGV + 行车');
+  if (site !== processSite) agvCrane(processSite, 'sample', '示例方案 · AGV + 行车');
+  const f = app.flow?.flow;
+  if (f?.nodes.length) {
+    const stations = f.nodes.map((n) => ({ key: n.id, name: n.name, cycle: n.duration_s ?? 60, units: 1, guessed: !n.duration_s }));
+    list.push({ id: 'flow', name: `工艺流程 · ${f.name}`, stations, lead: stations.reduce((a, s) => a + s.cycle, 0) });
+  }
+  return list;
+}
+
+const goalSource = () => {
+  const list = goalSources();
+  return list.find((s) => s.id === app.goal.src) ?? list[0] ?? null;
+};
+
+// card: the same verdict inside a 小华 chat card, whose buttons go through the agent (data-action).
+function goalOutHtml({ card = false } = {}) {
+  const src = goalSource();
+  if (!src) return '<p class="muted">当前没有可算节拍的流程。</p>';
+  const g = app.goal;
+  if (!g.valid) return `<p class="bad">${g.error}</p>`;
+  const r = rateCheck(src, g);
+  const n1 = (v) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+  const verdict = r.meets
+    ? `<span class="good">能达到</span>，余量 ${n1(-r.gap)} s/次`
+    : `<span class="bad">达不到</span>，差 ${n1(r.gap)} s/次（瓶颈：${escHtml(r.neck)}）`;
+  const rows = r.rows.map((s) => {
+    const short = s.needUnits > s.units;
+    const over = s.needUnits > s.max;
+    const need = `${s.needUnits} 台${over && s.max ? `<small class="muted">（模型上限 ${s.max}）</small>` : ''}`;
+    return `<tr><td>${escHtml(s.name)}${s.guessed ? '<small class="muted"> · 未给用时按 60 s</small>' : ''}</td><td class="num">${s.cycle.toFixed(1)} s</td><td class="num">${s.units} 台</td><td class="num">${(s.takt).toFixed(1)} s</td><td class="num ${short ? 'bad' : 'good'}">${need}</td></tr>`;
+  }).join('');
+  const advice = [];
+  for (const s of r.rows) {
+    if (s.needUnits <= s.units) continue;
+    if (s.max && s.needUnits > s.max) advice.push(`${s.name} 需 ${s.needUnits} 台，超过当前模型上限 ${s.max} 台：要么把单台循环从 ${s.cycle.toFixed(0)} s 压到 ${(r.need * s.max).toFixed(0)} s 以内（提速约 ${Math.ceil((s.cycle / (r.need * s.max) - 1) * 100)}%），要么放宽目标`);
+    else advice.push(`${s.name} 从 ${s.units} 台加到 ${s.needUnits} 台`);
+  }
+  const canApply = src.id === 'site';
+  const agv = r.rows.find((s) => s.key === 'agv');
+  const agvTo = agv && agv.needUnits !== agv.units && agv.needUnits <= agv.max ? agv.needUnits : null;
+  const applyLabel = agvTo ? `设为目标节拍 ${n1(r.need)} s，并改为 ${agvTo} 台 AGV` : `设为目标节拍 ${n1(r.need)} s`;
+  const apply = canApply && card ? `<div class="acts" style="padding:4px 0 0"><button class="pri" data-action="apply-goal" data-seconds="${g.seconds}" data-count="${g.count}">${applyLabel}</button></div>`
+    : canApply ? `<div class="goal-acts"><button class="pri" data-goal-apply>${applyLabel}</button></div>`
+    : src.id === 'sample' ? '<p class="muted" style="font-size:11.5px;margin:6px 0 0">切回示例方案后可把这个目标应用到方案。</p>' : '';
+  return `<div class="goal-verdict"><div><small>要求节拍</small><b class="num">${n1(r.need)}<em>s/次</em></b></div><div><small>当前节拍</small><b class="num ${r.meets ? 'good' : 'bad'}">${n1(r.takt)}<em>s/次</em></b></div><div><small>${g.seconds} 秒内（稳态）</small><b class="num">${n1(r.steady)}<em>次 / 目标 ${g.count}</em></b></div></div>
+    <div class="line">${verdict}</div>
+    <div class="line muted" style="font-size:11.5px">从空线起步：首次需 ${r.lead.toFixed(0)} s，${g.seconds} 秒内实际完成 ${r.fromEmpty} 次；稳态每小时 ${r.perHour.toFixed(1)} 次。</div>
+    <table class="t goal-t"><thead><tr><th>工位 / 设备</th><th>单台循环</th><th>现有</th><th>现节拍</th><th>达标需要</th></tr></thead><tbody>${rows}</tbody></table>
+    ${advice.length ? `<ul class="goal-adv">${advice.map((a) => `<li>${escHtml(a)}</li>`).join('')}</ul>` : ''}${apply}`;
+}
+
+function goalHtml() {
+  const list = goalSources();
+  const src = goalSource();
+  if (src) app.goal.src = src.id;
+  const g = app.goal;
+  const opts = list.map((s) => `<option value="${s.id}" ${s.id === src?.id ? 'selected' : ''}>${escHtml(s.name)}</option>`).join('');
+  const pre = GOAL_PRESETS.map(([sec, label]) => `<button type="button" data-goal-preset="${sec}" class="${g.valid && g.seconds === sec ? 'on' : ''}">${label}</button>`).join('');
+  return `<div class="goal">
+    <div class="goal-h"><b>目标产能</b><span class="muted">选一个流程，定多少秒内要跑多少次</span></div>
+    <label class="goal-f"><span>流程</span><select data-goal="src">${opts || '<option>（暂无流程）</option>'}</select></label>
+    <div class="goal-in"><span>在</span><div class="nin"><input type="text" inputmode="decimal" data-goal="seconds" value="${escHtml(g.text.seconds)}" title="时间窗口，1–86400 秒"><em>秒内</em></div>
+      <span>跑</span><div class="nin"><input type="text" inputmode="numeric" data-goal="count" value="${escHtml(g.text.count)}" title="次数，正整数"><em>次</em></div></div>
+    <div class="goal-pre">${pre}</div>
+    <div id="goalOut">${goalOutHtml()}</div>
+  </div>`;
+}
+
+function readGoal() {
+  const g = app.goal;
+  const seconds = Number(String(g.text.seconds).trim().replace(',', '.'));
+  const count = Number(String(g.text.count).trim());
+  g.valid = false;
+  if (!Number.isFinite(seconds) || seconds < 1 || seconds > 86400) g.error = '时间窗口需在 1–86400 秒之间';
+  else if (!Number.isInteger(count) || count < 1 || count > 100000) g.error = '次数需为 1–100000 的整数';
+  else Object.assign(g, { seconds, count, valid: true, error: '' });
+}
+readGoal();
+
+app.goalSummary = () => {
+  const src = goalSource();
+  if (!src || !app.goal.valid) return null;
+  const r = rateCheck(src, app.goal);
+  return { 流程: src.name, 目标: goalLabel(app.goal), 要求节拍_s: +r.need.toFixed(1), 当前节拍_s: +r.takt.toFixed(1), 达到: r.meets, 瓶颈: r.neck, 达标需要: Object.fromEntries(r.rows.map((s) => [s.name, `${s.needUnits} 台（现 ${s.units}）`])) };
+};
+
 function travelHtml() {
   const tr = site.travel;
   const m = (mm) => (mm / 1000).toFixed(1);
@@ -1070,14 +1179,18 @@ function renderDock() {
     return;
   }
   if (!site.process || !app.product) return;
-  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => effHtml(), travel: travelHtml, later: laterHtml, scene: sceneHtml, ...(app.dockTabs ?? {}) }[app.tab]();
-  const focused = document.activeElement?.closest?.('#dockMain input');
-  const key = focused && (focused.dataset.vparam ? `[data-vparam="${focused.dataset.vparam}"]` : focused.dataset.mparam ? `[data-mparam="${focused.dataset.mparam}"]` : null);
+  const body = { points: pointsHtml, params: paramsHtml, process: processHtml, gantt: ganttHtml, eff: () => `<div class="dockeff">${goalHtml()}${effHtml()}</div>`, travel: travelHtml, later: laterHtml, scene: sceneHtml, ...(app.dockTabs ?? {}) }[app.tab]();
+  const focused = document.activeElement?.closest?.('#dockMain input, #dockMain select');
+  const attr = focused && ['vparam', 'mparam', 'goal'].find((k) => focused.dataset[k]);
+  const key = attr && `[data-${attr}="${focused.dataset[attr]}"]`;
+  // Goal fields are typed into live: keep the caret where it was instead of selecting all.
+  const caret = attr === 'goal' && focused.type === 'text' ? [focused.selectionStart, focused.selectionEnd] : null;
   $('dockMain').innerHTML = body;
   if (key) {
     const next = $('dockMain').querySelector(key);
     next?.focus();
-    next?.select();
+    if (caret) next?.setSelectionRange(...caret);
+    else next?.select?.();
   }
   updatePlayhead();
 }
@@ -1321,18 +1434,20 @@ function fitCameraLimits() {
 }
 
 // Generate a plant from any factory drawing and play its construction.
-app.enterScene = async (text, name, asset = null) => {
+// blank=true: an empty floor (no drawing, no building), for a scene built up by hand.
+app.enterScene = async (text, name, asset = null, { blank = false } = {}) => {
   const next = new SceneSite(renderer, QUALITY);
   next.share(processSite);
   if (app.vehicle) next.setVehicle(app.vehicle.root.clone(true), app.product, stateOf());
-  next.loadDrawing(text, name, asset);
+  if (blank) next.loadBlank(name);
+  else next.loadDrawing(text, name, asset);
   next.onWindowEnd = () => renderDock();
   const previous = site;
   const cleared = app.library?.clearPlaced() ?? 0;
   site = next;
   if (previous !== processSite) disposeSite(previous);
   if (!app.processSource) app.processSource = $('source').textContent;
-  $('source').textContent = `${name} · 图纸生成厂房`;
+  $('source').textContent = blank ? name : `${name} · 图纸生成厂房`;
   setModeUi(true);
   fitCameraLimits();
   resize();
@@ -1374,7 +1489,6 @@ function disposeSite(old) {
 
 // ---------------------------------------------------------------- events
 
-document.querySelectorAll('.step').forEach((b) => b.addEventListener('click', () => app.setStep(Number(b.dataset.step))));
 document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => app.setTab(b.dataset.tab, !(app.drawer && app.tab === b.dataset.tab))));
 $('drawerClose').addEventListener('click', () => app.setTab(app.tab, false));
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => app.setView(b.dataset.view)));
@@ -1444,21 +1558,6 @@ app.cards.registerStrip('secFactory', () => {
   if (!ws) return '';
   return `<b>${escHtml(ws.active.name)}</b> · ${escHtml(ws.activeScene.name)} · ${ws.active.scenes.length} 个场景`;
 });
-// Header module nav: [data-open-card] chips are opened and lit by popcard.js; each chip's <em
-// data-mirror> repeats its section's figure so the header reads as a second display of the rail.
-const MIRROR = {
-  factoryScene: () => app.library?.ws?.activeScene.name ?? '',
-  procSteps: () => (processSite.process?.steps.length ? `${processSite.process.steps.length} 步` : ''),
-};
-const syncModNav = () => {
-  for (const em of document.querySelectorAll('#modNav em[data-mirror]')) {
-    const key = em.dataset.mirror;
-    const text = MIRROR[key] ? MIRROR[key]() : $(key)?.textContent.trim() ?? '';
-    if (em.textContent !== text) em.textContent = text;
-  }
-};
-setInterval(syncModNav, 1000);
-syncModNav();
 app.cards.registerStrip('secDevice', () => `<b>${escHtml($('hudTitle').textContent)}</b> · ${escHtml($('hudWindow').textContent)}`);
 // Chat cards: only the newest is open; click a card title to open or fold it.
 $('msgs').addEventListener('click', (e) => {
@@ -1533,8 +1632,79 @@ $('dockMain').addEventListener('click', async (e) => {
     return undefined;
   }
   if (e.target.closest('[data-travel]')) $('travelBtn').click();
+  const preset = e.target.closest('[data-goal-preset]');
+  if (preset) {
+    app.goal.text.seconds = preset.dataset.goalPreset;
+    readGoal();
+    return renderDock();
+  }
+  if (e.target.closest('[data-goal-apply]')) return applyGoal();
   return undefined;
 });
+
+// 目标产能: typing updates the verdict live (only #goalOut is redrawn, so the field keeps focus).
+$('dockMain').addEventListener('input', (e) => {
+  const k = e.target.dataset.goal;
+  if (k !== 'seconds' && k !== 'count') return;
+  app.goal.text[k] = e.target.value;
+  readGoal();
+  e.target.classList.toggle('bad', !app.goal.valid);
+  const out = $('goalOut');
+  if (out) out.innerHTML = goalOutHtml();
+  for (const b of $('dockMain').querySelectorAll('[data-goal-preset]')) b.classList.toggle('on', app.goal.valid && app.goal.seconds === Number(b.dataset.goalPreset));
+});
+$('dockMain').addEventListener('change', (e) => {
+  if (e.target.dataset.goal !== 'src') return;
+  app.goal.src = e.target.value;
+  renderDock();
+});
+
+function applyGoal() {
+  const src = goalSource();
+  if (!src || src.id !== 'site' || !app.goal.valid) return;
+  const r = rateCheck(src, app.goal);
+  const agv = r.rows.find((s) => s.key === 'agv');
+  const target = Math.round(r.need * 10) / 10;
+  const changed = [`目标节拍 ${target} s`];
+  site.target = target;
+  if (agv && agv.needUnits !== agv.units && agv.needUnits <= agv.max) {
+    site.setAgvCount(agv.needUnits);
+    changed.push(`AGV ${agv.needUnits} 台`);
+  } else site.replan();
+  app.bump();
+  app.refresh();
+  const eff = site.efficiency;
+  app.toast(`${goalLabel(app.goal)}：已设${changed.join('、')} → 节拍 ${eff.takt.toFixed(1)} s，${eff.meets ? '可达到' : `仍差 ${eff.gap.toFixed(1)} s（瓶颈 ${eff.bottleneck}）`}`, !eff.meets);
+  return { 已改: changed, 新节拍_s: +eff.takt.toFixed(1), 达到: Boolean(eff.meets), 瓶颈: eff.bottleneck };
+}
+
+// 小华's set_rate_goal: the same panel, driven from chat. flow: current | sample | flow.
+const GOAL_FLOW = { current: 'site', sample: 'sample', flow: 'flow' };
+app.setRateGoal = ({ seconds, count, flow, apply = false }) => {
+  const list = goalSources();
+  if (!list.length) throw new Error('当前没有可算节拍的流程（图纸厂房没排出 AGV + 行车工序，也没有定义工艺流程）');
+  if (flow) {
+    const id = GOAL_FLOW[flow] ?? flow;
+    const hit = list.find((s) => s.id === id || s.name.includes(flow));
+    if (!hit) throw new Error(`没有流程 ${flow}，可选：${list.map((s) => `${Object.keys(GOAL_FLOW).find((k) => GOAL_FLOW[k] === s.id)}=${s.name}`).join('、')}`);
+    app.goal.src = hit.id;
+  }
+  const prev = { ...app.goal, text: { ...app.goal.text } };
+  app.goal.text = { seconds: String(seconds ?? app.goal.seconds), count: String(count ?? app.goal.count) };
+  readGoal();
+  if (!app.goal.valid) {
+    const error = app.goal.error;
+    Object.assign(app.goal, prev);
+    throw new Error(error);
+  }
+  const src = goalSource();
+  if (apply && src.id !== 'site') throw new Error(`「${src.name}」不是当前打开的方案，只能看结果，不能应用；切回该方案后再应用`);
+  const before = app.goalSummary();
+  const applied = apply ? applyGoal() : null;
+  app.setTab('eff', true);
+  renderDock();
+  return { summary: before, applied, after: applied ? app.goalSummary() : null, card: goalOutHtml({ card: true }), options: list.map((s) => s.name) };
+};
 
 // Parameters are typed in; nothing changes until the value is committed, and an out-of-range
 // or empty value is refused with the allowed range instead of being clamped silently.

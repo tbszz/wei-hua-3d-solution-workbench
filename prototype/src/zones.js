@@ -2,6 +2,7 @@
 // shown with the same white label + coloured dot as the process points, coloured by what the
 // name says. Three ways in: read from the drawing (TEXT entities or exploded-curve text via OCR),
 // 小华's tools, or by hand (click the floor). Markers are kept per scene.
+import { BLANK_DRAWING } from './projects.js';
 import * as THREE from 'three';
 
 export const ZONE_KINDS = [
@@ -177,7 +178,7 @@ export class ZoneMarkers {
   drawingInScene(ref) {
     const lib = this.app.library;
     const overlay = lib?.overlay?.asset;
-    const base = lib?.drawing ? lib.find?.(lib.drawing) : null;
+    const base = lib?.drawing && lib.drawing !== BLANK_DRAWING ? lib.find?.(lib.drawing) : null;
     const want = ref ? lib?.find?.(ref) : overlay ?? base;
     if (!want) throw new Error(ref ? `场景库里没有图纸 ${ref}` : '场景里还没有图纸：先在场景库载入图纸或把图纸叠为底图');
     if (overlay && want.id === overlay.id) return { asset: want, overlay: true };
@@ -341,7 +342,7 @@ export class ZoneMarkers {
     if (!this.panel) return;
     const list = this.all[this.sceneKey()] ?? [];
     const lib = this.app.library;
-    const hasDrawing = Boolean(lib?.overlay || lib?.drawing);
+    const hasDrawing = Boolean(lib?.overlay || (lib?.drawing && lib.drawing !== BLANK_DRAWING));
     const used = new Set(list.map((z) => z.kind));
     const legend = ZONE_KINDS.filter((k) => used.has(k.key) || !list.length).map((k) => `<span><i style="background:${k.color}"></i>${k.label}</span>`).join('');
     const rows = list.map((z) => `<div data-go="${z.id}"><i style="background:${(KIND[z.kind] ?? KIND.area).color};border-radius:${z.shape === 'area' ? '2px' : '50%'}"></i>${esc(z.name)}<small>${z.id} · ${esc(z.source)}</small><span class="del" data-del="${z.id}" title="删除">×</span></div>`).join('');

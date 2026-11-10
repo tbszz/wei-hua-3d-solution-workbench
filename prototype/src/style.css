@@ -38,31 +38,10 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 /* ---------------------------------------------------------------- top bar */
 .top{position:fixed;left:var(--gap);right:var(--gap);top:var(--gap);height:var(--top);z-index:5;display:flex;align-items:center;gap:14px;padding:0 10px 0 12px;min-width:0}
 .top::after{content:"";position:absolute;left:0;bottom:-1px;width:320px;height:2px;background:linear-gradient(90deg,var(--red),transparent)}
-.brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.brand{display:flex;align-items:center;gap:10px;flex:1 1 0;min-width:max-content}
 .mark{width:36px;height:36px;border-radius:var(--r);background:var(--red);color:#fff;font-weight:700;display:grid;place-items:center;font-size:17px;flex:none}
-.ttl{display:flex;flex-direction:column;min-width:0;gap:3px}
-.ttlrow{display:flex;align-items:center;gap:10px;min-width:0}
-.ttlrow>b{flex:none;font-size:16px;white-space:nowrap;letter-spacing:.02em;line-height:1.2}
-/* module nav: one chip per left-rail section, plus the dashboard */
-.modnav{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
-.modnav .mod{flex:none;height:22px;padding:0 8px;border-radius:11px;border:1px solid transparent;font-size:12px;color:var(--ink2);white-space:nowrap;line-height:20px}
-.modnav .mod:hover{background:rgba(31,35,41,.06);color:var(--ink)}
-.modnav .mod.on,.modnav .mod.pc-on{color:var(--red);background:var(--red-light);border-color:rgba(215,0,15,.3);font-weight:600}
-/* each chip mirrors its section's key figure (casesCount, prodCount, …) */
-.modnav .mod em{font-style:normal;font-family:var(--num);font-size:10.5px;margin-left:4px;padding:0 5px;border-radius:7px;background:rgba(31,35,41,.07);color:var(--ink3);line-height:14px;display:inline-block;vertical-align:1px;max-width:90px;overflow:hidden;text-overflow:ellipsis}
-.modnav .mod em:empty{display:none}
-.modnav .mod.pc-on em{background:rgba(215,0,15,.12);color:var(--red)}
-.modnav .mod.dash{margin-left:4px;color:#fff;background:var(--ink)}
-.modnav .mod.dash:hover{background:var(--red);color:#fff}
-.steps{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden}
-.step{display:flex;align-items:center;gap:4px;padding:0 7px 0 2px;border-radius:2px;color:var(--ink2);font-size:12px;white-space:nowrap;height:20px}
-.step:hover{background:rgba(31,35,41,.06)}
-.step i{font-style:normal;font-family:var(--num);width:16px;height:16px;border-radius:2px;display:grid;place-items:center;font-size:11px;background:rgba(31,35,41,.08);color:var(--ink2)}
-.step.done i{background:var(--red-light);color:var(--red)}
-.step.done{color:var(--ink)}
-.step.cur,.step.cur:hover{background:var(--red);color:#fff;font-weight:600}
-.step.cur i{background:#fff;color:var(--red)}
-.step.later{color:var(--ink3)}
+.topmid{flex:none;display:flex;align-items:center;gap:14px}
+.ttl{font-size:17px;white-space:nowrap;letter-spacing:.02em;line-height:1.2}
 .runst{flex:none;display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ok);background:rgba(46,161,33,.1);border:1px solid rgba(46,161,33,.35);border-radius:var(--r);padding:4px 12px}
 .runst::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px rgba(46,161,33,.18)}
 .runst.pause{color:#B26A00;background:rgba(245,184,0,.12);border-color:rgba(245,184,0,.45)}
@@ -77,7 +56,7 @@ body{overflow:hidden;color:var(--ink);background:#DFE2E5;
 .clock{flex:none;display:flex;align-items:baseline;gap:4px;padding:0 14px;border-left:1px solid rgba(31,35,41,.1);height:44px;align-self:center;line-height:44px}
 .clock b{font-size:26px;font-weight:600;letter-spacing:.02em}
 .clock small{font-size:12px;color:var(--ink3)}
-.acts-top{flex:none;display:flex;gap:6px}
+.acts-top{flex:1 1 0;min-width:max-content;display:flex;justify-content:flex-end;gap:6px}
 .acts-top button{font-size:12.5px;padding:5px 11px;border:1px solid rgba(31,35,41,.12);border-radius:var(--r);background:rgba(255,255,255,.6);color:var(--ink2);white-space:nowrap}
 .acts-top button:hover{color:var(--ink);border-color:var(--ink3)}
 #recBtn.on{background:var(--red);border-color:var(--red);color:#fff}
@@ -293,6 +272,31 @@ table.t tr.clickable:hover td{background:var(--bg)}
 .later-box h3{font-size:15px;color:var(--ink)}
 .dockeff{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
 .dockeff .eff{padding:0}
+#dockMain .dockeff{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));align-items:start}
+/* 效率节拍 · 目标产能 */
+.goal{display:flex;flex-direction:column;gap:7px;font-size:12.5px;min-width:0}
+.goal-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.goal-h b{font-size:13.5px}
+.goal-h .muted{font-size:11.5px}
+.goal-f{display:flex;align-items:center;gap:8px;color:var(--ink2)}
+.goal-f select{flex:1;min-width:0;font:inherit;color:var(--ink);padding:4px 6px;border:1px solid rgba(31,35,41,.18);border-radius:var(--r);background:#fff}
+.goal-f select:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px rgba(215,0,15,.12)}
+.goal-in{display:flex;align-items:center;gap:8px;color:var(--ink2);flex-wrap:wrap}
+.goal-in .nin{margin-top:0;width:118px}
+.goal-pre{display:flex;gap:6px;flex-wrap:wrap}
+.goal-pre button{font-size:12px;border:1px solid var(--line);border-radius:var(--r);padding:2px 10px;color:var(--ink2)}
+.goal-pre button.on{border-color:var(--red);color:var(--red);background:var(--red-light)}
+#goalOut{display:flex;flex-direction:column;gap:5px}
+#goalOut .bad{color:var(--red);font-weight:600}
+#goalOut .good{color:var(--ok);font-weight:600}
+.goal-verdict{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.goal-verdict>div{background:var(--surface2);padding:5px 8px;border-radius:var(--r);min-width:0}
+.goal-verdict small{display:block;font-size:10.5px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.goal-verdict b{font-family:var(--num);font-size:17px}
+.goal-verdict b em{font-style:normal;font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:10.5px;font-weight:400;color:var(--ink3);margin-left:2px}
+.goal-t td small{font-size:10.5px}
+.goal-adv{margin:0;padding-left:18px;color:var(--ink2);font-size:12px}
+.goal-acts button{font-size:12px;border:1px solid var(--red);border-radius:var(--r);padding:4px 12px;background:var(--red);color:#fff}
 
 /* agent */
 .msgs{padding:12px 14px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;min-height:0}
@@ -348,30 +352,19 @@ table.t tr.clickable:hover td{background:var(--bg)}
 .box{background:#fff}
 .card,.chip{background:#fff}
 
-@media (max-width: 1700px){
-  .kpibar>div:nth-child(n+4){display:none}
-}
 @media (max-width: 1450px){
-  /* steps shrink to numbers (name in the tooltip), the module chips tighten */
-  .step,.step.cur{font-size:0;gap:0;padding:0 2px}
-  .step i{font-size:11px}
-  .modnav .mod{padding:0 6px;font-size:11.5px}
-  .ttlrow{gap:6px}
   .runst{padding:4px 8px}
   .legend,.proj{display:none}
-  .kpibar>div:nth-child(n+3){display:none}
+  .kpibar>div:nth-child(n+5){display:none}
 }
 @media (max-width: 1366px){
-  /* ~1280px laptops: the header keeps the title, module nav, 2 KPIs, clock and actions on one line */
+  /* ~1280px laptops: the header keeps the title, 2 KPIs, clock and actions on one line */
   .top{gap:10px}
   .kpibar>div{padding:0 10px;min-width:0}
   .clock{padding:0 10px}
   .clock b{font-size:22px}
   .acts-top{gap:4px}
   .acts-top button{padding:5px 8px}
-  .modnav .mod{padding:0 5px}
-  .modnav .mod.dash{margin-left:2px}
-  .modnav .mod em{max-width:52px;margin-left:3px;padding:0 4px}
 }
 @media (max-width: 1100px){
   :root{--lw:220px;--rw:300px}
@@ -402,7 +395,7 @@ body.clean .toast{bottom:28px}
 /* Plant generated from a drawing: no AGV process, a build sequence instead. */
 .scene-only{display:none}
 body.scene-mode .scene-only{display:revert}
-body.scene-mode:not(.scene-flow) #tabs button:not(.scene-only),body.scene-mode:not(.scene-flow) .legend,body.scene-mode:not(.scene-flow) #travelBtn,body.scene-mode:not(.scene-flow) #steps{display:none}
+body.scene-mode:not(.scene-flow) #tabs button:not(.scene-only),body.scene-mode:not(.scene-flow) .legend,body.scene-mode:not(.scene-flow) #travelBtn{display:none}
 body.scene-mode .proj{margin-left:auto}
 .proclist li .dev.build,.badge.build{background:#B26A00}
 .segs button.build{border-bottom:2px solid #F5B800}
@@ -605,6 +598,7 @@ body.clean .keyhelp{right:var(--gap)}
 .tree .hint{font-size:11px;color:var(--ink3);padding:4px 6px 6px 32px;line-height:1.5}
 .tree .hint.fsep{padding-top:6px;padding-bottom:2px;border-top:1px dashed rgba(31,35,41,.08);margin-top:2px}
 .tree .row input.rn{flex:1;min-width:0;font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--blue);border-radius:3px;padding:1px 5px;outline:none;box-shadow:0 0 0 3px rgba(43,125,233,.15);background:#fff;color:var(--ink)}
+.tree .row input.rn.sub{flex:none;width:100%;margin-top:2px;font-size:11.5px;font-weight:400;padding:0 5px}
 @keyframes libflash{0%{background:rgba(245,184,0,.45)}100%{background:transparent}}
 .tree .row.flash{animation:libflash 1.4s ease-out}
 

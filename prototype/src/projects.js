@@ -21,6 +21,8 @@ const LEGACY_SCENE_NAME = '主场景'; // the single scene of workspaces saved b
 // into 场景搭建 so a project shows exactly 场景搭建 / 鞍座搭建 / 产品搭建 plus scenes the user named.
 const AUTO_SCENE_NAMES = ['场景', '新场景', '主场景', '新模块'];
 const VERSION = 3;
+// `drawing` of a scene the user started blank: an empty floor, no sample plant and no drawing.
+export const BLANK_DRAWING = 'blank';
 
 let seq = 0;
 const uid = (prefix) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
@@ -33,7 +35,8 @@ export function newScene(name = DEFAULT_SCENE_NAME, from = null, kind = null) {
     id: uid('s'),
     name: clean(name, DEFAULT_SCENE_NAME),
     kind: kindOf(kind ?? from?.kind), // which build module this scene is: site | saddle | product | custom
-    drawing: from?.drawing ?? null, // scene-library asset id of the base drawing; null = the sample plant
+    drawing: from?.drawing ?? null, // scene-library asset id of the base drawing; null = the sample plant; BLANK_DRAWING = empty floor
+    label: from?.label ?? null, // the line under the scene name (e.g. which plant it is); null = derived from the drawing
     overlay: from?.overlay ?? null, // asset id of a drawing laid over the floor for reference
     placed: (from?.placed ?? []).map((p) => ({ ...p })),
     productId: from?.productId ?? null,
@@ -245,6 +248,13 @@ export class Workspace {
   renameScene(projectId, sceneId, name) {
     const s = this.scene(projectId, sceneId);
     s.name = clean(name, s.name);
+    return s;
+  }
+
+  // The scene's subtitle (e.g. 示例厂房 -> 3 号冷轧厂房). Empty puts the automatic one back.
+  setSceneLabel(projectId, sceneId, label) {
+    const s = this.scene(projectId, sceneId);
+    s.label = String(label ?? '').trim().slice(0, 60) || null;
     return s;
   }
 

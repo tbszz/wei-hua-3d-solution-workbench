@@ -56,17 +56,37 @@ export class SceneSite extends Site {
     this.contact.visible = false;
   }
 
-  loadDrawing(text, sourceName, asset = null, { bay = null } = {}) {
-    const { plant, summary, bays, bounds, alongX } = inferPlant(text, sourceName);
+  loadDrawing(text, sourceName, asset = null, opts = {}) {
+    this.loadPlant(inferPlant(text, sourceName), sourceName, asset, opts);
+  }
+
+  // A blank scene: only the floor (w × h mm), no building, cranes or process; models go in by hand.
+  loadBlank(sourceName = '空白场景', { w = 60000, h = 30000 } = {}) {
+    const outline = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+    const plant = {
+      walls: [{ points: outline, closed: true, width: 250 }], // only fixes the floor's extent; not built
+      beams: [], paths: [], marks: [], labels: [], columns: [], racks: [], machines: [], conveyors: [], cranes: [],
+      doors: [], glazing: [], stations: [], columnShapes: [], rails: [], yard: null,
+    };
+    const summary = { 来源: sourceName, 厂房_m: [w / 1000, h / 1000], 方向: '空白场地', 跨: [], 柱距_m: null, 柱线: 0, 柱: { 钢柱: 0, 混凝土柱: 0 }, 吊车梁: 0, 行车: 0, 大门: 0, 窗: 0, 设备: 0, 分区: 0, 轨道: 0, 地面线条: 0, 厂区: false };
+    const bounds = { x0: 0, y0: 0, x1: w, y1: h, w, h, cx: w / 2, cy: h / 2 };
+    this.loadPlant({ plant, summary, bays: [], bounds, alongX: w >= h }, sourceName, null, { blank: true });
+  }
+
+  loadPlant({ plant, summary, bays, bounds, alongX }, sourceName, asset = null, { bay = null, blank = false } = {}) {
+    this.blank = blank;
     // Lay the AGV loop and its stands into the plant before it is built, so they go up with it.
     this.flow = null;
     this.flowError = null;
-    try {
-      this.flow = planSceneFlow({ plant, bays, alongX, prefer: bay });
-      plant.paths.push(...this.flow.paths);
-      plant.stations.push(...this.flow.stations);
-    } catch (error) {
-      this.flowError = error.message;
+    if (blank) this.flowError = '空白场景没有 AGV + 行车工序';
+    else {
+      try {
+        this.flow = planSceneFlow({ plant, bays, alongX, prefer: bay });
+        plant.paths.push(...this.flow.paths);
+        plant.stations.push(...this.flow.stations);
+      } catch (error) {
+        this.flowError = error.message;
+      }
     }
     if (this.built) {
       this.scene.remove(this.built.group);
@@ -80,6 +100,15 @@ export class SceneSite extends Site {
     this.sourceName = sourceName;
     this.asset = asset;
     this.built = buildPlant(plant, this.textures);
+    if (blank) {
+      // Keep the floor only: walls, roof and the rest stay out (and out of the build steps).
+      for (const [name, pivot] of Object.entries(this.built.stages)) {
+        if (name === 'ground') continue;
+        pivot.visible = false;
+        pivot.userData.empty = true;
+      }
+      this.built.sides = [];
+    }
     this.scene.add(this.built.group);
     this.timeline = { scene: true };
     const steps = this.buildSteps();
