@@ -10,6 +10,16 @@ const fn = (name, description, properties = {}, required = []) => ({
 });
 
 export const SCHEMAS = [
+  fn('list_library', '列出资源库：产品库车型、场景库里用户上传并已转换的文件（模型/图纸/图片），以及已放进场景的模型。'),
+  fn('place_asset', '把场景库里的三维模型放进厂房。不给坐标就放在厂房中部空地。', {
+    asset: { type: 'string', description: '场景库文件 id 或名称' },
+    x_mm: { type: 'number' },
+    y_mm: { type: 'number' },
+    size_m: { type: 'number', description: '把最长边缩放到这个米数（可选）' },
+  }, ['asset']),
+  fn('remove_asset', '把已放进场景的模型移出。', { asset: { type: 'string' } }, ['asset']),
+  fn('load_site_asset', '用场景库里的 DXF/DWG 图纸替换当前厂房，重新生成点位和工序；图纸缺少约定图层时会保留原厂房并报错。', { asset: { type: 'string' } }, ['asset']),
+  fn('record_video', '开始或停止录制三维视口视频（停止后自动下载 WebM）。', { on: { type: 'boolean' } }, ['on']),
   fn('get_scene_state', '读取当前方案状态：产品、参数、点位、工序、节拍、播放进度。'),
   fn('set_step', '切换顶部功能流程步骤（1 图纸变三维·点位标定，2 选型与参数，3 流程说明，4 流程动画，5 效率与节拍，6 行程可视化，7 出图下发·后期），同时切换底部面板。', {
     step: { type: 'integer', minimum: 1, maximum: 7 },
@@ -249,7 +259,6 @@ export function createTools(app) {
       if (speed !== undefined) check('倍速', speed, 0.25, 16, '×');
       if (mode === 'step') check('步骤', step, 1, site.process.steps.length, '');
       app.setStep(4);
-      app.setTab('gantt');
       const r = app.play({ mode, step, speed });
       const s = r.window ? site.process.steps[r.window.step - 1] : null;
       return {
@@ -306,6 +315,41 @@ export function createTools(app) {
         result: { 显示: visible, AGV_m: { 载卷: +(t.agv.loaded / 1000).toFixed(1), 空车: +(t.agv.empty / 1000).toFixed(1) }, 行车_m: { 大车: +(t.crane.bridge / 1000).toFixed(1), 小车: +(t.crane.trolley / 1000).toFixed(1), 起升: +(t.crane.hoist / 1000).toFixed(1) }, 钩心高度_m: [+(t.crane.zMin / 1000).toFixed(2), +(t.crane.zMax / 1000).toFixed(2)] },
         chip: visible ? '轨迹线 · 行程表' : '隐藏轨迹',
       };
+    },
+
+    list_library: async () => {
+      const lib = app.library;
+      await lib.reload();
+      return {
+        result: {
+          产品库: lib.products.map((p) => p.model ?? p.name),
+          场景库: lib.assets.map((a) => ({ id: a.id, 名称: a.name, 类型: a.kind, 状态: a.status, 说明: a.message || undefined })),
+          已放入场景: lib.placedList(),
+        },
+        chip: `产品 ${lib.products.length} · 场景 ${lib.assets.length}`,
+      };
+    },
+
+    place_asset: async ({ asset, x_mm, y_mm, size_m }) => {
+      const r = await app.library.place(asset, { x: x_mm, y: y_mm, size: size_m });
+      app.setView('overview');
+      return { result: r, chip: `放入 ${r.名称}` };
+    },
+
+    remove_asset: ({ asset }) => {
+      if (!app.library.remove(asset)) throw new Error(`场景里没有 ${asset}`);
+      app.bump();
+      return { result: { 已移出: asset }, chip: `移出 ${asset}` };
+    },
+
+    load_site_asset: async ({ asset }) => {
+      const r = await app.library.loadSite(asset);
+      return { result: r, chip: `图纸 ${r.图纸}` };
+    },
+
+    record_video: ({ on }) => {
+      const recording = app.record(on);
+      return { result: { 录制中: recording }, chip: recording ? '开始录制' : '停止录制 · 已下载' };
     },
 
     set_camera: ({ view, point_id }) => {

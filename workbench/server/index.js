@@ -125,6 +125,34 @@ async function handleChat(req, res, projectId = 'default') {
 app.use(cors());
 app.use(express.json({ limit: '8mb' }));
 
+// The page's agent runs its tool loop in the browser (so every tool call lands in the 3D view)
+// and reaches the OpenAI-compatible model through here; key and CORS stay on the server.
+const llmBase = () => String(process.env.MAGPIE_BASE_URL || 'http://127.0.0.1:7897/v1').replace(/\/$/, '');
+app.all('/api/llm/*path', async (req, res) => {
+  const url = `${llmBase()}/${[].concat(req.params.path).join('/')}`;
+  const headers = { 'Content-Type': 'application/json' };
+  const key = process.env.MAGPIE_API_KEY || process.env.LLM_API_KEY;
+  if (key) headers.Authorization = `Bearer ${key}`;
+  const abort = new AbortController();
+  res.on('close', () => abort.abort());
+  try {
+    const upstream = await fetch(url, {
+      method: req.method,
+      headers,
+      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : JSON.stringify(req.body ?? {}),
+      signal: abort.signal,
+    });
+    res.status(upstream.status);
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+    if (!upstream.body) return res.end();
+    for await (const chunk of upstream.body) res.write(chunk);
+    res.end();
+  } catch (error) {
+    if (!res.headersSent) res.status(502).json({ error: `模型服务不可用：${error.message}` });
+    else res.end();
+  }
+});
+
 app.get('/api/health', (_req, res) => res.json({ ok: true, mode: hasOnlineKey() ? 'online' : 'offline', provider: String(process.env.MAGPIE_ENABLED || '').toLowerCase() === 'true' ? 'magpie-doubao' : 'default', tools: TOOL_NAMES.length, projects: projects.size, jobs: jobs.size }));
 app.get('/api/products', (_req, res) => res.json({ products: clone(CATALOG) }));
 app.get('/api/fixtures', (req, res) => {
@@ -204,7 +232,7 @@ app.get('/api/jobs/:jobId/stream', streamJob);
 app.post('/api/chat', (req, res) => handleChat(req, res, req.body?.projectId));
 app.post('/api/projects/:projectId/chat', (req, res) => handleChat(req, res, req.params.projectId));
 
-app.use(express.static(path.join(here, '../dist')));
+// Frontend lives in prototype/ (vite 5182) and proxies /api here.
 
 export function startServer(listenPort = port) {
   return app.listen(listenPort, () => console.log(`Weihua workbench server listening on http://127.0.0.1:${listenPort}`));

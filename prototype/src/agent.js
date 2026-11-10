@@ -104,22 +104,27 @@ export class Agent {
 
   async init() {
     const wanted = new URLSearchParams(location.search).get('model');
-    // magpie answers /models differently for browser requests, so the list is only a health check
-    // and the Doubao model id is pinned (override with ?model=).
-    try {
-      const r = await fetch('/llm/models', { signal: AbortSignal.timeout(6000) });
-      if (!r.ok) throw new Error(String(r.status));
-      this.model = wanted || MODEL;
-      this.online = true;
-    } catch {
-      this.online = false;
+    // /models is only a health check; the Doubao model id is pinned (override with ?model=).
+    // Prefer the backend passthrough (/api/llm); fall back to the dev-server proxy (/llm).
+    this.online = false;
+    for (const base of ['/api/llm', '/llm']) {
+      try {
+        const r = await fetch(`${base}/models`, { signal: AbortSignal.timeout(6000) });
+        if (!r.ok) throw new Error(String(r.status));
+        this.llm = base;
+        this.model = wanted || MODEL;
+        this.online = true;
+        break;
+      } catch {
+        // try the next route
+      }
     }
     this.status.className = `st ${this.online ? 'on' : 'off'}`;
     this.status.textContent = this.online ? `在线 · ${this.model.split('/').pop()}` : '离线模式';
-    this.status.title = this.online ? `magpie 反代 · ${this.model}` : '连不上 /llm（magpie 127.0.0.1:7897），用本地规则解析常用指令';
+    this.status.title = this.online ? `${this.llm} · ${this.model}` : '连不上模型服务，用本地规则解析常用指令';
     const s = this.app.site;
     const eff = s.efficiency;
-    this.assistantBlock().text.textContent = `已载入演示方案：${s.sourceName}，${this.app.product.model} 从 ${s.roles.pick} 接卷送到 ${s.roles.handoff}，行车 C 形钩吊到 ${s.roles.drop}，AGV 回 ${s.roles.home}。全流程 ${Math.round(s.duration)} s，当前节拍 ${eff.takt.toFixed(0)} s（瓶颈 ${eff.bottleneck}）。\n说一句话试试，比如“只看第 3 步”“节拍改成 90 秒”“车长改成 3200”。${this.online ? '' : '\n（现在连不上豆包，先用本地规则解析常用指令。）'}`;
+    this.assistantBlock().text.textContent = `${s.sourceName} · ${this.app.product.model} + 行车，全流程 ${Math.round(s.duration)} s，节拍 ${eff.takt.toFixed(0)} s（瓶颈 ${eff.bottleneck}）。说一句话改方案，场景会跟着变。${this.online ? '' : '（离线：按本地规则解析常用指令）'}`;
   }
 
   submit() {
@@ -285,7 +290,7 @@ export class Agent {
   }
 
   async stream(ui, thinking) {
-    const response = await fetch('/llm/chat/completions', {
+    const response = await fetch(`${this.llm}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: this.model, messages: [this.systemMessage(), ...this.history()], tools: this.tools.schemas, tool_choice: 'auto', stream: true, temperature: 0.2 }),

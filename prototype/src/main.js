@@ -8,6 +8,7 @@ import { Agent } from './agent.js';
 import { ProcessSite } from './engine.js';
 import { COIL, fmtTime, simulateShift } from './process.js';
 import { createTools } from './tools.js';
+import { Library } from './library.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -27,6 +28,7 @@ controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.495;
 controls.minDistance = 2;
 controls.maxDistance = 320;
+controls.autoRotateSpeed = 0.35;
 
 const site = new ProcessSite(renderer, QUALITY);
 site.speed = 4;
@@ -52,7 +54,7 @@ const stateOf = () => app.states.get(app.product.id);
 
 app.bump = () => {
   app.version += 1;
-  $('version').textContent = `方案 v${app.version}`;
+  $('version').textContent = `v${app.version}`;
 };
 
 app.selectProduct = async (id) => {
@@ -65,8 +67,7 @@ app.selectProduct = async (id) => {
   if (!app.states.has(product.id)) app.states.set(product.id, Object.fromEntries(Object.entries(product.params).map(([k, p]) => [k, p.nominal])));
   site.setVehicle(vehicle.root, product, stateOf());
   applyBands(product, stateOf());
-  renderDock();
-  renderKpis();
+  app.refresh();
   return product;
 };
 
@@ -83,8 +84,7 @@ app.setVehicleParams = (values) => {
   app.states.set(product.id, next);
   site.setVehicle(app.vehicle.root, product, next);
   applyBands(product, next);
-  renderDock();
-  renderKpis();
+  app.refresh();
   return next;
 };
 
@@ -97,10 +97,33 @@ function flyTo(target, position, duration = 0.8) {
   Object.assign(fly, { active: true, t: 0, duration, fromTarget: controls.target.clone(), fromPos: camera.position.clone(), toTarget: target.clone(), toPos: position.clone() });
 }
 
+// The canvas spans the whole window but panels float over its edges, so the camera
+// is centred on the free area between them (setViewOffset) and fits into that area.
+const free = { x: 0, y: 0, w: 1, h: 1, W: 1, H: 1 };
+function measureFree() {
+  const W = innerWidth;
+  const H = innerHeight;
+  if (document.body.classList.contains('clean')) {
+    Object.assign(free, { x: 0, y: 0, w: W, h: H, W, H });
+    camera.setViewOffset(W, H, 0, 0, W, H);
+    return;
+  }
+  const open =(sel) => [...document.querySelectorAll(`${sel} .panel`)].some((p) => !p.classList.contains('min-on') && !p.classList.contains('viewbar'));
+  const l = open('.left') ? document.querySelector('.left').getBoundingClientRect().right : 0;
+  const r = open('.right') ? document.querySelector('.right').getBoundingClientRect().left : W;
+  const t = document.querySelector('.top').getBoundingClientRect().bottom;
+  const b = document.querySelector('.bottom').getBoundingClientRect().top;
+  Object.assign(free, { x: l, y: t, w: Math.max(200, r - l), h: Math.max(160, b - t), W, H });
+  const dx = free.x + free.w / 2 - W / 2;
+  const dy = free.y + free.h / 2 - H / 2;
+  camera.setViewOffset(W, H, -dx, -dy, W, H);
+}
+
 function fitDistance(w, h) {
-  const v = THREE.MathUtils.degToRad(camera.fov / 2);
-  const hz = Math.atan(Math.tan(v) * camera.aspect);
-  return Math.max(w / 2 / Math.tan(hz), h / 2 / Math.tan(v));
+  const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const tanV = tv * (free.h / free.H);
+  const tanH = tv * camera.aspect * (free.w / free.W);
+  return Math.max(w / 2 / tanH, h / 2 / tanV);
 }
 
 const hookWorld = () => new THREE.Vector3(site.cranePose.x / 1000, site.cranePose.z / 1000, -site.cranePose.y / 1000);
@@ -113,7 +136,9 @@ app.setView = (mode, opts = {}) => {
   const c = new THREE.Vector3(centre.x / 1000, 0, -centre.y / 1000);
   if (mode === 'overview') {
     const dir = new THREE.Vector3(-0.26, 0.66, 0.7).normalize();
-    flyTo(c, c.clone().addScaledVector(dir, fitDistance(size.x * 0.92, size.y * 1.25)));
+    // Fit the footprint's diagonal so the site stays framed while it slowly orbits.
+    const diag = Math.hypot(size.x, size.y);
+    flyTo(c, c.clone().addScaledVector(dir, fitDistance(diag * 1.05, diag * 0.85)));
   } else if (mode === 'top') {
     flyTo(c, new THREE.Vector3(c.x, fitDistance(size.x * 1.04, size.y * 1.04), c.z + 0.01));
   } else if (mode === 'follow') {
@@ -191,6 +216,11 @@ function updateLabels() {
   const agv = pin('agv', 'dev agv', `<span class="lab">${app.product?.model ?? 'AGV'} · ${agvText}</span>`);
   place(agv, site.carrier.position.clone().setY(2.4));
   seen.add('agv');
+  for (const p of app.library?.placed.values() ?? []) {
+    const key = `a:${p.asset.id}`;
+    seen.add(key);
+    place(pin(key, 'asset', `<span class="lab">${p.asset.name}</span>`), new THREE.Vector3(p.x / 1000, p.height + 0.6, -p.y / 1000));
+  }
   for (const [key, el] of pins) if (!seen.has(key)) {
     el.remove();
     pins.delete(key);
@@ -200,25 +230,43 @@ function updateLabels() {
 
 // ---------------------------------------------------------------- HUD
 
+const setHtml = (id, html) => {
+  const el = $(id);
+  if (el.dataset.html !== html) {
+    el.innerHTML = html;
+    el.dataset.html = html;
+  }
+};
+const metric = (label, value, unit = '', txt = false) => `<div><small>${label}</small><b class="${txt ? 'txt' : ''}">${value}${unit ? `<em>${unit}</em>` : ''}</b></div>`;
+
+// Right column device card: the step in progress and the live readings of its device.
 function updateHud() {
   const t = site.time;
   const step = site.stepAt(t);
   const w = site.window;
-  $('hudStep').textContent = w ? `第 ${step.n} 步 / 共 ${site.process.steps.length} 步 · 分步播放` : `全流程 · 第 ${step.n} 步进行中`;
+  const crane = step.device === '行车';
+  $('hudNo').textContent = String(step.n).padStart(2, '0');
+  $('hudTitle').textContent = step.title;
+  $('hudDev').textContent = crane ? '行车 #1' : app.product?.model ?? 'AGV';
+  $('hudDev').className = `badge ${crane ? 'crane' : ''}`;
   $('hudWindow').textContent = `${fmtTime(step.t0)} – ${fmtTime(step.t1)}`;
-  $('hudTitle').textContent = `${step.title}（${step.device}）`;
   $('hudBar').style.width = `${Math.min(100, Math.max(0, ((t - step.t0) / step.duration) * 100))}%`;
   const cp = site.cranePose;
-  const row = step.device === '行车'
-    ? `<span>钩高 <b class="num">${(cp.z / 1000).toFixed(2)} m</b></span><span>大车 X <b class="num">${(cp.x / 1000).toFixed(1)} m</b></span><span>小车 Y <b class="num">${(cp.y / 1000).toFixed(1)} m</b></span><span>动作 <b>${cp.segment?.label ?? '待机'}</b></span>`
-    : `<span>车速 <b class="num">${(Math.abs(site.pose.speed) / 1000).toFixed(2)} m/s</b></span><span>${site.status().text}</span>`;
-  $('hudRow').innerHTML = `${row}<span>货物 <b>钢卷 Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</b>（示意）</span>`;
+  setHtml('hudRow', crane
+    ? metric('钩高', (cp.z / 1000).toFixed(2), 'm') + metric('大车 X', (cp.x / 1000).toFixed(1), 'm') + metric('小车 Y', (cp.y / 1000).toFixed(1), 'm') + metric('动作', cp.segment?.label ?? '待机', '', true)
+    : metric('车速', (Math.abs(site.pose.speed) / 1000).toFixed(2), 'm/s') + metric('台数', site.agvCount, '台') + metric('状态', site.status().text, '', true) + metric('本步用时', step.duration.toFixed(0), 's'));
+  setHtml('hudChips', `<span class="chip">钢卷 Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</span><span class="chip">${w ? '分步播放' : '全流程'}</span>`);
   const coil = site.coilPosition();
-  $('coord').innerHTML = coil
-    ? `<span>钢卷 X <b class="num">${Math.round(coil.x).toLocaleString('fr-FR')}</b> Y <b class="num">${Math.round(coil.y).toLocaleString('fr-FR')}</b> Z <b class="num">${Math.round(coil.z).toLocaleString('fr-FR')}</b> mm</span>`
-    : '';
-  $('clock').textContent = `${fmtTime(t)} / ${fmtTime(site.duration)}`;
-  $('playBtn').textContent = site.playing ? '❚❚' : '▶';
+  setHtml('coord', coil
+    ? `钢卷 X <b class="num">${Math.round(coil.x).toLocaleString('fr-FR')}</b> Y <b class="num">${Math.round(coil.y).toLocaleString('fr-FR')}</b> Z <b class="num">${Math.round(coil.z).toLocaleString('fr-FR')}</b> mm`
+    : '');
+  $('clock').textContent = fmtTime(t);
+  $('clockTotal').textContent = `/ ${fmtTime(site.duration)}`;
+  const playing = site.playing;
+  $('playBtn').textContent = playing ? '❚❚ 暂停' : '▶ 播放';
+  $('playBtn').classList.toggle('paused', !playing);
+  $('runSt').textContent = playing ? '运行中' : '已暂停';
+  $('runSt').classList.toggle('pause', !playing);
   $('allBtn').classList.toggle('on', !w);
 }
 
@@ -233,16 +281,19 @@ app.setStep = (n) => {
     b.classList.toggle('cur', k === n);
     b.classList.toggle('done', k !== n && app.done.has(k));
   }
-  app.setTab(STEP_TAB[n]);
+  app.setTab(STEP_TAB[n], n !== 4 || app.drawer);
   if (n === 6) {
     site.setTravelVisible(true);
     $('travelBtn').classList.add('on');
   }
 };
 
-app.setTab = (tab) => {
+// The tables live in a drawer over the 3D view; picking a tab opens it, picking it again closes it.
+app.setTab = (tab, open = true) => {
   app.tab = tab;
-  for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
+  app.drawer = open;
+  $('drawer').hidden = !open;
+  for (const b of document.querySelectorAll('[data-tab]')) b.classList.toggle('on', open && b.dataset.tab === tab);
   renderDock();
 };
 
@@ -264,12 +315,12 @@ function ganttHtml() {
   const span = (site.cranePlan && Math.abs(site.runway.high - site.runway.low) / 1000).toFixed(2);
   return `<div class="ganttwrap" id="gantt">
     <div class="ruler"><span></span><div class="ticks num">${ticks.join('')}</div></div>
-    <div class="stepsband"><span style="font-size:12px;color:var(--ink3)">工序（点击分步播放）</span><div class="sb">${band}</div></div>
+    <div class="stepsband"><span style="font-size:12px;color:var(--ink3)">工序</span><div class="sb">${band}</div></div>
     <div class="seq"><div class="who">${app.product?.model ?? 'AGV'}<small>${app.agvNote ?? '载重 30 t'}</small></div><div class="lane" data-lane>${blocks(site.gantt.agv)}</div></div>
     <div class="seq"><div class="who">行车 #1<small>跨度 ${span} m</small></div><div class="lane" data-lane>${blocks(site.gantt.crane)}</div></div>
     <div class="playhead" id="playhead"><span id="phLabel">00:00</span></div>
   </div>
-  <div class="glegend"><span><i class="mv"></i>行走 / 运行</span><span><i class="pk"></i>取放 / 夹紧</span><span><i class="lf"></i>起升 / 下降</span><span><i class="ch"></i>充电</span><span><i class="id" style="border:1px dashed #C9CDD4"></i>空闲</span><span>点击色块或时间轴跳到对应时刻</span></div>`;
+  <div class="glegend"><span><i class="mv"></i>行走 / 运行</span><span><i class="pk"></i>取放 / 夹紧</span><span><i class="lf"></i>起升 / 下降</span><span><i class="ch"></i>充电</span><span><i class="id" style="border:1px dashed #C9CDD4"></i>空闲</span></div>`;
 }
 
 function updatePlayhead() {
@@ -289,8 +340,7 @@ function pointsHtml() {
     return `<tr class="clickable ${app.newPoints.has(p.id) ? 'cur' : ''}" data-point="${p.id}"><td><b>${p.id}</b></td><td>${name}</td><td>${roleText}</td><td class="num">${Math.round(p.x)}</td><td class="num">${Math.round(p.y)}</td><td>${p.source === 'CAD' ? '<span class="src">CAD · AGV-STAT</span>' : '<span class="src" style="color:#B26A00">对话添加</span>'}</td></tr>`;
   });
   const c = site.coverage();
-  return `<table class="t"><thead><tr><th>点位</th><th>名称</th><th>作业</th><th>X mm</th><th>Y mm</th><th>来源</th></tr></thead><tbody>${rows.join('')}</tbody></table>
-  <p class="muted" style="font-size:12px;margin-top:6px">厂房 ${site.sourceName}；行车钩头可达 X ${c.minX}–${c.maxX}、Y ${c.minY}–${c.maxY} mm。点一行镜头飞过去；对话里说“在 RM-01 东边 2 米加一个点”可以加点位。</p>`;
+  return `<table class="t"><thead><tr><th>点位</th><th>名称</th><th>作业</th><th>X mm</th><th>Y mm</th><th>来源</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
 }
 
 const SLIDERS = [
@@ -305,18 +355,17 @@ const SLIDERS = [
 function paramsHtml() {
   const product = app.product;
   const state = stateOf();
-  const prod = CATALOG.map((p) => `<button data-product="${p.id}" class="${p.id === product.id ? 'on' : ''}">${p.model}<span class="muted" style="font-size:11px;margin-left:6px">${p.summary}</span></button>`).join('');
-  const vehicle = Object.entries(product.params).map(([k, p]) => `<div class="param"><label>${p.label}<b class="num">${Math.round(state[k])} mm</b></label><input type="range" data-vparam="${k}" min="${p.min}" max="${p.max}" step="${p.step}" value="${state[k]}"><small>产品库范围 ${p.min}–${p.max} mm</small></div>`).join('');
-  const motion = SLIDERS.map((s) => `<div class="param"><label>${s.label}<b class="num">${Number(s.get().toFixed(2))} ${s.unit}</b></label><input type="range" data-mparam="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.get()}"><small>示意值 ${s.min}–${s.max} ${s.unit}</small></div>`).join('');
+  const prod = CATALOG.map((p) => `<button data-product="${p.id}" class="${p.id === product.id ? 'on' : ''}">${p.model}</button>`).join('');
+  const vehicle = Object.entries(product.params).map(([k, p]) => `<div class="param"><label>${p.label}<b class="num">${Math.round(state[k])} mm</b></label><input type="range" data-vparam="${k}" min="${p.min}" max="${p.max}" step="${p.step}" value="${state[k]}" title="产品库范围 ${p.min}–${p.max} mm"></div>`).join('');
+  const motion = SLIDERS.map((s) => `<div class="param"><label>${s.label}<b class="num">${Number(s.get().toFixed(2))} ${s.unit}</b></label><input type="range" data-mparam="${s.key}" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.get()}" title="${s.min}–${s.max} ${s.unit}"></div>`).join('');
   return `<div class="prod">${prod}</div><div class="params">${vehicle}${motion}
-  <div class="param"><label>起重机<b>双梁桥式（示意）</b></label><small>跨度 ${(Math.abs(site.runway.high - site.runway.low) / 1000).toFixed(2)} m 由 CAD 吊车梁间距决定；吊具 C 形钩；卷材 Φ${COIL.diameter / 1000} m × ${COIL.width / 1000} m，${COIL.tonnes} t（示意）</small></div></div>`;
+  <div class="param"><label>起重机跨度<b class="num">${(Math.abs(site.runway.high - site.runway.low) / 1000).toFixed(2)} m</b></label><label>吊具 / 卷材<b>C 形钩 · Φ${COIL.diameter / 1000} m · ${COIL.tonnes} t</b></label></div></div>`;
 }
 
 function processHtml() {
   const cur = site.stepAt().n;
   const rows = site.process.steps.map((s) => `<tr class="clickable ${s.n === cur ? 'cur' : ''}" data-play="${s.n}"><td>${s.n}</td><td>${s.device === 'AGV' ? app.product?.model ?? 'AGV' : '行车 #1'}</td><td><b>${s.title}</b><div class="muted" style="font-size:11.5px">${s.detail}</div></td><td class="num">${fmtTime(s.t0)}–${fmtTime(s.t1)}</td><td class="num">${s.duration.toFixed(1)} s</td></tr>`).join('');
-  return `<table class="t"><thead><tr><th>#</th><th>设备</th><th>动作</th><th>时段</th><th>用时</th></tr></thead><tbody>${rows}</tbody></table>
-  <p class="muted" style="font-size:12px;margin-top:6px">工序串成一条闭式时间轴：AGV 走 CAD 路线，行车按大车 / 小车 / 起升三轴梯形速度曲线运动。点一行只播这一步。</p>`;
+  return `<table class="t"><thead><tr><th>#</th><th>设备</th><th>动作</th><th>时段</th><th>用时</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function meter(label, value, color) {
@@ -342,13 +391,13 @@ export function effHtml(eff = site.efficiency, shift = app.shift) {
 function travelHtml() {
   const tr = site.travel;
   const m = (mm) => (mm / 1000).toFixed(1);
-  return `<table class="t"><thead><tr><th>设备 / 轴</th><th>单循环累计</th><th>最大单程</th><th>说明</th></tr></thead><tbody>
-    <tr><td>${app.product?.model ?? 'AGV'} 载卷</td><td class="num">${m(tr.agv.loaded)} m</td><td class="num" rowspan="2">${m(tr.agv.longest)} m</td><td>蓝色实线</td></tr>
-    <tr><td>${app.product?.model ?? 'AGV'} 空车</td><td class="num">${m(tr.agv.empty)} m</td><td>绿色虚线</td></tr>
-    <tr><td>行车 大车 (X)</td><td class="num">${m(tr.crane.bridge)} m</td><td class="num">${m(tr.crane.longest.x)} m</td><td rowspan="3">红色虚线为钩心轨迹</td></tr>
+  return `<table class="t"><thead><tr><th>设备 / 轴</th><th>单循环累计</th><th>最大单程</th></tr></thead><tbody>
+    <tr><td>${app.product?.model ?? 'AGV'} 载卷</td><td class="num">${m(tr.agv.loaded)} m</td><td class="num" rowspan="2">${m(tr.agv.longest)} m</td></tr>
+    <tr><td>${app.product?.model ?? 'AGV'} 空车</td><td class="num">${m(tr.agv.empty)} m</td></tr>
+    <tr><td>行车 大车 (X)</td><td class="num">${m(tr.crane.bridge)} m</td><td class="num">${m(tr.crane.longest.x)} m</td></tr>
     <tr><td>行车 小车 (Y)</td><td class="num">${m(tr.crane.trolley)} m</td><td class="num">${m(tr.crane.longest.y)} m</td></tr>
     <tr><td>行车 起升 (Z)</td><td class="num">${m(tr.crane.hoist)} m</td><td class="num">${m(tr.crane.longest.z)} m</td></tr>
-    <tr><td>钩心高度</td><td class="num" colspan="2">最低 ${m(tr.crane.zMin)} m · 最高 ${m(tr.crane.zMax)} m</td><td></td></tr>
+    <tr><td>钩心高度</td><td class="num" colspan="2">最低 ${m(tr.crane.zMin)} m · 最高 ${m(tr.crane.zMax)} m</td></tr>
   </tbody></table>
   <div class="acts" style="padding:8px 0 0"><button class="${site.travelVisible ? '' : 'pri'}" data-travel>${site.travelVisible ? '隐藏轨迹线' : '在视口显示轨迹线'}</button></div>`;
 }
@@ -372,23 +421,79 @@ function renderKpis() {
   const eff = site.efficiency;
   const shift = app.shift ?? simulateShift(eff, site.duration, 8);
   const cls = eff.target ? (eff.meets ? 'good' : 'bad') : '';
-  const sub = eff.target ? (eff.meets ? `达到目标 ${eff.target} s` : `未达到，差 ${eff.gap.toFixed(1)} s`) : `瓶颈：${eff.bottleneck}`;
-  const tr = site.travel;
   $('kpis').innerHTML = `
-    <div class="kpi ${cls}"><div class="l">单件节拍${eff.target ? ` · 目标 ${eff.target} s` : ''}</div><div class="v num">${eff.takt.toFixed(0)}<small>s</small></div><div class="s">${sub}</div></div>
-    <div class="kpi"><div class="l">${shift.hours} 小时班产量</div><div class="v num">${shift.pieces}<small>件</small></div><div class="s">${(3600 / eff.takt).toFixed(1)} 件/小时 · ${eff.agvCount} 台 AGV</div></div>
-    <div class="travel">
-      <div><span>行程 · 单循环</span><span>累计</span><span>利用率</span></div>
-      <div><span>${app.product?.model ?? 'AGV'}</span><span class="num">${(tr.agv.total / 1000).toFixed(1)} m</span><span class="num">${(eff.utilization.agv * 100).toFixed(0)}%</span></div>
-      <div><span>行车 大车 / 小车</span><span class="num">${(tr.crane.bridge / 1000).toFixed(1)} / ${(tr.crane.trolley / 1000).toFixed(1)} m</span><span class="num">${(eff.utilization.crane * 100).toFixed(0)}%</span></div>
-      <div><span>行车 起升</span><span class="num">${(tr.crane.hoist / 1000).toFixed(1)} m</span><span></span></div>
-    </div>`;
+    <div class="${cls}"><small>单件节拍${eff.target ? ` · 目标 ${eff.target}` : ''}</small><b>${eff.takt.toFixed(0)}<em>s</em></b></div>
+    <div><small>${shift.hours} 小时班产</small><b>${shift.pieces}<em>件</em></b></div>
+    <div><small>AGV / 瓶颈</small><b>${eff.agvCount}<em>台 · ${eff.bottleneck}</em></b></div>
+    <div><small>AGV 利用率</small><b>${(eff.utilization.agv * 100).toFixed(0)}<em>%</em></b></div>
+    <div><small>行车利用率</small><b>${(eff.utilization.crane * 100).toFixed(0)}<em>%</em></b></div>`;
 }
 app.renderKpis = renderKpis;
+
+// Left column: the five process steps, current one highlighted with live progress.
+const DEV_CLASS = { AGV: '', 行车: 'crane' };
+function renderProcList() {
+  if (!site.process) return;
+  $('procTotal').textContent = fmtTime(site.duration);
+  $('procList').innerHTML = site.process.steps.map((s) => `<li data-play="${s.n}"><span class="n">${String(s.n).padStart(2, '0')}</span><b><span class="dev ${DEV_CLASS[s.device] ?? ''}">${s.device === 'AGV' ? 'AGV' : '行车'}</span>${s.title}</b><small class="num">${fmtTime(s.t0)} – ${fmtTime(s.t1)}</small><span class="d">${s.duration.toFixed(0)}s</span><i class="pg"></i></li>`).join('');
+}
+const progressOf = (s) => Math.min(100, Math.max(0, ((site.time - s.t0) / s.duration) * 100));
+function updateProcList() {
+  const n = site.stepAt().n;
+  for (const li of $('procList').children) {
+    const k = Number(li.dataset.play);
+    li.classList.toggle('cur', k === n);
+    li.classList.toggle('done', k < n);
+    li.querySelector('.pg').style.width = k === n ? `${progressOf(site.process.steps[k - 1])}%` : '0';
+  }
+}
+$('procList').addEventListener('click', (e) => {
+  const li = e.target.closest('[data-play]');
+  if (li) app.play({ mode: 'step', step: Number(li.dataset.play) });
+});
+
+// Bottom timeline: one segment per step, sized by its duration, plus a scrubber over the cycle.
+function renderTimeline() {
+  if (!site.process) return;
+  $('tl').innerHTML = site.process.steps.map((s) => `<button data-play="${s.n}" class="${s.device === '行车' ? 'crane' : 'agv'}" style="flex:${s.duration} 1 0" title="${s.title} · ${s.duration.toFixed(0)} s"><i></i><span>${'①②③④⑤⑥⑦⑧⑨'[s.n - 1] ?? s.n} ${s.title} · ${s.duration.toFixed(0)}s</span></button>`).join('');
+}
+let scrubbing = false;
+function updateTimeline() {
+  const n = site.stepAt().n;
+  for (const b of $('tl').children) {
+    const k = Number(b.dataset.play);
+    b.classList.toggle('cur', k === n);
+    b.classList.toggle('past', k < n);
+    b.firstChild.style.width = k === n ? `${progressOf(site.process.steps[k - 1])}%` : '';
+  }
+  if (!scrubbing) $('scrub').value = String(Math.round((site.time / site.duration) * 1000));
+}
+$('tl').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-play]');
+  if (b) app.play({ mode: 'step', step: Number(b.dataset.play) });
+});
+$('scrub').addEventListener('input', (e) => {
+  scrubbing = true;
+  app.seek((Number(e.target.value) / 1000) * site.duration);
+});
+$('scrub').addEventListener('change', () => { scrubbing = false; });
 
 app.refresh = () => {
   renderDock();
   renderKpis();
+  renderProcList();
+  renderTimeline();
+  app.save?.();
+};
+
+// Short status line over the viewport.
+app.toast = (text, err = false) => {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = `toast${err ? ' err' : ''}`;
+  el.hidden = false;
+  clearTimeout(app.toast.timer);
+  app.toast.timer = setTimeout(() => { el.hidden = true; }, 3200);
 };
 
 // ---------------------------------------------------------------- playback
@@ -396,7 +501,7 @@ app.refresh = () => {
 app.play = ({ mode = 'all', step, speed } = {}) => {
   if (speed) {
     site.speed = speed;
-    $('speedSel').value = String(speed);
+    markSpeed();
   }
   if (mode === 'pause') site.playing = false;
   else if (mode === 'resume') site.playing = true;
@@ -427,13 +532,22 @@ site.onWindowEnd = () => renderDock();
 // ---------------------------------------------------------------- events
 
 document.querySelectorAll('.step').forEach((b) => b.addEventListener('click', () => app.setStep(Number(b.dataset.step))));
-document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => app.setTab(b.dataset.tab)));
+document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => app.setTab(b.dataset.tab, !(app.drawer && app.tab === b.dataset.tab))));
+$('drawerClose').addEventListener('click', () => app.setTab(app.tab, false));
 document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => app.setView(b.dataset.view)));
 $('playBtn').addEventListener('click', () => {
   if (!site.playing && site.window && site.time >= site.window.t1) site.time = site.window.t0;
   site.playing = !site.playing;
 });
-$('speedSel').addEventListener('change', (e) => { site.speed = Number(e.target.value); });
+function markSpeed() {
+  for (const b of $('speeds').children) b.classList.toggle('on', Number(b.dataset.speed) === site.speed);
+}
+$('speeds').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-speed]');
+  if (!b) return;
+  site.speed = Number(b.dataset.speed);
+  markSpeed();
+});
 $('allBtn').addEventListener('click', () => app.play({ mode: 'all' }));
 $('nextBtn').addEventListener('click', () => app.play({ mode: 'next' }));
 $('travelBtn').addEventListener('click', () => {
@@ -441,6 +555,74 @@ $('travelBtn').addEventListener('click', () => {
   $('travelBtn').classList.toggle('on', site.travelVisible);
   if (app.tab === 'travel') renderDock();
 });
+// Idle orbit around the site centre in overview; any drag stops it, the button toggles it.
+app.autoRotate = true;
+const setRotate = (on) => {
+  app.autoRotate = on;
+  $('rotateBtn').classList.toggle('on', on);
+};
+$('rotateBtn').addEventListener('click', () => setRotate(!app.autoRotate));
+$('labelBtn').addEventListener('click', () => {
+  document.body.classList.toggle('nolabels');
+  $('labelBtn').classList.toggle('on', !document.body.classList.contains('nolabels'));
+});
+$('resetBtn').addEventListener('click', () => {
+  app.play({ mode: 'all' });
+  setRotate(true);
+});
+
+// Panels fold to their header; the camera re-centres on the space they free up.
+const relayout = () => {
+  resize();
+  if (app.view === 'overview' || app.view === 'top') app.setView(app.view);
+};
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-min]');
+  if (!b) return;
+  b.closest('.panel').classList.toggle('min-on');
+  relayout();
+});
+// One-click clean screen: hide every panel, keep only the 3D site.
+const setClean = (on) => {
+  document.body.classList.toggle('clean', on);
+  relayout();
+};
+$('clearBtn').addEventListener('click', () => setClean(true));
+$('restoreBtn').addEventListener('click', () => setClean(false));
+addEventListener('keydown', (e) => {
+  if (e.target.closest('textarea,input,select')) return;
+  if (e.key === 'h' || e.key === 'H') setClean(!document.body.classList.contains('clean'));
+  else if (e.key === 'Escape' && document.body.classList.contains('clean')) setClean(false);
+  else if (e.key === ' ') { e.preventDefault(); $('playBtn').click(); }
+});
+
+// Record the 3D view to a WebM file.
+app.record = (on = !app.recorder) => {
+  if (on && !app.recorder) {
+    const chunks = [];
+    const type = ['video/webm;codecs=vp9', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 8e6 });
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const a = document.createElement('a');
+      a.download = `卫华方案-v${app.version}.webm`;
+      a.href = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }));
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+    rec.start(500);
+    app.recorder = rec;
+    app.toast?.('开始录制，再点一次停止并下载');
+  } else if (!on && app.recorder) {
+    app.recorder.stop();
+    app.recorder = null;
+  }
+  $('recBtn').classList.toggle('on', Boolean(app.recorder));
+  $('recBtn').textContent = app.recorder ? '● 停止' : '录制';
+  return Boolean(app.recorder);
+};
+$('recBtn').addEventListener('click', () => app.record());
+
 $('shotBtn').addEventListener('click', () => {
   renderer.render(site.scene, camera);
   const a = document.createElement('a');
@@ -492,12 +674,16 @@ function resize() {
   const h = view.clientHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
+  measureFree();
   camera.updateProjectionMatrix();
   site.resize(w, h);
 }
 new ResizeObserver(resize).observe(view);
 
-controls.addEventListener('start', () => { fly.active = false; });
+controls.addEventListener('start', () => {
+  fly.active = false;
+  setRotate(false);
+});
 const clock = new THREE.Clock();
 let lastStep = 0;
 let manual = false;
@@ -522,11 +708,14 @@ function frame(dt) {
       lastFollow.copy(now);
     }
     if (fly.active && (app.view === 'follow' || app.view === 'crane')) lastFollow.copy(app.view === 'follow' ? site.carrier.position : hookWorld());
-    controls.update();
+    controls.autoRotate = app.autoRotate && app.view === 'overview' && !fly.active;
+    controls.update(delta);
     renderer.render(site.scene, camera);
     updateLabels();
     updateHud();
     updatePlayhead();
+    updateProcList();
+    updateTimeline();
     const n = site.stepAt().n;
     if (n !== lastStep && app.tab === 'process') renderDock();
     lastStep = n;
@@ -547,11 +736,15 @@ async function boot() {
       return r.text();
     });
     await site.loadBase(text, '模拟平面图 sample-plant.dxf');
+    app.baseDxf = { text, name: '模拟平面图 sample-plant.dxf' };
     $('source').textContent = '某钢厂冷轧车间 · sample-plant.dxf';
     loading.textContent = '正在加载 AGV1…';
     await app.selectProduct('agv1');
     resize();
     app.setStep(4);
+    app.setTab('gantt', false);
+    app.library = new Library(app);
+    app.library.init();
     app.setView('overview');
     fly.duration = 0.01;
     loading.hidden = true;
