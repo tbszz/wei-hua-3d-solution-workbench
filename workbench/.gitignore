@@ -1,12 +1,3 @@
-﻿node_modules
-dist
+node_modules
 .env
-server/scene-plan.json
 test-results
-server/scene-plan*.json
-server/domain/probe.txt
-data/library/files/
-data/library/*.json
-data/library/*.tmp
-data/library/*.broken-*
-data/projects/

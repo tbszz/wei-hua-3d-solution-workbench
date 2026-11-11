@@ -1,0 +1,19 @@
+# 可下载的依赖（npm install 即可恢复）
+node_modules/
+.npm/
+.pnpm-store/
+.venv/
+
+# 本地密钥与缓存
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+__pycache__/
+.pytest_cache/
+*.log
+
+# 本地 AI 代理状态
+.claude/
+.omx/

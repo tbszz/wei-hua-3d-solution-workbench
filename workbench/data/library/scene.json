@@ -1,0 +1,1663 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "a_mwacwg11474b2605d2",
+      "name": "1-场景模型(1)",
+      "originalName": "1-场景模型(1).dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 376256,
+      "createdAt": "2026-11-10T07:16:15.792Z",
+      "url": "/library/files/a_mwacwg11474b2605d2/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwacwg11474b2605d2/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 854,
+          "texts": 0,
+          "inserts": 0
+        },
+        "layers": 3,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwacwg11474b2605d2/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 854 条线作为底图参考"
+    },
+    {
+      "id": "a_mwae39b178734c313a",
+      "name": "鞍座-V型-Φ1600",
+      "originalName": "鞍座-V型-Φ1600.glb",
+      "originalFormat": "glb",
+      "kind": "model",
+      "status": "ready",
+      "size": 2948,
+      "createdAt": "2026-11-10T07:49:33.283Z",
+      "url": "/library/files/a_mwae39b178734c313a/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "GLB",
+        "originalUrl": "/library/files/a_mwae39b178734c313a/original.glb",
+        "bboxM": {
+          "x": 1.4,
+          "y": 0.45,
+          "z": 1.2
+        },
+        "triangles": 40,
+        "meshes": 1,
+        "points": 0,
+        "sourceUnits": "m（按尺寸推测）",
+        "scaleApplied": 1,
+        "upAxis": "Y",
+        "originOffsetM": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "glbBytes": 3248
+      },
+      "message": "已转换为 GLB（米，Y 向上），1 个网格，40 个三角面"
+    },
+    {
+      "id": "a_mwalczr80d5b90fba3",
+      "name": "1-场景模型(1)",
+      "originalName": "1-场景模型(1).dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 376256,
+      "createdAt": "2026-11-10T11:13:04.774Z",
+      "url": "/library/files/a_mwalczr80d5b90fba3/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwalczr80d5b90fba3/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 854,
+          "texts": 0,
+          "inserts": 0
+        },
+        "layers": 3,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwalczr80d5b90fba3/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 854 条线作为底图参考"
+    },
+    {
+      "id": "a_mwapl5taf851514494",
+      "name": "1-场景模型(2)",
+      "originalName": "1-场景模型(2).dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 387008,
+      "createdAt": "2026-11-10T13:11:24.334Z",
+      "url": "/library/files/a_mwapl5taf851514494/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwapl5taf851514494/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 854,
+          "texts": 0,
+          "inserts": 0
+        },
+        "layers": 25,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwapl5taf851514494/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 854 条线作为底图参考"
+    },
+    {
+      "id": "a_mwar4ykn3b891087e8",
+      "name": "1-场景模型(1)",
+      "originalName": "1-场景模型(1).dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 376256,
+      "createdAt": "2026-11-10T13:54:47.689Z",
+      "url": "/library/files/a_mwar4ykn3b891087e8/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwar4ykn3b891087e8/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 854,
+          "texts": 0,
+          "inserts": 0
+        },
+        "layers": 3,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwar4ykn3b891087e8/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 854 条线作为底图参考"
+    },
+    {
+      "id": "a_mwar7ni0a930c2507d",
+      "name": "1-场景模型(3)",
+      "originalName": "1-场景模型(3).dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 387008,
+      "createdAt": "2026-11-10T13:56:53.305Z",
+      "url": "/library/files/a_mwar7ni0a930c2507d/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwar7ni0a930c2507d/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 854,
+          "texts": 0,
+          "inserts": 0
+        },
+        "layers": 25,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwar7ni0a930c2507d/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 854 条线作为底图参考"
+    },
+    {
+      "id": "a_mwarbv0d0f53a801b2",
+      "name": "1-铝卷鞍座",
+      "originalName": "1-铝卷鞍座.dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 47360,
+      "createdAt": "2026-11-10T14:00:09.661Z",
+      "url": "/library/files/a_mwarbv0d0f53a801b2/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwarbv0d0f53a801b2/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 43,
+          "texts": 0,
+          "inserts": 1
+        },
+        "layers": 3,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwarbv0d0f53a801b2/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 43 条线作为底图参考"
+    },
+    {
+      "id": "a_mwarbv2nc61ad04c1a",
+      "name": "4-20吨AGV",
+      "originalName": "4-20吨AGV.dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 521664,
+      "createdAt": "2026-11-10T14:00:09.743Z",
+      "url": "/library/files/a_mwarbv2nc61ad04c1a/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwarbv2nc61ad04c1a/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 3939,
+          "texts": 0,
+          "inserts": 9
+        },
+        "layers": 5,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwarbv2nc61ad04c1a/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 3939 条线作为底图参考"
+    },
+    {
+      "id": "a_mwarbvei488fac3590",
+      "name": "3-套筒鞍座",
+      "originalName": "3-套筒鞍座.dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 52224,
+      "createdAt": "2026-11-10T14:00:10.170Z",
+      "url": "/library/files/a_mwarbvei488fac3590/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwarbvei488fac3590/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 53,
+          "texts": 0,
+          "inserts": 1
+        },
+        "layers": 3,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwarbvei488fac3590/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 53 条线作为底图参考"
+    },
+    {
+      "id": "a_mwarbvfq1330fcc4c1",
+      "name": "2-AGV鞍座",
+      "originalName": "2-AGV鞍座.dwg",
+      "originalFormat": "dwg",
+      "kind": "site",
+      "status": "ready",
+      "size": 48384,
+      "createdAt": "2026-11-10T14:00:10.214Z",
+      "url": "/library/files/a_mwarbvfq1330fcc4c1/site.json",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "DWG",
+        "originalUrl": "/library/files/a_mwarbvfq1330fcc4c1/original.dwg",
+        "convention": "generic",
+        "counts": {
+          "lines": 120,
+          "texts": 0,
+          "inserts": 7
+        },
+        "layers": 6,
+        "conventionError": "图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT",
+        "dxfUrl": "/library/files/a_mwarbvfq1330fcc4c1/converted.dxf"
+      },
+      "message": "DWG 已自动转换为 DXF（尽力而为，复杂图纸可能丢失实体）；图纸未按卫华图层约定（图纸缺少图层：A-WALL、AGV-PATH、AGV-STAT），已提取 120 条线作为底图参考"
+    },
+    {
+      "id": "a_mwarbvh1d2cc61bc64",
+      "name": "钢管起重机",
+      "originalName": "钢管起重机.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 4590034,
+      "createdAt": "2026-11-10T14:00:10.263Z",
+      "url": "/library/files/a_mwarbvh1d2cc61bc64/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwarbvh1d2cc61bc64/original.stp",
+        "bboxM": {
+          "x": 1.5404,
+          "y": 4.743,
+          "z": 10.7633
+        },
+        "triangles": 57298,
+        "meshes": 84,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 54.2544,
+          "y": -4.2112,
+          "z": 120.8308
+        },
+        "glbBytes": 1777044
+      },
+      "message": "已转换为 GLB（米，Y 向上），84 个网格，57298 个三角面"
+    },
+    {
+      "id": "a_mwarc2fy29feb98a9f",
+      "name": "5t(1)",
+      "originalName": "5t(1).glb",
+      "originalFormat": "glb",
+      "kind": "model",
+      "status": "ready",
+      "size": 61145428,
+      "createdAt": "2026-11-10T14:00:19.294Z",
+      "url": "/library/files/a_mwarc2fy29feb98a9f/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "GLB",
+        "originalUrl": "/library/files/a_mwarc2fy29feb98a9f/original.glb",
+        "bboxM": {
+          "x": 2.9603,
+          "y": 10.602,
+          "z": 22.9807
+        },
+        "triangles": 1251487,
+        "meshes": 16476,
+        "points": 0,
+        "sourceUnits": "m（按尺寸推测）",
+        "scaleApplied": 1,
+        "upAxis": "Y",
+        "originOffsetM": {
+          "x": -73.3675,
+          "y": -4.844,
+          "z": 553.3617
+        },
+        "glbBytes": 65060264
+      },
+      "message": "已转换为 GLB（米，Y 向上），16476 个网格，1251487 个三角面"
+    },
+    {
+      "id": "a_mwarc4or6e78c0afc7",
+      "name": "13tAGV",
+      "originalName": "13tAGV.3dm",
+      "originalFormat": "3dm",
+      "kind": "document",
+      "status": "unsupported",
+      "size": 132292920,
+      "createdAt": "2026-11-10T14:00:22.208Z",
+      "url": null,
+      "meta": {
+        "detectedBy": "none",
+        "mimeType": "application/octet-stream",
+        "originalUrl": "/library/files/a_mwarc4or6e78c0afc7/original.3dm"
+      },
+      "message": "暂不支持 .3dm 文件。三维模型请用 GLB/glTF/OBJ/STL/PLY/FBX/DAE/3MF/STEP/IGES，厂房图请用 DXF/DWG，底图请用 PNG/JPG/WebP"
+    },
+    {
+      "id": "a_mwarc4t4d906b557d9",
+      "name": "重卡汽车",
+      "originalName": "重卡汽车.3dm",
+      "originalFormat": "3dm",
+      "kind": "document",
+      "status": "failed",
+      "size": 0,
+      "createdAt": "2026-11-10T14:00:22.360Z",
+      "url": null,
+      "meta": {
+        "detectedBy": "none",
+        "mimeType": "application/octet-stream",
+        "originalUrl": "/library/files/a_mwarc4t4d906b557d9/original.3dm"
+      },
+      "message": "文件超过 200 MB，未处理"
+    },
+    {
+      "id": "a_mwarf7j1930aaa57bc",
+      "name": "铝卷鞍座",
+      "originalName": "铝卷鞍座.glb",
+      "originalFormat": "glb",
+      "kind": "model",
+      "status": "ready",
+      "size": 5204,
+      "createdAt": "2026-11-10T14:02:45.853Z",
+      "url": "/library/files/a_mwarf7j1930aaa57bc/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "model/gltf-binary",
+        "formatName": "GLB",
+        "originalUrl": "/library/files/a_mwarf7j1930aaa57bc/original.glb",
+        "bboxM": {
+          "x": 2.5,
+          "y": 2.5,
+          "z": 2.5
+        },
+        "triangles": 92,
+        "meshes": 1,
+        "points": 0,
+        "sourceUnits": "m（按尺寸推测）",
+        "scaleApplied": 1,
+        "upAxis": "Y",
+        "originOffsetM": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "glbBytes": 5508,
+        "stepUrl": "/library/files/a_mwarf7j1930aaa57bc/model.step",
+        "cad": {
+          "engine": "text-to-cad/build123d",
+          "template": "profile",
+          "params": {
+            "points": [
+              [
+                1250,
+                1250
+              ],
+              [
+                1207.41,
+                1573.52
+              ],
+              [
+                1082.53,
+                1875
+              ],
+              [
+                883.88,
+                2133.88
+              ],
+              [
+                625,
+                2332.53
+              ],
+              [
+                323.52,
+                2457.41
+              ],
+              [
+                0,
+                2500
+              ],
+              [
+                -323.52,
+                2457.41
+              ],
+              [
+                -625,
+                2332.53
+              ],
+              [
+                -883.88,
+                2133.88
+              ],
+              [
+                -1082.53,
+                1875
+              ],
+              [
+                -1207.41,
+                1573.52
+              ],
+              [
+                -1250,
+                1250
+              ],
+              [
+                -1207.41,
+                926.48
+              ],
+              [
+                -1082.53,
+                625
+              ],
+              [
+                -883.88,
+                366.12
+              ],
+              [
+                -625,
+                167.47
+              ],
+              [
+                -323.52,
+                42.59
+              ],
+              [
+                0,
+                0
+              ],
+              [
+                323.52,
+                42.59
+              ],
+              [
+                625,
+                167.47
+              ],
+              [
+                883.88,
+                366.12
+              ],
+              [
+                1082.53,
+                625
+              ],
+              [
+                1207.41,
+                926.48
+              ]
+            ],
+            "depth": 2500,
+            "holes": [],
+            "axis": "x"
+          },
+          "bboxMm": [
+            2500,
+            2500,
+            2500
+          ],
+          "jobId": "cad_mwarepgo792fe0"
+        },
+        "source": "cad"
+      },
+      "message": "已转换为 GLB（米，Y 向上），1 个网格，92 个三角面",
+      "thumbUrl": "/library/files/a_mwarf7j1930aaa57bc/preview.png"
+    },
+    {
+      "id": "a_mwarfg5ye406c9c866",
+      "name": "套筒鞍座",
+      "originalName": "套筒鞍座.glb",
+      "originalFormat": "glb",
+      "kind": "model",
+      "status": "ready",
+      "size": 4568,
+      "createdAt": "2026-11-10T14:02:57.046Z",
+      "url": "/library/files/a_mwarfg5ye406c9c866/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "model/gltf-binary",
+        "formatName": "GLB",
+        "originalUrl": "/library/files/a_mwarfg5ye406c9c866/original.glb",
+        "bboxM": {
+          "x": 2.3,
+          "y": 2.3,
+          "z": 1.6
+        },
+        "triangles": 92,
+        "meshes": 1,
+        "points": 0,
+        "sourceUnits": "m（按尺寸推测）",
+        "scaleApplied": 1,
+        "upAxis": "Y",
+        "originOffsetM": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "glbBytes": 4864,
+        "stepUrl": "/library/files/a_mwarfg5ye406c9c866/model.step",
+        "cad": {
+          "engine": "text-to-cad/build123d",
+          "template": "profile",
+          "params": {
+            "points": [
+              [
+                -800,
+                0
+              ],
+              [
+                -800,
+                2300
+              ],
+              [
+                800,
+                2300
+              ],
+              [
+                800,
+                0
+              ]
+            ],
+            "depth": 2300,
+            "holes": [
+              [
+                [
+                  -650,
+                  50
+                ],
+                [
+                  -650,
+                  2250
+                ],
+                [
+                  -470,
+                  2250
+                ],
+                [
+                  -470,
+                  50
+                ]
+              ],
+              [
+                [
+                  150,
+                  50
+                ],
+                [
+                  150,
+                  2250
+                ],
+                [
+                  330,
+                  2250
+                ],
+                [
+                  330,
+                  50
+                ]
+              ],
+              [
+                [
+                  650,
+                  50
+                ],
+                [
+                  650,
+                  2250
+                ],
+                [
+                  470,
+                  2250
+                ],
+                [
+                  470,
+                  50
+                ]
+              ],
+              [
+                [
+                  -150,
+                  50
+                ],
+                [
+                  -150,
+                  2250
+                ],
+                [
+                  -330,
+                  2250
+                ],
+                [
+                  -330,
+                  50
+                ]
+              ]
+            ],
+            "axis": "x"
+          },
+          "bboxMm": [
+            2300,
+            1600,
+            2300
+          ],
+          "jobId": "cad_mwarf7nia48319"
+        },
+        "source": "cad"
+      },
+      "message": "已转换为 GLB（米，Y 向上），1 个网格，92 个三角面",
+      "thumbUrl": "/library/files/a_mwarfg5ye406c9c866/preview.png"
+    },
+    {
+      "id": "a_mwarfo5af0482105e1",
+      "name": "AGV鞍座",
+      "originalName": "AGV鞍座.glb",
+      "originalFormat": "glb",
+      "kind": "model",
+      "status": "ready",
+      "size": 1776,
+      "createdAt": "2026-11-10T14:03:07.390Z",
+      "url": "/library/files/a_mwarfo5af0482105e1/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "model/gltf-binary",
+        "formatName": "GLB",
+        "originalUrl": "/library/files/a_mwarfo5af0482105e1/original.glb",
+        "bboxM": {
+          "x": 2.6,
+          "y": 2.6,
+          "z": 2.4
+        },
+        "triangles": 12,
+        "meshes": 1,
+        "points": 0,
+        "sourceUnits": "m（按尺寸推测）",
+        "scaleApplied": 1,
+        "upAxis": "Y",
+        "originOffsetM": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "glbBytes": 2068,
+        "stepUrl": "/library/files/a_mwarfo5af0482105e1/model.step",
+        "cad": {
+          "engine": "text-to-cad/build123d",
+          "template": "profile",
+          "params": {
+            "points": [
+              [
+                1200,
+                0
+              ],
+              [
+                -1200,
+                0
+              ],
+              [
+                -1200,
+                2600
+              ],
+              [
+                1200,
+                2600
+              ]
+            ],
+            "depth": 2600,
+            "holes": [],
+            "axis": "x"
+          },
+          "bboxMm": [
+            2600,
+            2400,
+            2600
+          ],
+          "jobId": "cad_mwarfg8t6af647"
+        },
+        "source": "cad"
+      },
+      "message": "已转换为 GLB（米，Y 向上），1 个网格，12 个三角面",
+      "thumbUrl": "/library/files/a_mwarfo5af0482105e1/preview.png"
+    },
+    {
+      "id": "a_mwaro595e232b00f4b",
+      "name": "1-货车进站",
+      "originalName": "1-货车进站.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 612688,
+      "createdAt": "2026-11-10T14:09:42.812Z",
+      "url": "/library/files/a_mwaro595e232b00f4b/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro595e232b00f4b/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro595e232b00f4b/original.jpg"
+    },
+    {
+      "id": "a_mwaro59ee4845d9e19",
+      "name": "2-起重机自动吊装钢卷至原材料检验区",
+      "originalName": "2-起重机自动吊装钢卷至原材料检验区.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 644735,
+      "createdAt": "2026-11-10T14:09:42.818Z",
+      "url": "/library/files/a_mwaro59ee4845d9e19/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro59ee4845d9e19/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro59ee4845d9e19/original.jpg"
+    },
+    {
+      "id": "a_mwaro59qa6459bce06",
+      "name": "3-智能起重机-1将检验合格钢卷自动吊装至原材料存储区完成原材料入库作业",
+      "originalName": "3-智能起重机-1将检验合格钢卷自动吊装至原材料存储区完成原材料入库作业.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 703269,
+      "createdAt": "2026-11-10T14:09:42.830Z",
+      "url": "/library/files/a_mwaro59qa6459bce06/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro59qa6459bce06/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro59qa6459bce06/original.jpg"
+    },
+    {
+      "id": "a_mwaro5a560f8c8938b",
+      "name": "4-根据生产调度指令,智能起重机-1吊装钢卷至原材料出库存点",
+      "originalName": "4-根据生产调度指令,智能起重机-1吊装钢卷至原材料出库存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 677592,
+      "createdAt": "2026-11-10T14:09:42.845Z",
+      "url": "/library/files/a_mwaro5a560f8c8938b/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5a560f8c8938b/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5a560f8c8938b/original.jpg"
+    },
+    {
+      "id": "a_mwaro5ahd4013953dc",
+      "name": "5-上线AGV-1自动运行至原材料出库暂存点,搬运钢卷至气垫炉上线点,原材料上线搬运作业完成",
+      "originalName": "5-上线AGV-1自动运行至原材料出库暂存点,搬运钢卷至气垫炉上线点,原材料上线搬运作业完成.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 733804,
+      "createdAt": "2026-11-10T14:09:42.857Z",
+      "url": "/library/files/a_mwaro5ahd4013953dc/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5ahd4013953dc/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5ahd4013953dc/original.jpg"
+    },
+    {
+      "id": "a_mwaro5aw2eed7261a4",
+      "name": "6- 下线 AGV-2自动将气垫炉下线点半成品钢卷搬运至高温冷却暂存点",
+      "originalName": "6- 下线 AGV-2自动将气垫炉下线点半成品钢卷搬运至高温冷却暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 686974,
+      "createdAt": "2026-11-10T14:09:42.873Z",
+      "url": "/library/files/a_mwaro5aw2eed7261a4/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5aw2eed7261a4/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5aw2eed7261a4/original.jpg"
+    },
+    {
+      "id": "a_mwaro5b97faf659b84",
+      "name": "7-智能起重机-1将高温冷却暂存点的半成品钢卷自动吊装至高温冷却区",
+      "originalName": "7-智能起重机-1将高温冷却暂存点的半成品钢卷自动吊装至高温冷却区.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 686150,
+      "createdAt": "2026-11-10T14:09:42.885Z",
+      "url": "/library/files/a_mwaro5b97faf659b84/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5b97faf659b84/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5b97faf659b84/original.jpg"
+    },
+    {
+      "id": "a_mwaro5bp9a445b2dce",
+      "name": "8-智能起重机-1将冷却后的半成品钢卷自动吊装至半成品暂存点",
+      "originalName": "8-智能起重机-1将冷却后的半成品钢卷自动吊装至半成品暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 660817,
+      "createdAt": "2026-11-10T14:09:42.901Z",
+      "url": "/library/files/a_mwaro5bp9a445b2dce/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5bp9a445b2dce/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5bp9a445b2dce/original.jpg"
+    },
+    {
+      "id": "a_mwaro5bz2ed754fbed",
+      "name": "9-下线AGV-3将半成品暂存点钢卷自动搬运至化学线上线点",
+      "originalName": "9-下线AGV-3将半成品暂存点钢卷自动搬运至化学线上线点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 659398,
+      "createdAt": "2026-11-10T14:09:42.911Z",
+      "url": "/library/files/a_mwaro5bz2ed754fbed/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5bz2ed754fbed/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5bz2ed754fbed/original.jpg"
+    },
+    {
+      "id": "a_mwaro5ccaf8b80d7b7",
+      "name": "10-下线AGV-4将成品钢卷自动搬运至入库暂存点",
+      "originalName": "10-下线AGV-4将成品钢卷自动搬运至入库暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 655999,
+      "createdAt": "2026-11-10T14:09:42.924Z",
+      "url": "/library/files/a_mwaro5ccaf8b80d7b7/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5ccaf8b80d7b7/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5ccaf8b80d7b7/original.jpg"
+    },
+    {
+      "id": "a_mwaro5co7e7e6f33cf",
+      "name": "11-智能起重机-2将成品钢卷自动吊装至成品库区,成品钢卷入库作业完成",
+      "originalName": "11-智能起重机-2将成品钢卷自动吊装至成品库区,成品钢卷入库作业完成.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 694185,
+      "createdAt": "2026-11-10T14:09:42.936Z",
+      "url": "/library/files/a_mwaro5co7e7e6f33cf/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwaro5co7e7e6f33cf/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwaro5co7e7e6f33cf/original.jpg"
+    },
+    {
+      "id": "a_mwas75yo8a9c609b55",
+      "name": "起重机(1)",
+      "originalName": "起重机(1).stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 16147106,
+      "createdAt": "2026-11-10T14:24:30.194Z",
+      "url": "/library/files/a_mwas75yo8a9c609b55/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwas75yo8a9c609b55/original.stp",
+        "bboxM": {
+          "x": 5.575,
+          "y": 11.2493,
+          "z": 26.5
+        },
+        "triangles": 133370,
+        "meshes": 258,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": -1,
+          "y": 4.2013,
+          "z": 271.0528
+        },
+        "glbBytes": 3155748
+      },
+      "message": "已转换为 GLB（米，Y 向上），258 个网格，133370 个三角面"
+    },
+    {
+      "id": "a_mwat6ju3b1a65910c4",
+      "name": "1b4f5de4555426fb58b234a929690090",
+      "originalName": "1b4f5de4555426fb58b234a929690090.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 49282,
+      "createdAt": "2026-11-10T14:52:01.132Z",
+      "url": "/library/files/a_mwat6ju3b1a65910c4/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwat6ju3b1a65910c4/original.jpg",
+        "width": 1062,
+        "height": 959
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat6ju3b1a65910c4/original.jpg"
+    },
+    {
+      "id": "a_mwat6jufeae98773e5",
+      "name": "起重机(2)",
+      "originalName": "起重机(2).stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 16147106,
+      "createdAt": "2026-11-10T14:52:01.143Z",
+      "url": "/library/files/a_mwat6jufeae98773e5/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwat6jufeae98773e5/original.stp",
+        "bboxM": {
+          "x": 5.575,
+          "y": 11.2493,
+          "z": 26.5
+        },
+        "triangles": 133370,
+        "meshes": 258,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": -1,
+          "y": 4.2013,
+          "z": 271.0528
+        },
+        "glbBytes": 3155748
+      },
+      "message": "已转换为 GLB（米，Y 向上），258 个网格，133370 个三角面"
+    },
+    {
+      "id": "a_mwat6u6d8f20b95486",
+      "name": "d39918cda7fe2533fa062d2070340343",
+      "originalName": "d39918cda7fe2533fa062d2070340343.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 105301,
+      "createdAt": "2026-11-10T14:52:14.533Z",
+      "url": "/library/files/a_mwat6u6d8f20b95486/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwat6u6d8f20b95486/original.jpg",
+        "width": 1508,
+        "height": 1101
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat6u6d8f20b95486/original.jpg"
+    },
+    {
+      "id": "a_mwat6u6t77e0a1d3a8",
+      "name": "13tAGV",
+      "originalName": "13tAGV.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 37853492,
+      "createdAt": "2026-11-10T14:52:14.550Z",
+      "url": "/library/files/a_mwat6u6t77e0a1d3a8/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwat6u6t77e0a1d3a8/original.stp",
+        "bboxM": {
+          "x": 2.0024,
+          "y": 0.9323,
+          "z": 4.0638
+        },
+        "triangles": 185643,
+        "meshes": 243,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 17.7034,
+          "y": 0.0246,
+          "z": 13.508
+        },
+        "glbBytes": 5948848
+      },
+      "message": "已转换为 GLB（米，Y 向上），243 个网格，185643 个三角面"
+    },
+    {
+      "id": "a_mwat8n8889c5f40f76",
+      "name": "4e484c1a590d92b69d7b9f00330da59a",
+      "originalName": "4e484c1a590d92b69d7b9f00330da59a.png",
+      "originalFormat": "png",
+      "kind": "image",
+      "status": "ready",
+      "size": 49201,
+      "createdAt": "2026-11-10T14:53:38.841Z",
+      "url": "/library/files/a_mwat8n8889c5f40f76/original.png",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/png",
+        "formatName": "PNG",
+        "originalUrl": "/library/files/a_mwat8n8889c5f40f76/original.png",
+        "width": 581,
+        "height": 537
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat8n8889c5f40f76/original.png"
+    },
+    {
+      "id": "a_mwat8n8k474cd4ecde",
+      "name": "钢卷",
+      "originalName": "钢卷.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 14469,
+      "createdAt": "2026-11-10T14:53:38.852Z",
+      "url": "/library/files/a_mwat8n8k474cd4ecde/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwat8n8k474cd4ecde/original.stp",
+        "bboxM": {
+          "x": 1.856,
+          "y": 2.2,
+          "z": 1.8541
+        },
+        "triangles": 440,
+        "meshes": 1,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": -8.3064,
+          "y": 0,
+          "z": 5.8098
+        },
+        "glbBytes": 14824
+      },
+      "message": "已转换为 GLB（米，Y 向上），1 个网格，440 个三角面"
+    },
+    {
+      "id": "a_mwat8n99525b39ee40",
+      "name": "91f590117de6f696524a7e16bcbb7e04",
+      "originalName": "91f590117de6f696524a7e16bcbb7e04.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 107180,
+      "createdAt": "2026-11-10T14:53:38.877Z",
+      "url": "/library/files/a_mwat8n99525b39ee40/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwat8n99525b39ee40/original.jpg",
+        "width": 1434,
+        "height": 861
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat8n99525b39ee40/original.jpg"
+    },
+    {
+      "id": "a_mwat8n9k301a90af6f",
+      "name": "AGV鞍座",
+      "originalName": "AGV鞍座.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 97651,
+      "createdAt": "2026-11-10T14:53:38.888Z",
+      "url": "/library/files/a_mwat8n9k301a90af6f/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwat8n9k301a90af6f/original.stp",
+        "bboxM": {
+          "x": 2.8,
+          "y": 1.2246,
+          "z": 2.4
+        },
+        "triangles": 216,
+        "meshes": 2,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 17.7034,
+          "y": 0.0246,
+          "z": 13.508
+        },
+        "glbBytes": 11812
+      },
+      "message": "已转换为 GLB（米，Y 向上），2 个网格，216 个三角面"
+    },
+    {
+      "id": "a_mwat8nd670c05111d6",
+      "name": "be3e213ae3ea9993382ffcdee5a45f92",
+      "originalName": "be3e213ae3ea9993382ffcdee5a45f92.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 115204,
+      "createdAt": "2026-11-10T14:53:39.018Z",
+      "url": "/library/files/a_mwat8nd670c05111d6/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwat8nd670c05111d6/original.jpg",
+        "width": 1529,
+        "height": 1137
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat8nd670c05111d6/original.jpg"
+    },
+    {
+      "id": "a_mwat8ndf4c00c504c2",
+      "name": "货物鞍座",
+      "originalName": "货物鞍座.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 36362,
+      "createdAt": "2026-11-10T14:53:39.027Z",
+      "url": "/library/files/a_mwat8ndf4c00c504c2/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwat8ndf4c00c504c2/original.stp",
+        "bboxM": {
+          "x": 2.2,
+          "y": 0.2908,
+          "z": 2.5
+        },
+        "triangles": 140,
+        "meshes": 3,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 34.2541,
+          "y": -1.25,
+          "z": 12.0078
+        },
+        "glbBytes": 8380
+      },
+      "message": "已转换为 GLB（米，Y 向上），3 个网格，140 个三角面"
+    },
+    {
+      "id": "a_mwat9c6la349868b92",
+      "name": "f687f7c2710d937392ee2cdf5a6c5485",
+      "originalName": "f687f7c2710d937392ee2cdf5a6c5485.png",
+      "originalFormat": "png",
+      "kind": "image",
+      "status": "ready",
+      "size": 333866,
+      "createdAt": "2026-11-10T14:54:11.182Z",
+      "url": "/library/files/a_mwat9c6la349868b92/original.png",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/png",
+        "formatName": "PNG",
+        "originalUrl": "/library/files/a_mwat9c6la349868b92/original.png",
+        "width": 1874,
+        "height": 498
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwat9c6la349868b92/original.png"
+    },
+    {
+      "id": "a_mwatbah0b2ee8ea199",
+      "name": "1-货车进站",
+      "originalName": "1-货车进站.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 612688,
+      "createdAt": "2026-11-10T14:55:42.276Z",
+      "url": "/library/files/a_mwatbah0b2ee8ea199/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbah0b2ee8ea199/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbah0b2ee8ea199/original.jpg"
+    },
+    {
+      "id": "a_mwatbah68d70715eba",
+      "name": "2-起重机自动吊装钢卷至原材料检验区",
+      "originalName": "2-起重机自动吊装钢卷至原材料检验区.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 644735,
+      "createdAt": "2026-11-10T14:55:42.282Z",
+      "url": "/library/files/a_mwatbah68d70715eba/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbah68d70715eba/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbah68d70715eba/original.jpg"
+    },
+    {
+      "id": "a_mwatbahk31d7f8d2ce",
+      "name": "3-智能起重机-1将检验合格钢卷自动吊装至原材料存储区完成原材料入库作业",
+      "originalName": "3-智能起重机-1将检验合格钢卷自动吊装至原材料存储区完成原材料入库作业.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 703269,
+      "createdAt": "2026-11-10T14:55:42.296Z",
+      "url": "/library/files/a_mwatbahk31d7f8d2ce/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbahk31d7f8d2ce/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbahk31d7f8d2ce/original.jpg"
+    },
+    {
+      "id": "a_mwatbahw3d7169ec27",
+      "name": "4-根据生产调度指令,智能起重机-1吊装钢卷至原材料出库存点",
+      "originalName": "4-根据生产调度指令,智能起重机-1吊装钢卷至原材料出库存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 677592,
+      "createdAt": "2026-11-10T14:55:42.309Z",
+      "url": "/library/files/a_mwatbahw3d7169ec27/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbahw3d7169ec27/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbahw3d7169ec27/original.jpg"
+    },
+    {
+      "id": "a_mwatbai72b6c3d6380",
+      "name": "5-上线AGV-1自动运行至原材料出库暂存点,搬运钢卷至气垫炉上线点,原材料上线搬运作业完成",
+      "originalName": "5-上线AGV-1自动运行至原材料出库暂存点,搬运钢卷至气垫炉上线点,原材料上线搬运作业完成.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 733804,
+      "createdAt": "2026-11-10T14:55:42.319Z",
+      "url": "/library/files/a_mwatbai72b6c3d6380/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbai72b6c3d6380/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbai72b6c3d6380/original.jpg"
+    },
+    {
+      "id": "a_mwatbailc6995ca80f",
+      "name": "6- 下线 AGV-2自动将气垫炉下线点半成品钢卷搬运至高温冷却暂存点",
+      "originalName": "6- 下线 AGV-2自动将气垫炉下线点半成品钢卷搬运至高温冷却暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 686974,
+      "createdAt": "2026-11-10T14:55:42.333Z",
+      "url": "/library/files/a_mwatbailc6995ca80f/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbailc6995ca80f/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbailc6995ca80f/original.jpg"
+    },
+    {
+      "id": "a_mwatbaiufb59adabeb",
+      "name": "7-智能起重机-1将高温冷却暂存点的半成品钢卷自动吊装至高温冷却区",
+      "originalName": "7-智能起重机-1将高温冷却暂存点的半成品钢卷自动吊装至高温冷却区.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 686150,
+      "createdAt": "2026-11-10T14:55:42.342Z",
+      "url": "/library/files/a_mwatbaiufb59adabeb/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbaiufb59adabeb/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbaiufb59adabeb/original.jpg"
+    },
+    {
+      "id": "a_mwatbajb4601af41ed",
+      "name": "8-智能起重机-1将冷却后的半成品钢卷自动吊装至半成品暂存点",
+      "originalName": "8-智能起重机-1将冷却后的半成品钢卷自动吊装至半成品暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 660817,
+      "createdAt": "2026-11-10T14:55:42.359Z",
+      "url": "/library/files/a_mwatbajb4601af41ed/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbajb4601af41ed/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbajb4601af41ed/original.jpg"
+    },
+    {
+      "id": "a_mwatbajn22843d91d2",
+      "name": "9-下线AGV-3将半成品暂存点钢卷自动搬运至化学线上线点",
+      "originalName": "9-下线AGV-3将半成品暂存点钢卷自动搬运至化学线上线点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 659398,
+      "createdAt": "2026-11-10T14:55:42.372Z",
+      "url": "/library/files/a_mwatbajn22843d91d2/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbajn22843d91d2/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbajn22843d91d2/original.jpg"
+    },
+    {
+      "id": "a_mwatbak262f39f1f35",
+      "name": "10-下线AGV-4将成品钢卷自动搬运至入库暂存点",
+      "originalName": "10-下线AGV-4将成品钢卷自动搬运至入库暂存点.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 655999,
+      "createdAt": "2026-11-10T14:55:42.386Z",
+      "url": "/library/files/a_mwatbak262f39f1f35/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbak262f39f1f35/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbak262f39f1f35/original.jpg"
+    },
+    {
+      "id": "a_mwatbakgea64f436a1",
+      "name": "11-智能起重机-2将成品钢卷自动吊装至成品库区,成品钢卷入库作业完成",
+      "originalName": "11-智能起重机-2将成品钢卷自动吊装至成品库区,成品钢卷入库作业完成.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 694185,
+      "createdAt": "2026-11-10T14:55:42.400Z",
+      "url": "/library/files/a_mwatbakgea64f436a1/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwatbakgea64f436a1/original.jpg",
+        "width": 2068,
+        "height": 1224
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwatbakgea64f436a1/original.jpg"
+    },
+    {
+      "id": "a_mwauokmwce94b06322",
+      "name": "货物鞍座",
+      "originalName": "货物鞍座.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 36362,
+      "createdAt": "2026-11-10T15:34:01.593Z",
+      "url": "/library/files/a_mwauokmwce94b06322/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwauokmwce94b06322/original.stp",
+        "bboxM": {
+          "x": 2.2,
+          "y": 0.2908,
+          "z": 2.5
+        },
+        "triangles": 140,
+        "meshes": 3,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 34.2541,
+          "y": -1.25,
+          "z": 12.0078
+        },
+        "glbBytes": 8380
+      },
+      "message": "已转换为 GLB（米，Y 向上），3 个网格，140 个三角面"
+    },
+    {
+      "id": "a_mwauokqpfaa2e5a865",
+      "name": "533155c9d6e37fa2fd24b3167760fb00",
+      "originalName": "533155c9d6e37fa2fd24b3167760fb00.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 115204,
+      "createdAt": "2026-11-10T15:34:01.729Z",
+      "url": "/library/files/a_mwauokqpfaa2e5a865/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwauokqpfaa2e5a865/original.jpg",
+        "width": 1529,
+        "height": 1137
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwauokqpfaa2e5a865/original.jpg"
+    },
+    {
+      "id": "a_mwauokr668d25f42e0",
+      "name": "AGV鞍座",
+      "originalName": "AGV鞍座.stp",
+      "originalFormat": "step",
+      "kind": "model",
+      "status": "ready",
+      "size": 97651,
+      "createdAt": "2026-11-10T15:34:01.746Z",
+      "url": "/library/files/a_mwauokr668d25f42e0/model.glb",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "application/octet-stream",
+        "formatName": "STEP",
+        "originalUrl": "/library/files/a_mwauokr668d25f42e0/original.stp",
+        "bboxM": {
+          "x": 2.8,
+          "y": 1.2246,
+          "z": 2.4
+        },
+        "triangles": 216,
+        "meshes": 2,
+        "points": 0,
+        "sourceUnits": "mm（STEP/IGES 按文件单位换算）",
+        "scaleApplied": 1,
+        "upAxis": "Z（已转为 Y 向上）",
+        "originOffsetM": {
+          "x": 17.7034,
+          "y": 0.0246,
+          "z": 13.508
+        },
+        "glbBytes": 11812
+      },
+      "message": "已转换为 GLB（米，Y 向上），2 个网格，216 个三角面"
+    },
+    {
+      "id": "a_mwauokv6acbf4509c8",
+      "name": "91f590117de6f696524a7e16bcbb7e04",
+      "originalName": "91f590117de6f696524a7e16bcbb7e04.jpg",
+      "originalFormat": "jpg",
+      "kind": "image",
+      "status": "ready",
+      "size": 107180,
+      "createdAt": "2026-11-10T15:34:01.890Z",
+      "url": "/library/files/a_mwauokv6acbf4509c8/original.jpg",
+      "meta": {
+        "detectedBy": "magic+ext",
+        "mimeType": "image/jpeg",
+        "formatName": "JPEG",
+        "originalUrl": "/library/files/a_mwauokv6acbf4509c8/original.jpg",
+        "width": 1434,
+        "height": 861
+      },
+      "message": "图片已保存，可作为平面底图使用",
+      "thumbUrl": "/library/files/a_mwauokv6acbf4509c8/original.jpg"
+    }
+  ]
+}

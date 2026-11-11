@@ -1,0 +1,625 @@
+{
+  "version": 1,
+  "seededAt": "2026-11-10T06:32:15.948Z",
+  "products": [
+    {
+      "id": "agv1",
+      "model": "AGV1",
+      "category": "agv",
+      "capacityT": 30,
+      "fixture": [
+        "agv-coil-rack"
+      ],
+      "industries": [
+        "钢铁",
+        "有色金属",
+        "重型装备",
+        "造船"
+      ],
+      "applications": [
+        "钢卷转运",
+        "重载搬运"
+      ],
+      "summary": "四角驱动重载平板车，激光导航 4 个",
+      "plate": "铭牌 1001 · 30t",
+      "params": {
+        "length": {
+          "label": "车长",
+          "nominal": 2800,
+          "min": 2200,
+          "max": 6000,
+          "step": 10
+        },
+        "width": {
+          "label": "车宽",
+          "nominal": 1500,
+          "min": 1200,
+          "max": 2600,
+          "step": 10
+        },
+        "height": {
+          "label": "车高",
+          "nominal": 381.9,
+          "min": 360,
+          "max": 700,
+          "step": 0.1
+        }
+      },
+      "extent": {
+        "halfLength": 1.4,
+        "halfWidth": 0.75,
+        "height": 0.3819
+      },
+      "bands": {
+        "length": {
+          "inner": 0.09,
+          "outer": 0.95,
+          "mirrored": true
+        },
+        "width": {
+          "inner": 0.09,
+          "outer": 0.3,
+          "mirrored": true
+        },
+        "height": {
+          "inner": 0.153,
+          "outer": 0.178,
+          "mirrored": false
+        }
+      },
+      "protrusion": 75,
+      "modelUrl": "/library/product-models/agv1.glb",
+      "thumbUrl": "/library/product-models/agv1.thumb.webp",
+      "manifestUrl": "/library/product-models/agv1.manifest.json",
+      "note": "ranges 是临时值，等业务给出真实规格后改这里。bands 单位 m，height 以地面为 0。车长车宽按车身计，不含凸出的激光支架。",
+      "source": "builtin",
+      "overridden": false,
+      "createdAt": "2026-11-10T06:32:15.948Z",
+      "updatedAt": "2026-11-10T06:32:15.948Z"
+    },
+    {
+      "id": "z1-1000-bz",
+      "model": "Z1-1000-BZ",
+      "category": "agv",
+      "capacityT": 10,
+      "fixture": [
+        "agv-coil-rack"
+      ],
+      "industries": [
+        "汽车",
+        "机械加工",
+        "仓储物流",
+        "有色金属"
+      ],
+      "applications": [
+        "中载搬运",
+        "工位间转运"
+      ],
+      "summary": "四角驱动平板车，激光导航与急停各 4 个",
+      "plate": "标牌 10t",
+      "params": {
+        "length": {
+          "label": "车长",
+          "nominal": 5000,
+          "min": 4200,
+          "max": 8000,
+          "step": 10
+        },
+        "width": {
+          "label": "车宽",
+          "nominal": 2000,
+          "min": 1600,
+          "max": 3000,
+          "step": 10
+        },
+        "height": {
+          "label": "车高",
+          "nominal": 512.5,
+          "min": 420,
+          "max": 900,
+          "step": 0.5
+        }
+      },
+      "extent": {
+        "halfLength": 2.5,
+        "halfWidth": 1,
+        "height": 0.5125
+      },
+      "bands": {
+        "length": {
+          "inner": 0.79,
+          "outer": 1.21,
+          "mirrored": true
+        },
+        "width": {
+          "inner": 0.09,
+          "outer": 0.31,
+          "mirrored": true
+        },
+        "height": {
+          "inner": 0.085,
+          "outer": 0.19,
+          "mirrored": false
+        }
+      },
+      "protrusion": null,
+      "modelUrl": "/library/product-models/z1-1000-bz.glb",
+      "thumbUrl": "/library/product-models/z1-1000-bz.thumb.webp",
+      "manifestUrl": "/library/product-models/z1-1000-bz.manifest.json",
+      "note": "ranges 是临时值，等业务给出真实规格后改这里。bands 单位 m，height 以地面为 0。",
+      "source": "builtin",
+      "overridden": false,
+      "createdAt": "2026-11-10T06:32:15.948Z",
+      "updatedAt": "2026-11-10T06:32:15.948Z"
+    },
+    {
+      "id": "double-girder-crane-demo",
+      "model": "双梁桥式起重机（示意）",
+      "category": "overhead_crane",
+      "capacityT": 30,
+      "industries": [
+        "钢铁",
+        "重型装备",
+        "港口",
+        "电力",
+        "造船"
+      ],
+      "applications": [
+        "卷材吊运",
+        "库区堆垛"
+      ],
+      "fixture": [
+        "c-hook"
+      ],
+      "summary": "S-BEAM 上运行的三轴桥式起重机",
+      "plate": "demo_data",
+      "params": {
+        "span": {
+          "label": "跨度",
+          "nominal": 22500,
+          "min": 10000,
+          "max": 30000,
+          "step": 100
+        },
+        "liftHeight": {
+          "label": "起升高度",
+          "nominal": 12000,
+          "min": 6000,
+          "max": 18000,
+          "step": 100
+        }
+      },
+      "modelUrl": null,
+      "thumbUrl": null,
+      "procedural": true,
+      "source": "builtin",
+      "overridden": false,
+      "createdAt": "2026-11-10T06:32:15.948Z",
+      "updatedAt": "2026-11-10T06:32:15.948Z"
+    },
+    {
+      "model": "钢管起重机",
+      "name": "钢管起重机",
+      "category": "overhead_crane",
+      "modelAssetId": "a_mwarbvh1d2cc61bc64",
+      "params": {},
+      "modelUrl": "/library/files/a_mwarbvh1d2cc61bc64/model.glb",
+      "bboxM": {
+        "x": 1.5404,
+        "y": 4.743,
+        "z": 10.7633
+      },
+      "id": "p-4ad38f",
+      "source": "user",
+      "createdAt": "2026-11-10T14:00:53.055Z",
+      "updatedAt": "2026-11-10T14:00:53.055Z"
+    },
+    {
+      "model": "5t(1)",
+      "name": "5t 起重机",
+      "category": "overhead_crane",
+      "modelAssetId": "a_mwarc2fy29feb98a9f",
+      "params": {},
+      "modelUrl": "/library/files/a_mwarc2fy29feb98a9f/model.glb",
+      "bboxM": {
+        "x": 2.9603,
+        "y": 10.602,
+        "z": 22.9807
+      },
+      "id": "5t-1",
+      "source": "user",
+      "createdAt": "2026-11-10T14:00:53.093Z",
+      "updatedAt": "2026-11-10T14:00:53.093Z"
+    },
+    {
+      "model": "铝卷鞍座",
+      "category": "saddle",
+      "summary": "轮廓拉伸件，text-to-cad 参数化生成，外形 2500 × 2500 × 2500 mm",
+      "params": {},
+      "modelAssetId": "a_mwarf7j1930aaa57bc",
+      "cad": {
+        "template": "profile",
+        "params": {
+          "points": [
+            [
+              1250,
+              1250
+            ],
+            [
+              1207.41,
+              1573.52
+            ],
+            [
+              1082.53,
+              1875
+            ],
+            [
+              883.88,
+              2133.88
+            ],
+            [
+              625,
+              2332.53
+            ],
+            [
+              323.52,
+              2457.41
+            ],
+            [
+              0,
+              2500
+            ],
+            [
+              -323.52,
+              2457.41
+            ],
+            [
+              -625,
+              2332.53
+            ],
+            [
+              -883.88,
+              2133.88
+            ],
+            [
+              -1082.53,
+              1875
+            ],
+            [
+              -1207.41,
+              1573.52
+            ],
+            [
+              -1250,
+              1250
+            ],
+            [
+              -1207.41,
+              926.48
+            ],
+            [
+              -1082.53,
+              625
+            ],
+            [
+              -883.88,
+              366.12
+            ],
+            [
+              -625,
+              167.47
+            ],
+            [
+              -323.52,
+              42.59
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              323.52,
+              42.59
+            ],
+            [
+              625,
+              167.47
+            ],
+            [
+              883.88,
+              366.12
+            ],
+            [
+              1082.53,
+              625
+            ],
+            [
+              1207.41,
+              926.48
+            ]
+          ],
+          "depth": 2500,
+          "holes": [],
+          "axis": "x"
+        },
+        "stepUrl": "/library/files/a_mwarf7j1930aaa57bc/model.step"
+      },
+      "id": "cad-profile-mwarf7jx",
+      "thumbUrl": "/library/files/a_mwarf7j1930aaa57bc/preview.png",
+      "modelUrl": "/library/files/a_mwarf7j1930aaa57bc/model.glb",
+      "bboxM": {
+        "x": 2.5,
+        "y": 2.5,
+        "z": 2.5
+      },
+      "source": "user",
+      "createdAt": "2026-11-10T14:02:45.901Z",
+      "updatedAt": "2026-11-10T14:02:45.901Z"
+    },
+    {
+      "model": "套筒鞍座",
+      "category": "saddle",
+      "summary": "轮廓拉伸件，text-to-cad 参数化生成，外形 2300 × 1600 × 2300 mm",
+      "params": {},
+      "modelAssetId": "a_mwarfg5ye406c9c866",
+      "cad": {
+        "template": "profile",
+        "params": {
+          "points": [
+            [
+              -800,
+              0
+            ],
+            [
+              -800,
+              2300
+            ],
+            [
+              800,
+              2300
+            ],
+            [
+              800,
+              0
+            ]
+          ],
+          "depth": 2300,
+          "holes": [
+            [
+              [
+                -650,
+                50
+              ],
+              [
+                -650,
+                2250
+              ],
+              [
+                -470,
+                2250
+              ],
+              [
+                -470,
+                50
+              ]
+            ],
+            [
+              [
+                150,
+                50
+              ],
+              [
+                150,
+                2250
+              ],
+              [
+                330,
+                2250
+              ],
+              [
+                330,
+                50
+              ]
+            ],
+            [
+              [
+                650,
+                50
+              ],
+              [
+                650,
+                2250
+              ],
+              [
+                470,
+                2250
+              ],
+              [
+                470,
+                50
+              ]
+            ],
+            [
+              [
+                -150,
+                50
+              ],
+              [
+                -150,
+                2250
+              ],
+              [
+                -330,
+                2250
+              ],
+              [
+                -330,
+                50
+              ]
+            ]
+          ],
+          "axis": "x"
+        },
+        "stepUrl": "/library/files/a_mwarfg5ye406c9c866/model.step"
+      },
+      "id": "cad-profile-mwarfg6j",
+      "thumbUrl": "/library/files/a_mwarfg5ye406c9c866/preview.png",
+      "modelUrl": "/library/files/a_mwarfg5ye406c9c866/model.glb",
+      "bboxM": {
+        "x": 2.3,
+        "y": 2.3,
+        "z": 1.6
+      },
+      "source": "user",
+      "createdAt": "2026-11-10T14:02:57.082Z",
+      "updatedAt": "2026-11-10T14:02:57.082Z"
+    },
+    {
+      "model": "AGV鞍座",
+      "category": "saddle",
+      "summary": "轮廓拉伸件，text-to-cad 参数化生成，外形 2600 × 2400 × 2600 mm",
+      "params": {},
+      "modelAssetId": "a_mwarfo5af0482105e1",
+      "cad": {
+        "template": "profile",
+        "params": {
+          "points": [
+            [
+              1200,
+              0
+            ],
+            [
+              -1200,
+              0
+            ],
+            [
+              -1200,
+              2600
+            ],
+            [
+              1200,
+              2600
+            ]
+          ],
+          "depth": 2600,
+          "holes": [],
+          "axis": "x"
+        },
+        "stepUrl": "/library/files/a_mwarfo5af0482105e1/model.step"
+      },
+      "id": "cad-profile-mwarfo5n",
+      "thumbUrl": "/library/files/a_mwarfo5af0482105e1/preview.png",
+      "modelUrl": "/library/files/a_mwarfo5af0482105e1/model.glb",
+      "bboxM": {
+        "x": 2.6,
+        "y": 2.6,
+        "z": 2.4
+      },
+      "source": "user",
+      "createdAt": "2026-11-10T14:03:07.412Z",
+      "updatedAt": "2026-11-10T14:03:07.412Z"
+    },
+    {
+      "model": "起重机(1)",
+      "name": "智能起重机",
+      "category": "overhead_crane",
+      "modelAssetId": "a_mwas75yo8a9c609b55",
+      "params": {},
+      "modelUrl": "/library/files/a_mwas75yo8a9c609b55/model.glb",
+      "bboxM": {
+        "x": 5.575,
+        "y": 11.2493,
+        "z": 26.5
+      },
+      "id": "1",
+      "source": "user",
+      "createdAt": "2026-11-10T14:24:53.313Z",
+      "updatedAt": "2026-11-10T14:24:53.313Z"
+    },
+    {
+      "model": "起重机(2)",
+      "name": "桥式起重机",
+      "category": "overhead_crane",
+      "modelAssetId": "a_mwat6jufeae98773e5",
+      "params": {},
+      "modelUrl": "/library/files/a_mwat6jufeae98773e5/model.glb",
+      "bboxM": {
+        "x": 5.575,
+        "y": 11.2493,
+        "z": 26.5
+      },
+      "id": "2",
+      "source": "user",
+      "createdAt": "2026-11-10T14:53:52.143Z",
+      "updatedAt": "2026-11-10T14:53:52.143Z"
+    },
+    {
+      "model": "13tAGV",
+      "name": "13t AGV",
+      "category": "vehicle",
+      "modelAssetId": "a_mwat6u6t77e0a1d3a8",
+      "params": {},
+      "modelUrl": "/library/files/a_mwat6u6t77e0a1d3a8/model.glb",
+      "bboxM": {
+        "x": 2.0024,
+        "y": 0.9323,
+        "z": 4.0638
+      },
+      "id": "13tagv",
+      "source": "user",
+      "createdAt": "2026-11-10T14:53:52.187Z",
+      "updatedAt": "2026-11-10T14:53:52.187Z"
+    },
+    {
+      "model": "钢卷",
+      "name": "钢卷",
+      "category": "coil",
+      "modelAssetId": "a_mwat8n8k474cd4ecde",
+      "params": {},
+      "modelUrl": "/library/files/a_mwat8n8k474cd4ecde/model.glb",
+      "bboxM": {
+        "x": 1.856,
+        "y": 2.2,
+        "z": 1.8541
+      },
+      "id": "p-82d99e",
+      "source": "user",
+      "createdAt": "2026-11-10T14:53:52.272Z",
+      "updatedAt": "2026-11-10T14:53:52.272Z"
+    },
+    {
+      "model": "AGV鞍座",
+      "name": "AGV鞍座",
+      "category": "saddle",
+      "modelAssetId": "a_mwat8n9k301a90af6f",
+      "params": {},
+      "modelUrl": "/library/files/a_mwat8n9k301a90af6f/model.glb",
+      "bboxM": {
+        "x": 2.8,
+        "y": 1.2246,
+        "z": 2.4
+      },
+      "id": "agv",
+      "source": "user",
+      "createdAt": "2026-11-10T14:53:52.342Z",
+      "updatedAt": "2026-11-10T14:53:52.342Z"
+    },
+    {
+      "model": "货物鞍座",
+      "name": "货物鞍座",
+      "category": "saddle",
+      "modelAssetId": "a_mwat8ndf4c00c504c2",
+      "params": {},
+      "modelUrl": "/library/files/a_mwat8ndf4c00c504c2/model.glb",
+      "bboxM": {
+        "x": 2.2,
+        "y": 0.2908,
+        "z": 2.5
+      },
+      "id": "p-97cd6b",
+      "source": "user",
+      "createdAt": "2026-11-10T14:53:52.381Z",
+      "updatedAt": "2026-11-10T14:53:52.381Z"
+    }
+  ]
+}

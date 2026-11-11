@@ -109,7 +109,7 @@ export class Library {
     await this.reload();
     // Bring back the scene that was open last time (drawing, placed models, AGV model).
     const scene = this.ws.activeScene;
-    if (scene.drawing || scene.overlay || scene.placed.length || (scene.productId && scene.productId !== this.app.product?.id)) {
+    if (scene.drawing || scene.overlay || scene.placed.length || scene.warehouse || (scene.productId && scene.productId !== this.app.product?.id)) {
       const errors = await this.applyScene(scene);
       if (errors.length) this.app.toast(`场景「${scene.name}」有 ${errors.length} 项没能还原：${errors[0]}`, true);
     }
@@ -255,6 +255,7 @@ export class Library {
     s.overlay = this.overlay?.asset.id ?? null;
     s.placed = [...this.placed.values()].map((p) => ({ assetId: p.asset.id, x: Math.round(p.x), y: Math.round(p.y), rotate: p.heading ?? 0, size: p.size ?? null, mount: p.mount ?? 'floor', bay: p.bay ?? null, base: p.base ?? 0 }));
     s.productId = this.app.product?.id ?? s.productId;
+    if (this.app.warehouse) s.warehouse = this.app.warehouse.toJSON();
   }
 
   async reload() {
@@ -836,7 +837,7 @@ export class Library {
     const n = open ? this.placed.size : s.placed.length;
     if (!confirm(`把场景「${s.name}」清空为空白场景？\n${n ? `场景里的 ${n} 个模型会移出，` : ''}图纸不再作为底座（文件本身不受影响）。`)) return;
     if (!open) await this.switchProject(projectId, sceneId);
-    Object.assign(s, { drawing: BLANK_DRAWING, overlay: null, placed: [] });
+    Object.assign(s, { drawing: BLANK_DRAWING, overlay: null, placed: [], warehouse: null });
     const errors = await this.applyScene(s);
     if (errors.length) throw new Error(errors[0]);
     this.persistSoon();
@@ -971,6 +972,8 @@ export class Library {
         }
       }
       if (scene.productId && scene.productId !== app.product?.id && catalogHas(scene.productId) && !app.site.isScene) await app.selectProduct(scene.productId);
+      // 货位库存 after the plant, so the zones sit in the plant they were laid out in.
+      if (app.warehouse) await app.warehouse.load(scene.warehouse).catch((error) => errors.push(`货位库存：${error.message}`));
     } finally {
       this.switching = was;
     }

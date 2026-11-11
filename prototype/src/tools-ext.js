@@ -248,6 +248,7 @@ export function createExtTools(app, { runCore }) {
     layout_slots: async (a) => {
       if (a.saddle_asset) await app.library.reload();
       const r = await warehouse.layout(a);
+      app.save?.();
       app.setTab('slots', true);
       lookAtZone();
       return { result: { ...r, 提示: '货位已生成，可用 fill_inventory 填入库存' }, chip: `库区 ${r.库区} · ${r.货位总数} 货位` };
@@ -255,6 +256,7 @@ export function createExtTools(app, { runCore }) {
 
     fill_inventory: (a) => {
       const r = warehouse.fill(a);
+      app.save?.();
       app.setTab('slots', true);
       lookAtZone();
       return { result: r, chip: `已用 ${r.已用货位} · 空置 ${r.空置货位}`, card: card('库存统计', `利用率 ${r.利用率}`, `<div class="spec"><div><small>已用货位</small><span class="num">${r.已用货位} 个</span></div><div><small>空置货位</small><span class="num">${r.空置货位} 个</span></div>${r.超出容量未入库 ? `<div><small>超出容量</small><span class="warn">${r.超出容量未入库} 件未入库</span></div>` : ''}</div>`) };
@@ -265,10 +267,12 @@ export function createExtTools(app, { runCore }) {
         if (!a.zone) throw new Error('删除库区需要给 zone');
         if (!warehouse.remove(a.zone)) throw new Error(`没有库区 ${a.zone}`);
         app.bump();
+        app.save?.();
         app.renderDock();
         return { result: { 已删除库区: a.zone }, chip: `删除库区 ${a.zone}` };
       }
       const r = warehouse.clear(a.zone);
+      app.save?.();
       app.renderDock();
       return { result: r, chip: '清空库存' };
     },

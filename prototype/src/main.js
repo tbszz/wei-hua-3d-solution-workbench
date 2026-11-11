@@ -1174,7 +1174,9 @@ function sceneHtml() {
 }
 
 function renderDock() {
-  if (site.isScene && (!site.flow || app.tab === 'scene' || !app.product)) {
+  const sceneOnly = site.isScene && (!site.flow || app.tab === 'scene' || !app.product);
+  $('drawer').classList.toggle('params-mode', app.tab === 'params' && !sceneOnly);
+  if (sceneOnly) {
     $('dockMain').innerHTML = sceneHtml();
     return;
   }

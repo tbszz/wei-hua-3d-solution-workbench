@@ -1,0 +1,1093 @@
+{
+  "version": 267,
+  "state": {
+    "v": 3,
+    "activeProject": "p-mwaxkz6411xko",
+    "projects": [
+      {
+        "id": "p-mwaldzhq1mp6",
+        "name": "冷轧车间 AGV + 行车方案",
+        "products": [
+          {
+            "key": "pp-mwaldzhr20os",
+            "productId": "agv1",
+            "name": null
+          },
+          {
+            "key": "pp-mwaldzhr3kw8",
+            "productId": "double-girder-crane-demo",
+            "name": null
+          },
+          {
+            "key": "pp-mwalx0jd358p",
+            "productId": "z1-1000-bz",
+            "name": null
+          },
+          {
+            "key": "pp-mwarkowv614z",
+            "productId": "p-4ad38f",
+            "name": null
+          },
+          {
+            "key": "pp-mwas7ntv7ncn",
+            "productId": "1",
+            "name": null
+          }
+        ],
+        "scenes": [
+          {
+            "id": "s-mwaldzhq0jqb",
+            "name": "场景搭建",
+            "kind": "site",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwasdsgx2ii7",
+            "name": "鞍座搭建",
+            "kind": "custom",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwasdsgx38wm",
+            "name": "产品搭建",
+            "kind": "custom",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": null
+          },
+          {
+            "id": "s-mwasj7rq37p6",
+            "name": "鞍座搭建",
+            "kind": "saddle",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": null
+          },
+          {
+            "id": "s-mwasj7rq4xd7",
+            "name": "产品搭建",
+            "kind": "product",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": null
+          }
+        ],
+        "assets": [
+          "a_mwacwg11474b2605d2",
+          "a_mwae39b178734c313a",
+          "a_mwalczr80d5b90fba3",
+          "a_mwapl5taf851514494",
+          "a_mwar4ykn3b891087e8",
+          "a_mwar7ni0a930c2507d",
+          "a_mwarbv0d0f53a801b2",
+          "a_mwarbv2nc61ad04c1a",
+          "a_mwarbvei488fac3590",
+          "a_mwarbvfq1330fcc4c1",
+          "a_mwarbvh1d2cc61bc64",
+          "a_mwarc2fy29feb98a9f",
+          "a_mwarc4or6e78c0afc7",
+          "a_mwarc4t4d906b557d9",
+          "a_mwarf7j1930aaa57bc",
+          "a_mwarfg5ye406c9c866",
+          "a_mwarfo5af0482105e1",
+          "a_mwaro595e232b00f4b",
+          "a_mwaro59ee4845d9e19",
+          "a_mwaro59qa6459bce06",
+          "a_mwaro5a560f8c8938b",
+          "a_mwaro5ahd4013953dc",
+          "a_mwaro5aw2eed7261a4",
+          "a_mwaro5b97faf659b84",
+          "a_mwaro5bp9a445b2dce",
+          "a_mwaro5bz2ed754fbed",
+          "a_mwaro5ccaf8b80d7b7",
+          "a_mwaro5co7e7e6f33cf",
+          "a_mwas75yo8a9c609b55"
+        ],
+        "activeScene": "s-mwaldzhq0jqb"
+      },
+      {
+        "id": "p-mwasxamnbp6z",
+        "name": "××钢铁行业项目",
+        "products": [
+          {
+            "key": "pp-mwasxamnc359",
+            "productId": "agv1",
+            "name": null
+          },
+          {
+            "key": "pp-mwasxamndzsi",
+            "productId": "double-girder-crane-demo",
+            "name": null
+          },
+          {
+            "key": "pp-mwasxamne4bf",
+            "productId": "z1-1000-bz",
+            "name": null
+          },
+          {
+            "key": "pp-mwasxamnfvch",
+            "productId": "p-4ad38f",
+            "name": null
+          },
+          {
+            "key": "pp-mwasxamngrjl",
+            "productId": "1",
+            "name": null
+          },
+          {
+            "key": "pp-mwat8xkdi3ei",
+            "productId": "13tagv",
+            "name": null
+          },
+          {
+            "key": "pp-mwat8xmdj7lc",
+            "productId": "p-82d99e",
+            "name": null
+          },
+          {
+            "key": "pp-mwat8xo1kvfa",
+            "productId": "agv",
+            "name": null
+          },
+          {
+            "key": "pp-mwat8xp8lpzs",
+            "productId": "p-97cd6b",
+            "name": null
+          }
+        ],
+        "scenes": [
+          {
+            "id": "s-mwasxamn6cxc",
+            "name": "场景搭建",
+            "kind": "site",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [
+              {
+                "assetId": "2",
+                "x": -222593,
+                "y": 160112,
+                "rotate": 0,
+                "size": 26.5,
+                "mount": "runway",
+                "bay": "A",
+                "base": 9.85
+              },
+              {
+                "assetId": "13tagv",
+                "x": -160000,
+                "y": 165000,
+                "rotate": 0,
+                "size": 4.06,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "13tagv",
+                "x": -265000,
+                "y": 209000,
+                "rotate": 0,
+                "size": 4.06,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "13tagv",
+                "x": -265000,
+                "y": 182000,
+                "rotate": 0,
+                "size": 4.06,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "13tagv",
+                "x": -115000,
+                "y": 182000,
+                "rotate": 0,
+                "size": 4.06,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -265000,
+                "y": 158000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -200000,
+                "y": 158000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "p-97cd6b",
+                "x": -245000,
+                "y": 158000,
+                "rotate": 0,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "p-97cd6b",
+                "x": -120000,
+                "y": 158000,
+                "rotate": 0,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -210250,
+                "y": 242000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -206750,
+                "y": 242000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -203250,
+                "y": 242000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -199750,
+                "y": 242000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -155250,
+                "y": 245000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -151750,
+                "y": 245000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -148250,
+                "y": 245000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -144750,
+                "y": 245000,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -285000,
+                "y": 216877,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -238250,
+                "y": 249160,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -234750,
+                "y": 249160,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -238250,
+                "y": 235870,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokmwce94b06322",
+                "x": -234750,
+                "y": 235870,
+                "rotate": 90,
+                "size": 2.5,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -151945,
+                "y": 235655,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -109606,
+                "y": 195946,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -242619,
+                "y": 253000,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -273172,
+                "y": 234794,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -112259,
+                "y": 221558,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "a_mwauokr668d25f42e0",
+                "x": -119460,
+                "y": 240767,
+                "rotate": 90,
+                "size": 2.8,
+                "mount": "floor",
+                "bay": null,
+                "base": 0
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -210250,
+                "y": 242000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -206750,
+                "y": 242000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -203250,
+                "y": 242000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -199750,
+                "y": 242000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -155250,
+                "y": 245000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -151750,
+                "y": 245000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -148250,
+                "y": 245000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -144750,
+                "y": 245000,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -238250,
+                "y": 249160,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -234750,
+                "y": 249160,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -238250,
+                "y": 235870,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              },
+              {
+                "assetId": "p-82d99e",
+                "x": -234750,
+                "y": 235870,
+                "rotate": 0,
+                "size": 2.2,
+                "mount": "floor",
+                "bay": null,
+                "base": 0.29
+              }
+            ],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwasxamn7lm6",
+            "name": "货位布局设计",
+            "kind": "custom",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwasxamnaugn",
+            "name": "产品搭建",
+            "kind": "product",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          }
+        ],
+        "assets": [
+          "a_mwacwg11474b2605d2",
+          "a_mwae39b178734c313a",
+          "a_mwalczr80d5b90fba3",
+          "a_mwapl5taf851514494",
+          "a_mwar4ykn3b891087e8",
+          "a_mwar7ni0a930c2507d",
+          "a_mwarbv0d0f53a801b2",
+          "a_mwarbv2nc61ad04c1a",
+          "a_mwarbvei488fac3590",
+          "a_mwarbvfq1330fcc4c1",
+          "a_mwarbvh1d2cc61bc64",
+          "a_mwarc2fy29feb98a9f",
+          "a_mwarc4or6e78c0afc7",
+          "a_mwarc4t4d906b557d9",
+          "a_mwarf7j1930aaa57bc",
+          "a_mwarfg5ye406c9c866",
+          "a_mwarfo5af0482105e1",
+          "a_mwaro595e232b00f4b",
+          "a_mwaro59ee4845d9e19",
+          "a_mwaro59qa6459bce06",
+          "a_mwaro5a560f8c8938b",
+          "a_mwaro5ahd4013953dc",
+          "a_mwaro5aw2eed7261a4",
+          "a_mwaro5b97faf659b84",
+          "a_mwaro5bp9a445b2dce",
+          "a_mwaro5bz2ed754fbed",
+          "a_mwaro5ccaf8b80d7b7",
+          "a_mwaro5co7e7e6f33cf",
+          "a_mwas75yo8a9c609b55",
+          "a_mwat6ju3b1a65910c4",
+          "a_mwat6jufeae98773e5",
+          "a_mwat6u6d8f20b95486",
+          "a_mwat6u6t77e0a1d3a8",
+          "a_mwat8n8889c5f40f76",
+          "a_mwat8n8k474cd4ecde",
+          "a_mwat8n99525b39ee40",
+          "a_mwat8n9k301a90af6f",
+          "a_mwat8nd670c05111d6",
+          "a_mwat8ndf4c00c504c2",
+          "a_mwat9c6la349868b92",
+          "a_mwatbah0b2ee8ea199",
+          "a_mwatbah68d70715eba",
+          "a_mwatbahk31d7f8d2ce",
+          "a_mwatbahw3d7169ec27",
+          "a_mwatbai72b6c3d6380",
+          "a_mwatbailc6995ca80f",
+          "a_mwatbaiufb59adabeb",
+          "a_mwatbajb4601af41ed",
+          "a_mwatbajn22843d91d2",
+          "a_mwatbak262f39f1f35",
+          "a_mwatbakgea64f436a1",
+          "a_mwauokmwce94b06322",
+          "a_mwauokqpfaa2e5a865",
+          "a_mwauokr668d25f42e0",
+          "a_mwauokv6acbf4509c8"
+        ],
+        "activeScene": "s-mwasxamn7lm6"
+      },
+      {
+        "id": "p-mwawg7fwkm0q",
+        "name": "冷轧车间 AGV + 行车方案 2",
+        "products": [
+          {
+            "key": "pp-mwawg7fwl3ub",
+            "productId": "agv1",
+            "name": null
+          },
+          {
+            "key": "pp-mwawg7fwm6lk",
+            "productId": "double-girder-crane-demo",
+            "name": null
+          },
+          {
+            "key": "pp-mwawg7fwn3fv",
+            "productId": "z1-1000-bz",
+            "name": null
+          },
+          {
+            "key": "pp-mwawg7fwoskb",
+            "productId": "p-4ad38f",
+            "name": null
+          },
+          {
+            "key": "pp-mwawg7fwp30f",
+            "productId": "1",
+            "name": null
+          }
+        ],
+        "scenes": [
+          {
+            "id": "s-mwawg7fwfqeq",
+            "name": "场景搭建",
+            "kind": "site",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwawg7fwjij1",
+            "name": "产品搭建",
+            "kind": "product",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwax4053i6ul",
+            "name": "货位布局设计",
+            "kind": "custom",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          }
+        ],
+        "assets": [
+          "a_mwacwg11474b2605d2",
+          "a_mwae39b178734c313a",
+          "a_mwalczr80d5b90fba3",
+          "a_mwapl5taf851514494",
+          "a_mwar4ykn3b891087e8",
+          "a_mwar7ni0a930c2507d",
+          "a_mwarbv0d0f53a801b2",
+          "a_mwarbv2nc61ad04c1a",
+          "a_mwarbvei488fac3590",
+          "a_mwarbvfq1330fcc4c1",
+          "a_mwarbvh1d2cc61bc64",
+          "a_mwarc2fy29feb98a9f",
+          "a_mwarc4or6e78c0afc7",
+          "a_mwarc4t4d906b557d9",
+          "a_mwarf7j1930aaa57bc",
+          "a_mwarfg5ye406c9c866",
+          "a_mwarfo5af0482105e1",
+          "a_mwaro595e232b00f4b",
+          "a_mwaro59ee4845d9e19",
+          "a_mwaro59qa6459bce06",
+          "a_mwaro5a560f8c8938b",
+          "a_mwaro5ahd4013953dc",
+          "a_mwaro5aw2eed7261a4",
+          "a_mwaro5b97faf659b84",
+          "a_mwaro5bp9a445b2dce",
+          "a_mwaro5bz2ed754fbed",
+          "a_mwaro5ccaf8b80d7b7",
+          "a_mwaro5co7e7e6f33cf",
+          "a_mwas75yo8a9c609b55"
+        ],
+        "activeScene": "s-mwawg7fwjij1"
+      },
+      {
+        "id": "p-mwaxkz6411xko",
+        "name": "××钢铁行业自动化吊装搬运项目",
+        "products": [
+          {
+            "key": "pp-mwaxkz6412naf",
+            "productId": "agv1",
+            "name": null
+          },
+          {
+            "key": "pp-mwaxkz6413od5",
+            "productId": "double-girder-crane-demo",
+            "name": null
+          },
+          {
+            "key": "pp-mwaxkz6414p2i",
+            "productId": "z1-1000-bz",
+            "name": null
+          },
+          {
+            "key": "pp-mwaxkz6415giv",
+            "productId": "p-4ad38f",
+            "name": null
+          },
+          {
+            "key": "pp-mwaxkz6416pwp",
+            "productId": "1",
+            "name": null
+          }
+        ],
+        "scenes": [
+          {
+            "id": "s-mwaxkz64wpyv",
+            "name": "场景搭建",
+            "kind": "site",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwaxkz64z86c",
+            "name": "鞍座搭建",
+            "kind": "saddle",
+            "drawing": null,
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          },
+          {
+            "id": "s-mwaxq3r4226xn",
+            "name": "货位布局设计",
+            "kind": "custom",
+            "drawing": "a_mwar7ni0a930c2507d",
+            "label": null,
+            "overlay": null,
+            "placed": [],
+            "productId": "agv1"
+          }
+        ],
+        "assets": [
+          "a_mwacwg11474b2605d2",
+          "a_mwae39b178734c313a",
+          "a_mwalczr80d5b90fba3",
+          "a_mwapl5taf851514494",
+          "a_mwar4ykn3b891087e8",
+          "a_mwar7ni0a930c2507d",
+          "a_mwarbv0d0f53a801b2",
+          "a_mwarbv2nc61ad04c1a",
+          "a_mwarbvei488fac3590",
+          "a_mwarbvfq1330fcc4c1",
+          "a_mwarbvh1d2cc61bc64",
+          "a_mwarc2fy29feb98a9f",
+          "a_mwarc4or6e78c0afc7",
+          "a_mwarc4t4d906b557d9",
+          "a_mwarf7j1930aaa57bc",
+          "a_mwarfg5ye406c9c866",
+          "a_mwarfo5af0482105e1",
+          "a_mwaro595e232b00f4b",
+          "a_mwaro59ee4845d9e19",
+          "a_mwaro59qa6459bce06",
+          "a_mwaro5a560f8c8938b",
+          "a_mwaro5ahd4013953dc",
+          "a_mwaro5aw2eed7261a4",
+          "a_mwaro5b97faf659b84",
+          "a_mwaro5bp9a445b2dce",
+          "a_mwaro5bz2ed754fbed",
+          "a_mwaro5ccaf8b80d7b7",
+          "a_mwaro5co7e7e6f33cf",
+          "a_mwas75yo8a9c609b55"
+        ],
+        "activeScene": "s-mwaxq3r4226xn"
+      }
+    ],
+    "archives": [
+      {
+        "id": "a-mwaxraet23r81",
+        "projectId": "p-mwaxkz6411xko",
+        "name": "××钢铁行业自动化吊装搬运项目",
+        "archivedAt": 1794330007157,
+        "project": {
+          "id": "p-mwaxkz6411xko",
+          "name": "××钢铁行业自动化吊装搬运项目",
+          "products": [
+            {
+              "key": "pp-mwaxkz6412naf",
+              "productId": "agv1",
+              "name": null
+            },
+            {
+              "key": "pp-mwaxkz6413od5",
+              "productId": "double-girder-crane-demo",
+              "name": null
+            },
+            {
+              "key": "pp-mwaxkz6414p2i",
+              "productId": "z1-1000-bz",
+              "name": null
+            },
+            {
+              "key": "pp-mwaxkz6415giv",
+              "productId": "p-4ad38f",
+              "name": null
+            },
+            {
+              "key": "pp-mwaxkz6416pwp",
+              "productId": "1",
+              "name": null
+            }
+          ],
+          "scenes": [
+            {
+              "id": "s-mwaxkz64wpyv",
+              "name": "场景搭建",
+              "kind": "site",
+              "drawing": "a_mwar7ni0a930c2507d",
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": "agv1"
+            },
+            {
+              "id": "s-mwaxkz64z86c",
+              "name": "鞍座搭建",
+              "kind": "saddle",
+              "drawing": null,
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": null
+            },
+            {
+              "id": "s-mwaxq3r4226xn",
+              "name": "货位布局设计",
+              "kind": "custom",
+              "drawing": "a_mwar7ni0a930c2507d",
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": "agv1"
+            }
+          ],
+          "assets": [
+            "a_mwacwg11474b2605d2",
+            "a_mwae39b178734c313a",
+            "a_mwalczr80d5b90fba3",
+            "a_mwapl5taf851514494",
+            "a_mwar4ykn3b891087e8",
+            "a_mwar7ni0a930c2507d",
+            "a_mwarbv0d0f53a801b2",
+            "a_mwarbv2nc61ad04c1a",
+            "a_mwarbvei488fac3590",
+            "a_mwarbvfq1330fcc4c1",
+            "a_mwarbvh1d2cc61bc64",
+            "a_mwarc2fy29feb98a9f",
+            "a_mwarc4or6e78c0afc7",
+            "a_mwarc4t4d906b557d9",
+            "a_mwarf7j1930aaa57bc",
+            "a_mwarfg5ye406c9c866",
+            "a_mwarfo5af0482105e1",
+            "a_mwaro595e232b00f4b",
+            "a_mwaro59ee4845d9e19",
+            "a_mwaro59qa6459bce06",
+            "a_mwaro5a560f8c8938b",
+            "a_mwaro5ahd4013953dc",
+            "a_mwaro5aw2eed7261a4",
+            "a_mwaro5b97faf659b84",
+            "a_mwaro5bp9a445b2dce",
+            "a_mwaro5bz2ed754fbed",
+            "a_mwaro5ccaf8b80d7b7",
+            "a_mwaro5co7e7e6f33cf",
+            "a_mwas75yo8a9c609b55"
+          ],
+          "activeScene": "s-mwaxq3r4226xn"
+        }
+      },
+      {
+        "id": "a-mwasx6uk536k",
+        "projectId": "p-mwaldzhq1mp6",
+        "name": "冷轧车间 AGV + 行车方案",
+        "archivedAt": 1794321884395,
+        "project": {
+          "id": "p-mwaldzhq1mp6",
+          "name": "冷轧车间 AGV + 行车方案",
+          "products": [
+            {
+              "key": "pp-mwaldzhr20os",
+              "productId": "agv1",
+              "name": null
+            },
+            {
+              "key": "pp-mwaldzhr3kw8",
+              "productId": "double-girder-crane-demo",
+              "name": null
+            },
+            {
+              "key": "pp-mwalx0jd358p",
+              "productId": "z1-1000-bz",
+              "name": null
+            },
+            {
+              "key": "pp-mwarkowv614z",
+              "productId": "p-4ad38f",
+              "name": null
+            },
+            {
+              "key": "pp-mwas7ntv7ncn",
+              "productId": "1",
+              "name": null
+            }
+          ],
+          "scenes": [
+            {
+              "id": "s-mwaldzhq0jqb",
+              "name": "场景搭建",
+              "kind": "site",
+              "drawing": "a_mwar7ni0a930c2507d",
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": "agv1"
+            },
+            {
+              "id": "s-mwasdsgx2ii7",
+              "name": "鞍座搭建",
+              "kind": "custom",
+              "drawing": null,
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": "agv1"
+            },
+            {
+              "id": "s-mwasdsgx38wm",
+              "name": "产品搭建",
+              "kind": "custom",
+              "drawing": null,
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": null
+            },
+            {
+              "id": "s-mwasj7rq37p6",
+              "name": "鞍座搭建",
+              "kind": "saddle",
+              "drawing": null,
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": null
+            },
+            {
+              "id": "s-mwasj7rq4xd7",
+              "name": "产品搭建",
+              "kind": "product",
+              "drawing": null,
+              "label": null,
+              "overlay": null,
+              "placed": [],
+              "productId": null
+            }
+          ],
+          "assets": [
+            "a_mwacwg11474b2605d2",
+            "a_mwae39b178734c313a",
+            "a_mwalczr80d5b90fba3",
+            "a_mwapl5taf851514494",
+            "a_mwar4ykn3b891087e8",
+            "a_mwar7ni0a930c2507d",
+            "a_mwarbv0d0f53a801b2",
+            "a_mwarbv2nc61ad04c1a",
+            "a_mwarbvei488fac3590",
+            "a_mwarbvfq1330fcc4c1",
+            "a_mwarbvh1d2cc61bc64",
+            "a_mwarc2fy29feb98a9f",
+            "a_mwarc4or6e78c0afc7",
+            "a_mwarc4t4d906b557d9",
+            "a_mwarf7j1930aaa57bc",
+            "a_mwarfg5ye406c9c866",
+            "a_mwarfo5af0482105e1",
+            "a_mwaro595e232b00f4b",
+            "a_mwaro59ee4845d9e19",
+            "a_mwaro59qa6459bce06",
+            "a_mwaro5a560f8c8938b",
+            "a_mwaro5ahd4013953dc",
+            "a_mwaro5aw2eed7261a4",
+            "a_mwaro5b97faf659b84",
+            "a_mwaro5bp9a445b2dce",
+            "a_mwaro5bz2ed754fbed",
+            "a_mwaro5ccaf8b80d7b7",
+            "a_mwaro5co7e7e6f33cf",
+            "a_mwas75yo8a9c609b55"
+          ],
+          "activeScene": "s-mwaldzhq0jqb"
+        }
+      }
+    ],
+    "open": {
+      "std": true,
+      "pj:p-mwaldzhq1mp6": true,
+      "pj:p-mwaldzhq1mp6:sc": true,
+      "pj:p-mwalvpoq2pv1": true,
+      "proj": true,
+      "pj:p-mwaldzhq1mp6:pp": true,
+      "ar:a-mwasx6uk536k": true,
+      "pj:p-mwasxamnbp6z:pp": true,
+      "pj:p-mwasxamnbp6z:sc": true,
+      "ar:a-mwaxraet23r81": false
+    }
+  },
+  "updatedAt": "2026-11-10T17:17:11.889Z"
+}

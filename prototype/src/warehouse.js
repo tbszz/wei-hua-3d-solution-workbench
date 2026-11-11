@@ -454,6 +454,68 @@ export class Warehouse {
     }
   }
 
+  // What the scene record keeps: every zone with its slots and what is stored in them (null = none).
+  toJSON() {
+    if (!this.zones.size) return null;
+    const zones = [...this.zones.values()].map((z) => ({
+      zone: z.zone, name: z.name, type: z.type, item: z.item, coil_d_mm: z.coilD, coil_w_mm: z.coilW, levels: z.levels,
+      pitch_x_mm: z.pitchX, pitch_y_mm: z.pitchY, heading_deg: +THREE.MathUtils.radToDeg(z.heading).toFixed(4),
+      saddle: z.saddle ?? {}, saddle_asset: z.saddleAsset?.id ?? null, skipped: z.skipped ?? [],
+      slots: z.slots.map((p) => ({ id: p.id, x: p.x, y: p.y, level: p.level, row: p.row ?? null, col: p.col ?? null, used: !!p.used, sku: p.sku ?? null, weight: p.weight ?? null })),
+    }));
+    return { zones, skuColors: { ...(this.skuColors ?? {}) } };
+  }
+
+  // Bring back what toJSON() saved, exactly as it was (no re-check against the plant, no drop-in
+  // animation). Unchanged data is left alone, so re-applying the same scene does not rebuild it.
+  async load(data) {
+    const want = Array.isArray(data?.zones) && data.zones.length ? data : null;
+    if (JSON.stringify(want) === JSON.stringify(this.toJSON())) return;
+    for (const zone of [...this.zones.keys()]) this.remove(zone);
+    this.animating = [];
+    this.skuColors = want ? { ...(want.skuColors ?? {}) } : {};
+    if (!want) {
+      this.app.bump?.();
+      return;
+    }
+    const missing = [];
+    for (const s of want.zones) {
+      if (!s?.zone || !Array.isArray(s.slots) || !s.slots.length) continue;
+      let saddleAsset = null;
+      if (s.saddle_asset) {
+        saddleAsset = this.app.library?.find(s.saddle_asset) ?? null;
+        if (saddleAsset?.kind !== 'model') {
+          saddleAsset = null;
+          missing.push(`库区 ${s.zone} 的鞍座模型已不在场景库，改用内置鞍座`);
+        }
+      }
+      const z = {
+        zone: s.zone, name: s.name ?? `${s.zone} 区`, type: s.type ?? 'saddle', item: s.item ?? 'coil', coilD: s.coil_d_mm ?? 1600, coilW: s.coil_w_mm ?? 1350,
+        levels: s.levels ?? 1, pitchX: s.pitch_x_mm, pitchY: s.pitch_y_mm, heading: THREE.MathUtils.degToRad(s.heading_deg ?? 0),
+        slots: s.slots.map((p) => ({ id: String(p.id), x: p.x, y: p.y, level: p.level ?? 1, row: p.row ?? null, col: p.col ?? null, used: !!p.used, sku: p.sku ?? null, weight: p.weight ?? null })),
+        saddle: s.saddle ?? {}, saddleAsset, group: new THREE.Group(), itemMesh: null, slotMesh: null, skipped: s.skipped ?? [],
+      };
+      z.group.name = `库区 ${z.zone}`;
+      try {
+        await this.buildZone(z);
+      } catch (error) {
+        if (!z.saddleAsset) throw error;
+        missing.push(`库区 ${s.zone} 的鞍座模型载入失败，改用内置鞍座`);
+        z.saddleAsset = null;
+        z.group = new THREE.Group();
+        z.group.name = `库区 ${z.zone}`;
+        await this.buildZone(z);
+      }
+      for (const p of z.slots) if (p.used && !this.skuColors[p.sku]) this.skuColors[p.sku] = SKU_COLORS[Object.keys(this.skuColors).length % SKU_COLORS.length];
+      this.paint(z);
+      this.zones.set(z.zone, z);
+      this.group.add(z.group);
+    }
+    this.attach();
+    this.app.bump?.();
+    if (missing.length) throw new Error(missing.join('；'));
+  }
+
   centre() {
     const all = [...this.zones.values()].flatMap((z) => z.slots);
     if (!all.length) return null;

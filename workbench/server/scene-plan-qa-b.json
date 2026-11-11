@@ -1,0 +1,44 @@
+{
+  "version": 0,
+  "product": {
+    "id": "agv1",
+    "model": "AGV1",
+    "params": {
+      "length": 2800,
+      "width": 1500,
+      "height": 381.9
+    }
+  },
+  "crane": null,
+  "fixtures": [],
+  "site": {
+    "source": null,
+    "stations": [],
+    "points": [],
+    "bounds": null,
+    "plant": null
+  },
+  "process": [],
+  "pendingProcess": null,
+  "takt": {
+    "targetSeconds": 120,
+    "achieved": null,
+    "gapSeconds": null
+  },
+  "animation": {
+    "playing": false,
+    "mode": "full",
+    "stepIndex": null,
+    "time": 0
+  },
+  "travel": {
+    "visible": false,
+    "devices": [],
+    "gantt": []
+  },
+  "camera": {
+    "preset": "overview",
+    "target": null
+  },
+  "lastAction": null
+}

@@ -245,3 +245,19 @@ test('scene subtitle can be set, survives copy/restore, and clears back to autom
   assert.equal(blank.drawing, BLANK_DRAWING);
   assert.equal(new Workspace(JSON.parse(JSON.stringify(ws.toJSON()))).scene(p.id, blank.id).drawing, BLANK_DRAWING);
 });
+
+test('货位库存 is kept in the scene record: saved, archived, restored and reloaded', () => {
+  const ws = new Workspace(null);
+  const p = ws.active;
+  const stock = { zones: [{ zone: 'A', name: 'A 区', type: 'saddle', slots: [{ id: 'A-01-01', x: 1000, y: 2000, level: 1, used: true, sku: '冷轧卷', weight: 20 }] }], skuColors: { 冷轧卷: '#2B7DE9' } };
+  ws.activeScene.warehouse = stock;
+  const rec = ws.archiveProject(p.id);
+  stock.zones[0].slots[0].used = false; // the case is a snapshot, later edits do not reach it
+  assert.equal(rec.project.scenes[0].warehouse.zones[0].slots[0].used, true);
+  const restored = ws.restoreArchive(rec.id);
+  assert.equal(restored.scenes[0].warehouse.zones[0].slots[0].sku, '冷轧卷');
+  const again = new Workspace(JSON.parse(JSON.stringify(ws.toJSON())));
+  assert.equal(again.archive(rec.id).project.scenes[0].warehouse.zones[0].slots[0].used, true);
+  assert.equal(again.activeScene.warehouse.zones[0].slots[0].sku, '冷轧卷');
+  assert.equal(again.project(p.id).scenes[1].warehouse, null);
+});

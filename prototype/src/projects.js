@@ -40,6 +40,8 @@ export function newScene(name = DEFAULT_SCENE_NAME, from = null, kind = null) {
     overlay: from?.overlay ?? null, // asset id of a drawing laid over the floor for reference
     placed: (from?.placed ?? []).map((p) => ({ ...p })),
     productId: from?.productId ?? null,
+    // 货位库存 (storage zones laid out by 小华 and what is stored in them), as Warehouse.toJSON() gives it
+    warehouse: Array.isArray(from?.warehouse?.zones) && from.warehouse.zones.length ? copy(from.warehouse) : null,
   };
 }
 
